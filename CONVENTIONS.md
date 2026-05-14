@@ -46,6 +46,7 @@ registered in `src/lib/strategies/index.ts`. The canonical example is
 `identity.ts` — follow its shape.
 
 Every strategy must:
+
 - Implement `sampleStep(token, t, rng) -> token`.
 - Declare its config schema (a typed object).
 - Declare its stationary-distribution behavior: `'uniform'`,
@@ -57,6 +58,7 @@ Strategies must not import schedules, workers, or stores. They are pure.
 ## Schedules
 
 A `Schedule` lives in `src/lib/schedules/<name>.ts` and exposes:
+
 - `beta(t: number, T: number) -> number`
 - `cumulative(t: number, T: number) -> number` when closed-form,
   otherwise compute by accumulation in the engine.
@@ -101,6 +103,7 @@ Document any non-obvious library API in `docs/libraries.md` so we don't
 re-hallucinate it next session.
 
 Current pins worth knowing:
+
 - `@huggingface/transformers`: tokenizer-only usage, no inference.
   (Add the actual version pin and a one-line API note here once chosen.)
 

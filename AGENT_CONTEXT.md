@@ -99,5 +99,5 @@ any schedule.
 Austin et al., "Structured Denoising Diffusion Models in Discrete State-Spaces"
 (NeurIPS 2021), arXiv:2107.03006. Use Appendix A.2 (transition matrices) and
 A.4 (efficient representation) as the primary technical references. Note that
-the paper's $\bar{Q}_t$ formalism is useful for *understanding* what each
+the paper's $\bar{Q}_t$ formalism is useful for _understanding_ what each
 strategy does, but our implementation uses coupled stepwise sampling, not matrix-vector products against $\bar{Q}_t$.
