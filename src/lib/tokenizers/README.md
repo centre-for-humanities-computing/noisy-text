@@ -15,10 +15,10 @@
 
 ## Current tokenizers
 
-| id                  | model                        | algorithm    |
-|---------------------|------------------------------|--------------|
-| `gpt2`              | `Xenova/gpt2`                | BPE          |
-| `bert-base-uncased` | `Xenova/bert-base-uncased`   | WordPiece    |
+| id                  | model                      | algorithm |
+| ------------------- | -------------------------- | --------- |
+| `gpt2`              | `Xenova/gpt2`              | BPE       |
+| `bert-base-uncased` | `Xenova/bert-base-uncased` | WordPiece |
 
 ## Notes
 
