@@ -8,21 +8,11 @@
     onchange: (id: string) => void;
   }
 
-  let { value, options, disabled }: Props = $props();
-
-  function onChange(e: Event): void {
-    const select = e.target as HTMLSelectElement;
-    dispatch(select.value);
-  }
-
-  function dispatch(id: string): void {
-    const event = new CustomEvent('change', { detail: id });
-    // Svelte 5: use the element itself to dispatch
-  }
+  let { value, options, disabled, onchange }: Props = $props();
 </script>
 
-<select {disabled} value={value} onchange={onChange}>
-  {#each options as opt}
+<select {disabled} {value} onchange={(e) => onchange(e.currentTarget.value)}>
+  {#each options as opt (opt.id)}
     <option value={opt.id} title={opt.description}>{opt.label}</option>
   {/each}
 </select>
