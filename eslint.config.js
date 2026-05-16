@@ -23,6 +23,12 @@ export default tseslint.config(
 		},
 	},
 	{
+		files: ['**/*.svelte.ts'],
+		languageOptions: {
+			parser: tseslint.parser,
+		},
+	},
+	{
 		ignores: ['build/', '.svelte-kit/', 'dist/', 'node_modules/'],
 	},
 );
