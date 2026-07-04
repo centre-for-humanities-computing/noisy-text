@@ -35,9 +35,7 @@ export function getStrategy(
 ): NoiseStrategy<unknown> {
 	const factory = STRATEGY_FACTORIES[id];
 	if (!factory) {
-		throw new Error(
-			`Unknown strategy "${id}". Known: ${Object.keys(STRATEGIES).join(', ')}`,
-		);
+		throw new Error(`Unknown strategy "${id}". Known: ${Object.keys(STRATEGIES).join(', ')}`);
 	}
 	return factory(config, vocabSize);
 }

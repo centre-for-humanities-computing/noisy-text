@@ -27,11 +27,7 @@ export type Rng = () => number;
  *   (e.g., lexical strategies with disconnected components).
  * - `'unknown'`: behavior not characterized.
  */
-export type StationaryBehavior =
-	| 'uniform'
-	| 'point-mass'
-	| 'data-dependent'
-	| 'unknown';
+export type StationaryBehavior = 'uniform' | 'point-mass' | 'data-dependent' | 'unknown';
 
 /** Human-readable metadata for a strategy, used by the picker UI. */
 export interface StrategyInfo {

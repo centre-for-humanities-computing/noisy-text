@@ -1,12 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { STRATEGIES, getStrategy } from './index.js';
 
-const VALID_STATIONARY_VALUES = new Set([
-	'uniform',
-	'point-mass',
-	'data-dependent',
-	'unknown',
-]);
+const VALID_STATIONARY_VALUES = new Set(['uniform', 'point-mass', 'data-dependent', 'unknown']);
 
 describe('strategy registry', () => {
 	it('contains at least one strategy', () => {
@@ -44,15 +39,11 @@ describe('getStrategy', () => {
 	});
 
 	it('throws for an unknown id', () => {
-		expect(() => getStrategy('nonexistent', {}, 100)).toThrow(
-			'Unknown strategy "nonexistent"',
-		);
+		expect(() => getStrategy('nonexistent', {}, 100)).toThrow('Unknown strategy "nonexistent"');
 	});
 
 	it('throws for an unknown id (different example)', () => {
-		expect(() => getStrategy('mask', {}, 100)).toThrow(
-			'Unknown strategy "mask"',
-		);
+		expect(() => getStrategy('mask', {}, 100)).toThrow('Unknown strategy "mask"');
 	});
 });
 
