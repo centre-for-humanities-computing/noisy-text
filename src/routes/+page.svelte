@@ -2,12 +2,16 @@
 	import { onMount } from 'svelte';
 	import TokenChips from '$lib/components/TokenChips.svelte';
 	import TokenizerPicker from '$lib/components/TokenizerPicker.svelte';
+	import StrategyPicker from '$lib/components/StrategyPicker.svelte';
 	import { tokenizerStore } from '$lib/stores/tokenizer.svelte.js';
+	import { strategyStore } from '$lib/stores/strategy.svelte.js';
 	import { TOKENIZERS } from '$lib/tokenizers/index.js';
+	import { STRATEGIES } from '$lib/strategies/index.js';
 
 	let text = $state('Hello, world!');
 
 	const tokenizerOptions = $derived(Object.values(TOKENIZERS));
+	const strategyOptions = $derived(Object.values(STRATEGIES));
 
 	const encoded = $derived.by(() => {
 		const t = tokenizerStore.tokenizer;
@@ -23,9 +27,20 @@
 		if (s === 'error') return `Error: ${tokenizerStore.error ?? 'unknown'}`;
 		if (s === 'ready' && tokenizerStore.tokenizer) {
 			const t = tokenizerStore.tokenizer;
-			return `${t.info.label} · Vocab: ${t.vocabSize.toLocaleString()} · Tokens: ${encoded.ids.length}`;
+			const info = strategyStore.info;
+			const strategyLabel = info ? ` · Strategy: ${info.label}` : '';
+			return `${t.info.label} · Vocab: ${t.vocabSize.toLocaleString()} · Tokens: ${encoded.ids.length}${strategyLabel}`;
 		}
 		return 'Select a tokenizer';
+	});
+
+	// When the tokenizer becomes ready, instantiate the selected strategy
+	// with the current vocab size. Re-instantiates on tokenizer or strategy change.
+	$effect(() => {
+		const t = tokenizerStore.tokenizer;
+		if (t) {
+			strategyStore.selectStrategy(strategyStore.currentId, t.vocabSize);
+		}
 	});
 
 	onMount(() => {
@@ -42,6 +57,12 @@
 			options={tokenizerOptions}
 			disabled={tokenizerStore.status === 'loading'}
 			onchange={(id) => tokenizerStore.selectTokenizer(id)}
+		/>
+		<StrategyPicker
+			value={strategyStore.currentId}
+			options={strategyOptions}
+			disabled={tokenizerStore.status !== 'ready'}
+			onchange={(id) => strategyStore.selectStrategy(id, tokenizerStore.tokenizer?.vocabSize ?? 0)}
 		/>
 	</div>
 
