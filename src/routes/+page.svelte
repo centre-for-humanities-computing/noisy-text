@@ -3,15 +3,20 @@
 	import TokenChips from '$lib/components/TokenChips.svelte';
 	import TokenizerPicker from '$lib/components/TokenizerPicker.svelte';
 	import StrategyPicker from '$lib/components/StrategyPicker.svelte';
+	import SchedulePicker from '$lib/components/SchedulePicker.svelte';
+	import SchedulePlot from '$lib/components/SchedulePlot.svelte';
 	import { tokenizerStore } from '$lib/stores/tokenizer.svelte.js';
 	import { strategyStore } from '$lib/stores/strategy.svelte.js';
+	import { scheduleStore } from '$lib/stores/schedule.svelte.js';
 	import { TOKENIZERS } from '$lib/tokenizers/index.js';
 	import { STRATEGIES } from '$lib/strategies/index.js';
+	import { SCHEDULES } from '$lib/schedules/index.js';
 
 	let text = $state('Hello, world!');
 
 	const tokenizerOptions = $derived(Object.values(TOKENIZERS));
 	const strategyOptions = $derived(Object.values(STRATEGIES));
+	const scheduleOptions = $derived(Object.values(SCHEDULES));
 
 	const encoded = $derived.by(() => {
 		const t = tokenizerStore.tokenizer;
@@ -43,6 +48,12 @@
 		}
 	});
 
+	// Instantiate the schedule on mount and re-instantiate on id or T change.
+	// Schedules are independent of tokenizer/strategy.
+	$effect(() => {
+		scheduleStore.selectSchedule(scheduleStore.currentId);
+	});
+
 	onMount(() => {
 		tokenizerStore.selectTokenizer('gpt2');
 	});
@@ -64,7 +75,17 @@
 			disabled={tokenizerStore.status !== 'ready'}
 			onchange={(id) => strategyStore.selectStrategy(id, tokenizerStore.tokenizer?.vocabSize ?? 0)}
 		/>
+		<SchedulePicker
+			value={scheduleStore.currentId}
+			options={scheduleOptions}
+			disabled={false}
+			T={scheduleStore.T}
+			onchange={(id) => scheduleStore.selectSchedule(id)}
+			onTchange={(n) => scheduleStore.setT(n)}
+		/>
 	</div>
+
+	<SchedulePlot schedule={scheduleStore.instance} />
 
 	<div class="status" class:error={tokenizerStore.status === 'error'}>
 		{statusText}
