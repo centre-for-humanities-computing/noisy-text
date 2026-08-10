@@ -5,9 +5,12 @@
 	import StrategyPicker from '$lib/components/StrategyPicker.svelte';
 	import SchedulePicker from '$lib/components/SchedulePicker.svelte';
 	import SchedulePlot from '$lib/components/SchedulePlot.svelte';
+	import SeedControl from '$lib/components/SeedControl.svelte';
+	import TimeSlider from '$lib/components/TimeSlider.svelte';
 	import { tokenizerStore } from '$lib/stores/tokenizer.svelte.js';
 	import { strategyStore } from '$lib/stores/strategy.svelte.js';
 	import { scheduleStore } from '$lib/stores/schedule.svelte.js';
+	import { trajectoryStore } from '$lib/stores/trajectory.svelte.js';
 	import { TOKENIZERS } from '$lib/tokenizers/index.js';
 	import { STRATEGIES } from '$lib/strategies/index.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
@@ -26,6 +29,17 @@
 		return { ids, tokens };
 	});
 
+	// Tokens to display: trajectory at current $t$ if ready, otherwise encoded input.
+	const displayTokens = $derived.by(() => {
+		const traj = trajectoryStore.trajectory;
+		const tok = tokenizerStore.tokenizer;
+		if (traj && tok && traj.length > 0) {
+			const ids = traj.tokensAt(trajectoryStore.t);
+			return { ids, tokens: tok.idsToTokens(ids) };
+		}
+		return encoded;
+	});
+
 	const statusText = $derived.by(() => {
 		const s = tokenizerStore.status;
 		if (s === 'loading') return 'Loading tokenizer…';
@@ -34,7 +48,8 @@
 			const t = tokenizerStore.tokenizer;
 			const info = strategyStore.info;
 			const strategyLabel = info ? ` · Strategy: ${info.label}` : '';
-			return `${t.info.label} · Vocab: ${t.vocabSize.toLocaleString()} · Tokens: ${encoded.ids.length}${strategyLabel}`;
+			const trajStatus = trajectoryStore.status === 'computing' ? ' · Computing trajectory…' : '';
+			return `${t.info.label} · Vocab: ${t.vocabSize.toLocaleString()} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}`;
 		}
 		return 'Select a tokenizer';
 	});
@@ -52,6 +67,24 @@
 	// Schedules are independent of tokenizer/strategy.
 	$effect(() => {
 		scheduleStore.selectSchedule(scheduleStore.currentId);
+	});
+
+	// Request trajectory computation whenever inputs change.
+	$effect(() => {
+		const ids = encoded.ids;
+		const tok = tokenizerStore.tokenizer;
+		if (!tok || ids.length === 0) return;
+
+		trajectoryStore.request({
+			inputIds: ids,
+			strategyId: strategyStore.currentId,
+			strategyConfig: {},
+			scheduleId: scheduleStore.currentId,
+			scheduleConfig: {},
+			T: scheduleStore.T,
+			vocabSize: tok.vocabSize,
+			seed: trajectoryStore.seed,
+		});
 	});
 
 	onMount(() => {
@@ -83,9 +116,26 @@
 			onchange={(id) => scheduleStore.selectSchedule(id)}
 			onTchange={(n) => scheduleStore.setT(n)}
 		/>
+		<SeedControl
+			seed={trajectoryStore.seed}
+			disabled={tokenizerStore.status !== 'ready'}
+			onseedchange={(s) => {
+				trajectoryStore.seed = s;
+			}}
+			onreroll={() => trajectoryStore.reroll()}
+		/>
 	</div>
 
 	<SchedulePlot schedule={scheduleStore.instance} />
+
+	<TimeSlider
+		t={trajectoryStore.t}
+		T={scheduleStore.T}
+		disabled={trajectoryStore.status !== 'ready' && trajectoryStore.status !== 'computing'}
+		ontchange={(t) => {
+			trajectoryStore.t = t;
+		}}
+	/>
 
 	<div class="status" class:error={tokenizerStore.status === 'error'}>
 		{statusText}
@@ -93,8 +143,8 @@
 
 	<textarea bind:value={text} placeholder="Type or paste text here…" rows={6}></textarea>
 
-	{#if encoded.tokens.length > 0}
-		<TokenChips tokens={encoded.tokens} ids={encoded.ids} />
+	{#if displayTokens.tokens.length > 0}
+		<TokenChips tokens={displayTokens.tokens} ids={displayTokens.ids} />
 	{/if}
 </main>
 

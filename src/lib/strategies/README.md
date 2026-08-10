@@ -21,9 +21,10 @@
 
 - Strategies must not import from `../schedules`, `../workers`, or
   `../stores`. They are pure functions that transform tokens.
-- `sampleStep(token, t, rng)` implements a coupled random walk step:
-  $x_{t+1} \sim Q_t(\cdot \mid x_t)$.
-- `getLocalDistribution(token, t)` is optional; when implemented, it
+- `sampleStep(token, beta, rng)` implements a coupled random walk step:
+  $x_{t+1} \sim Q_t(\cdot \mid x_t)$ where $\beta$ is the per-step noise
+  rate resolved by the engine from the schedule.
+- `getLocalDistribution(token, beta)` is optional; when implemented, it
   returns a `Float32Array` probability vector of length `vocabSize`.
 - The full $K \times K$ transition matrix is never materialized.
 - All math in comments uses `$...$` / `$$...$$`.

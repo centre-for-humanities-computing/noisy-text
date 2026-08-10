@@ -47,11 +47,11 @@ registered in `src/lib/strategies/index.ts`. The canonical example is
 
 Every strategy must:
 
-- Implement `sampleStep(token, t, rng) -> token`.
+- Implement `sampleStep(token, beta, rng) -> token`.
 - Declare its config schema (a typed object).
 - Declare its stationary-distribution behavior: `'uniform'`,
   `'point-mass'`, `'data-dependent'`, or `'unknown'`.
-- Optionally implement `getLocalDistribution(token, t)` for the inspector.
+- Optionally implement `getLocalDistribution(token, beta)` for the inspector.
 
 Strategies must not import schedules, workers, or stores. They are pure.
 
@@ -59,8 +59,8 @@ Strategies must not import schedules, workers, or stores. They are pure.
 
 A `Schedule` lives in `src/lib/schedules/<name>.ts` and exposes:
 
-- `beta(t: number, T: number) -> number`
-- `cumulative(t: number, T: number) -> number` when closed-form,
+- `beta(t: number) -> number`
+- `cumulative(t: number) -> number` when closed-form,
   otherwise compute by accumulation in the engine.
 
 Schedules are independent of strategies. Any pairing must work.

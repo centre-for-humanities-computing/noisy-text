@@ -33,12 +33,12 @@ export const createIdentity: StrategyFactory<IdentityConfig> = (
 		info: IDENTITY_INFO,
 		config: {},
 
-		sampleStep(token: number, _t: number, _rng: Rng): number {
+		sampleStep(token: number, _beta: number, _rng: Rng): number {
 			// $Q_t = I$, so $x_{t+1} = x_t$ deterministically.
 			return token;
 		},
 
-		getLocalDistribution(token: number, _t: number): Float32Array {
+		getLocalDistribution(token: number, _beta: number): Float32Array {
 			// One-hot at `token`: $P(x_{t+1} = j \mid x_t) = \delta_{j, x_t}$.
 			_oneHot.fill(0);
 			_oneHot[token] = 1;
