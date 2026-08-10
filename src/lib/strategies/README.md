@@ -31,6 +31,7 @@
 
 ## Current strategies
 
-| id         | description                            | stationary   |
-| ---------- | -------------------------------------- | ------------ |
-| `identity` | No noise; every token stays as itself. | `point-mass` |
+| id         | description                                                            | stationary   |
+| ---------- | ---------------------------------------------------------------------- | ------------ |
+| `identity` | No noise; every token stays as itself.                                 | `point-mass` |
+| `uniform`  | Each token independently samples uniformly from the vocab with prob βₜ. | `uniform`    |

@@ -1,5 +1,6 @@
 import type { NoiseStrategy, StrategyFactory, StrategyInfo } from './types.js';
 import { createIdentity } from './identity.js';
+import { createUniform } from './uniform.js';
 
 /** All known strategies (metadata only — safe to import from UI code). */
 export const STRATEGIES: Record<string, StrategyInfo> = {
@@ -8,6 +9,12 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 		label: 'Identity (no noise)',
 		description: 'No noise applied. Every token stays as itself at every timestep.',
 		stationary: 'point-mass',
+	},
+	uniform: {
+		id: 'uniform',
+		label: 'Uniform',
+		description: 'Each token independently samples uniformly from the vocab with probability βₜ.',
+		stationary: 'uniform',
 	},
 } as const;
 
@@ -18,6 +25,7 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
  */
 const STRATEGY_FACTORIES: Record<string, StrategyFactory<unknown>> = {
 	identity: createIdentity as StrategyFactory<unknown>,
+	uniform: createUniform as StrategyFactory<unknown>,
 };
 
 /**

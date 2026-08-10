@@ -2,9 +2,10 @@
 	interface Props {
 		tokens: readonly string[];
 		ids: Int32Array;
+		changed: Uint8Array;
 	}
 
-	let { tokens, ids }: Props = $props();
+	let { tokens, ids, changed }: Props = $props();
 
 	/**
 	 * Make whitespace and control characters visible in chip labels.
@@ -18,7 +19,7 @@
 
 <div class="chips">
 	{#each tokens as token, i (i)}
-		<span class="chip" title="id: {ids[i] ?? '?'}">
+		<span class="chip" class:changed={changed[i] === 1} title="id: {ids[i] ?? '?'}">
 			<span class="chip-token">{visibleToken(token)}</span>
 			<span class="chip-id">{ids[i] ?? '?'}</span>
 		</span>
@@ -40,6 +41,10 @@
 		border-radius: 4px;
 		padding: 2px 6px;
 		font-size: 0.85rem;
+	}
+	.chip.changed {
+		background: #fff3cd;
+		border-bottom: 2px solid #b8860b;
 	}
 	.chip-token {
 		color: #222;

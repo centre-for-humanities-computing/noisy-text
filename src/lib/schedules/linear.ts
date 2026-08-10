@@ -66,11 +66,11 @@ export const createLinear: ScheduleFactory<LinearConfig> = (
 		T,
 
 		beta(t: number): number {
-			return betas[t]!;
+			return betas[Math.min(t, T - 1)]!;
 		},
 
 		cumulative(t: number): number {
-			return alphaBars[t]!;
+			return alphaBars[Math.min(t, T - 1)]!;
 		},
 	};
 };

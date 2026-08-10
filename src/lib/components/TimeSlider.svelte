@@ -7,11 +7,14 @@
 	}
 
 	let { t, T, disabled, ontchange }: Props = $props();
+
+	/** Fraction $t/T$, formatted to 3 decimal places. */
+	const fraction = $derived(T > 0 ? (t / T).toFixed(3) : '0.000');
 </script>
 
 <div class="time-slider">
 	<label>
-		t = {t} / {T}
+		t = {t} / {T} ({fraction})
 		<input
 			type="range"
 			min="0"

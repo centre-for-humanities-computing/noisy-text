@@ -6,3 +6,4 @@ export type {
 	Rng,
 } from './types.js';
 export { STRATEGIES, getStrategy } from './registry.js';
+export { createUniform } from './uniform.js';
