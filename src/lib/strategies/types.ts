@@ -3,11 +3,15 @@
  *
  * A noise strategy defines a Markov chain $x_0 \to x_1 \to \ldots \to x_T$
  * over a vocabulary of size $K$. Each step samples $x_{t+1}$ from a
- * categorical distribution conditioned on $x_t$ and the current timestep $t$.
+ * categorical distribution conditioned on $x_t$ and the per-step noise
+ * rate $\beta_t$ from a schedule.
  *
  * The full $K \times K$ transition matrix $Q_t$ is never materialized.
  * Strategies expose only `sampleStep` (coupled walk) and, optionally,
  * `getLocalDistribution` (one row of $Q_t$ for inspection).
+ *
+ * Strategies are schedule-agnostic: they receive the scalar $\beta_t$
+ * resolved by the engine, not the schedule itself.
  */
 
 /**
@@ -58,27 +62,27 @@ export interface NoiseStrategy<Config = unknown> {
 	 * Advance one token one step in the coupled random walk.
 	 *
 	 * Samples $x_{t+1} \sim Q_t(\cdot \mid x_t)$ where $x_t$ is `token`
-	 * and $t$ is the current timestep index (0-based, $0 \le t < T$).
+	 * and $\beta_t$ is the per-step noise rate from the schedule.
 	 *
 	 * @param token - The current token id $x_t \in [0, K)$.
-	 * @param t - The current timestep index.
+	 * @param beta - The per-step noise rate $\beta_t \in (0, 1)$.
 	 * @param rng - A uniform RNG in $[0, 1)$.
 	 * @returns The next token id $x_{t+1} \in [0, K)$.
 	 */
-	sampleStep(token: number, t: number, rng: Rng): number;
+	sampleStep(token: number, beta: number, rng: Rng): number;
 
 	/**
 	 * Return the local transition distribution for a given token at
-	 * timestep $t$ — i.e., one row of $Q_t$.
+	 * noise rate $\beta$ — i.e., one row of $Q_t$.
 	 *
 	 * Optional. When implemented, returns a `Float32Array` of length
 	 * `vocabSize` where entry $j$ is $P(x_{t+1} = j \mid x_t = \text{token})$.
 	 *
 	 * @param token - The current token id $x_t$.
-	 * @param t - The current timestep index.
+	 * @param beta - The per-step noise rate $\beta_t \in (0, 1)$.
 	 * @returns A probability vector of length `vocabSize`.
 	 */
-	getLocalDistribution?(token: number, t: number): Float32Array;
+	getLocalDistribution?(token: number, beta: number): Float32Array;
 }
 
 /**

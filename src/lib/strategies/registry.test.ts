@@ -52,16 +52,16 @@ describe('identity strategy behavior', () => {
 		const s = getStrategy('identity', {}, 50);
 		const rng = Math.random;
 		for (let token = 0; token < 50; token++) {
-			expect(s.sampleStep(token, 0, rng)).toBe(token);
-			expect(s.sampleStep(token, 5, rng)).toBe(token);
-			expect(s.sampleStep(token, 99, rng)).toBe(token);
+			expect(s.sampleStep(token, 0.01, rng)).toBe(token);
+			expect(s.sampleStep(token, 0.5, rng)).toBe(token);
+			expect(s.sampleStep(token, 0.99, rng)).toBe(token);
 		}
 	});
 
 	it('getLocalDistribution returns a one-hot vector', () => {
 		const vocabSize = 10;
 		const s = getStrategy('identity', {}, vocabSize);
-		const dist = s.getLocalDistribution!(3, 0);
+		const dist = s.getLocalDistribution!(3, 0.01);
 		expect(dist).toBeInstanceOf(Float32Array);
 		expect(dist.length).toBe(vocabSize);
 		expect(dist[3]).toBe(1);
@@ -73,7 +73,7 @@ describe('identity strategy behavior', () => {
 	it('getLocalDistribution sums to 1', () => {
 		const s = getStrategy('identity', {}, 20);
 		for (let token = 0; token < 20; token++) {
-			const dist = s.getLocalDistribution!(token, 0);
+			const dist = s.getLocalDistribution!(token, 0.01);
 			const sum = dist.reduce((a, b) => a + b, 0);
 			expect(sum).toBeCloseTo(1, 5);
 		}

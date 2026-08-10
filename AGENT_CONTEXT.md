@@ -29,7 +29,7 @@ structure, not a spec to follow slavishly.
 - **No heavy math libraries.** Use `Float32Array` / `Int32Array` directly.
 - **No graph framework for now.** If a graph view is added later,
   Cytoscape.js is preferred.
-- **RNG**: seeded (e.g., `seedrandom` or a small xorshift) for reproducibility.
+- **RNG**: `seedrandom` (Alea algorithm) for reproducible seeded randomness.
 
 ## Core mathematical model
 
@@ -45,8 +45,8 @@ snapshots. Each timestep is sampled by stepping the chain forward from the
 previous timestep.
 
 The full $K \times K$ transition matrix $Q_t$ is **never materialized**. Each
-strategy exposes only `sampleStep(token, t, rng) -> token` and, optionally,
-`getLocalDistribution(token, t)` for inspection.
+strategy exposes only `sampleStep(token, beta, rng) -> token` and, optionally,
+`getLocalDistribution(token, beta)` for inspection.
 
 ## Key abstractions
 
