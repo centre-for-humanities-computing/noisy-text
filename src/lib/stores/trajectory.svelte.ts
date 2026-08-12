@@ -40,6 +40,8 @@ class TrajectoryStore {
 	private _computing = false;
 	/** The spec for the in-flight (or most recent) request, for caching. */
 	private _pendingSpec: TrajectorySpec | null = null;
+	/** Queued spec: stored when a request arrives while already computing. */
+	private _queuedSpec: TrajectorySpec | null = null;
 
 	/**
 	 * Request a trajectory computation.
@@ -67,7 +69,11 @@ class TrajectoryStore {
 		}
 
 		// Cache miss — compute.
-		if (this._computing) return; // re-entrancy guard
+		if (this._computing) {
+			// Already computing; queue this spec for when the current one finishes.
+			this._queuedSpec = spec;
+			return;
+		}
 
 		this._computing = true;
 		this._pendingSpec = spec;
@@ -133,6 +139,9 @@ class TrajectoryStore {
 					this._cache.set(key, traj);
 					this._pendingSpec = null;
 				}
+
+				// Process any queued request.
+				this._drainQueue();
 				break;
 			}
 
@@ -142,6 +151,9 @@ class TrajectoryStore {
 				this.progress = 0;
 				this._computing = false;
 				this._pendingSpec = null;
+
+				// Process any queued request.
+				this._drainQueue();
 				break;
 		}
 	}
@@ -163,6 +175,15 @@ class TrajectoryStore {
 	private _clampT(T: number): void {
 		if (this.t > T) {
 			this.t = T;
+		}
+	}
+
+	/** If a spec was queued while computing, send it now. */
+	private _drainQueue(): void {
+		const queued = this._queuedSpec;
+		this._queuedSpec = null;
+		if (queued) {
+			this.request(queued);
 		}
 	}
 }

@@ -1,12 +1,14 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import TokenChips from '$lib/components/TokenChips.svelte';
+	import InlineTokens from '$lib/components/InlineTokens.svelte';
 	import TokenizerPicker from '$lib/components/TokenizerPicker.svelte';
 	import StrategyPicker from '$lib/components/StrategyPicker.svelte';
 	import SchedulePicker from '$lib/components/SchedulePicker.svelte';
 	import SchedulePlot from '$lib/components/SchedulePlot.svelte';
 	import SeedControl from '$lib/components/SeedControl.svelte';
 	import TimeSlider from '$lib/components/TimeSlider.svelte';
+	import DisplayModeToggle from '$lib/components/DisplayModeToggle.svelte';
 	import { tokenizerStore } from '$lib/stores/tokenizer.svelte.js';
 	import { strategyStore } from '$lib/stores/strategy.svelte.js';
 	import { scheduleStore } from '$lib/stores/schedule.svelte.js';
@@ -14,8 +16,10 @@
 	import { TOKENIZERS } from '$lib/tokenizers/index.js';
 	import { STRATEGIES } from '$lib/strategies/index.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
+	import { changedMask } from '$lib/engine/diff.js';
 
 	let text = $state('Hello, world!');
+	let showChips = $state(true);
 
 	const tokenizerOptions = $derived(Object.values(TOKENIZERS));
 	const strategyOptions = $derived(Object.values(STRATEGIES));
@@ -40,6 +44,45 @@
 		return encoded;
 	});
 
+	// Reusable buffer for changedMask to avoid allocation on every tick.
+	const _maskBuf = new Uint8Array(2048);
+
+	// Changed mask: which tokens differ from the previous timestep $x_{t-1}$.
+	// At $t=0$ there is no previous step, so the mask is all zeros.
+	// Returns null when no trajectory is ready.
+	const changed = $derived.by(() => {
+		const traj = trajectoryStore.trajectory;
+		if (!traj || traj.length === 0) return null;
+		const t = trajectoryStore.t;
+		if (t === 0) {
+			// Nothing changed from "before t=0".
+			const empty = new Uint8Array(traj.length);
+			return empty;
+		}
+		const prev = traj.tokensAt(t - 1);
+		const curr = traj.tokensAt(t);
+		if (curr.length > _maskBuf.length) {
+			return changedMask(prev, curr);
+		}
+		return changedMask(prev, curr, _maskBuf);
+	});
+
+	// Changed count (null when no trajectory is ready).
+	const changedCount = $derived.by(() => {
+		if (!changed) return null;
+		let n = 0;
+		for (let i = 0; i < changed.length; i++) {
+			if (changed[i] === 1) n++;
+		}
+		return n;
+	});
+
+	const decodedText = $derived.by(() => {
+		const tok = tokenizerStore.tokenizer;
+		if (!tok || displayTokens.ids.length === 0) return '';
+		return tok.decode(displayTokens.ids);
+	});
+
 	const statusText = $derived.by(() => {
 		const s = tokenizerStore.status;
 		if (s === 'loading') return 'Loading tokenizer…';
@@ -49,7 +92,8 @@
 			const info = strategyStore.info;
 			const strategyLabel = info ? ` · Strategy: ${info.label}` : '';
 			const trajStatus = trajectoryStore.status === 'computing' ? ' · Computing trajectory…' : '';
-			return `${t.info.label} · Vocab: ${t.vocabSize.toLocaleString()} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}`;
+			const changedPart = changedCount !== null ? ` · ${changedCount} changed this step` : '';
+			return `${t.info.label} · Vocab: ${t.vocabSize.toLocaleString()} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}${changedPart}`;
 		}
 		return 'Select a tokenizer';
 	});
@@ -124,6 +168,13 @@
 			}}
 			onreroll={() => trajectoryStore.reroll()}
 		/>
+		<DisplayModeToggle
+			{showChips}
+			disabled={trajectoryStore.status !== 'ready'}
+			onchange={(v) => {
+				showChips = v;
+			}}
+		/>
 	</div>
 
 	<SchedulePlot schedule={scheduleStore.instance} />
@@ -144,7 +195,15 @@
 	<textarea bind:value={text} placeholder="Type or paste text here…" rows={6}></textarea>
 
 	{#if displayTokens.tokens.length > 0}
-		<TokenChips tokens={displayTokens.tokens} ids={displayTokens.ids} />
+		{#if showChips}
+			<TokenChips
+				tokens={displayTokens.tokens}
+				ids={displayTokens.ids}
+				changed={changed ?? new Uint8Array(0)}
+			/>
+		{:else}
+			<InlineTokens text={decodedText} />
+		{/if}
 	{/if}
 </main>
 

@@ -63,7 +63,7 @@ any schedule.
 ## Features the user cares about
 
 - Multiple selectable tokenizers.
-- Strategies: mask (absorbing), uniform, lexical (edit distance on decoded
+- Strategies: mask (absorbing), uniform ✅, lexical (edit distance on decoded
   token strings, top-$k$). Semantic noise is future work.
 - Schedules: linear, cosine, mutual-information-based.
 - Time slider that scrubs smoothly through $[0, T]$.
