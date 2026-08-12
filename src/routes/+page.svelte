@@ -169,7 +169,7 @@
 			onreroll={() => trajectoryStore.reroll()}
 		/>
 		<DisplayModeToggle
-			showChips={showChips}
+			{showChips}
 			disabled={trajectoryStore.status !== 'ready'}
 			onchange={(v) => {
 				showChips = v;
@@ -196,7 +196,11 @@
 
 	{#if displayTokens.tokens.length > 0}
 		{#if showChips}
-			<TokenChips tokens={displayTokens.tokens} ids={displayTokens.ids} changed={changed ?? new Uint8Array(0)} />
+			<TokenChips
+				tokens={displayTokens.tokens}
+				ids={displayTokens.ids}
+				changed={changed ?? new Uint8Array(0)}
+			/>
 		{:else}
 			<InlineTokens text={decodedText} />
 		{/if}

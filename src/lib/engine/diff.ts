@@ -13,9 +13,7 @@
  */
 export function countChanged(x0: Int32Array, xt: Int32Array): number {
 	if (x0.length !== xt.length) {
-		throw new Error(
-			`Length mismatch: x0 has ${x0.length} tokens, xt has ${xt.length}`,
-		);
+		throw new Error(`Length mismatch: x0 has ${x0.length} tokens, xt has ${xt.length}`);
 	}
 
 	let count = 0;
@@ -34,15 +32,9 @@ export function countChanged(x0: Int32Array, xt: Int32Array): number {
  *   length $\ge L$ and will be overwritten.
  * @returns A `Uint8Array` of length $L$ where `1` means changed.
  */
-export function changedMask(
-	x0: Int32Array,
-	xt: Int32Array,
-	out?: Uint8Array,
-): Uint8Array {
+export function changedMask(x0: Int32Array, xt: Int32Array, out?: Uint8Array): Uint8Array {
 	if (x0.length !== xt.length) {
-		throw new Error(
-			`Length mismatch: x0 has ${x0.length} tokens, xt has ${xt.length}`,
-		);
+		throw new Error(`Length mismatch: x0 has ${x0.length} tokens, xt has ${xt.length}`);
 	}
 
 	const L = x0.length;
