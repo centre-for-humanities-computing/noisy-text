@@ -1,4 +1,9 @@
-import { getStrategy, type NoiseStrategy, type StrategyInfo } from '$lib/strategies/index.js';
+import {
+	getStrategy,
+	strategyConfigFor,
+	type NoiseStrategy,
+	type StrategyInfo,
+} from '$lib/strategies/index.js';
 
 class StrategyStore {
 	currentId: string = $state('identity');
@@ -12,7 +17,8 @@ class StrategyStore {
 	 */
 	selectStrategy(id: string, vocabSize: number): void {
 		this.currentId = id;
-		this.instance = getStrategy(id, {}, vocabSize);
+		const config = strategyConfigFor(id, vocabSize);
+		this.instance = getStrategy(id, config, vocabSize);
 	}
 
 	/** Current strategy metadata, or null if not instantiated. */

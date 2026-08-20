@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { STRATEGIES, getStrategy } from './index.js';
+import { STRATEGIES, getStrategy, strategyConfigFor } from './index.js';
 
 const VALID_STATIONARY_VALUES = new Set(['uniform', 'point-mass', 'data-dependent', 'unknown']);
 
@@ -11,6 +11,12 @@ describe('strategy registry', () => {
 
 	it('contains the identity strategy', () => {
 		expect(STRATEGIES.identity).toBeDefined();
+	});
+
+	it('contains the absorbing strategy', () => {
+		const info = STRATEGIES['absorbing'];
+		expect(info).toBeDefined();
+		expect(info!.id).toBe('absorbing');
 	});
 
 	it('every entry has the required shape', () => {
@@ -44,6 +50,27 @@ describe('getStrategy', () => {
 
 	it('throws for an unknown id (different example)', () => {
 		expect(() => getStrategy('mask', {}, 100)).toThrow('Unknown strategy "mask"');
+	});
+
+	it('returns an instance for the absorbing strategy', () => {
+		const s = getStrategy('absorbing', { maskTokenId: 100 }, 100);
+		expect(s).toBeDefined();
+		expect(s.info.id).toBe('absorbing');
+		expect(typeof s.sampleStep).toBe('function');
+	});
+});
+
+describe('strategyConfigFor', () => {
+	it('returns empty config for identity', () => {
+		expect(strategyConfigFor('identity', 100)).toEqual({});
+	});
+
+	it('returns empty config for uniform', () => {
+		expect(strategyConfigFor('uniform', 100)).toEqual({});
+	});
+
+	it('returns maskTokenId config for absorbing', () => {
+		expect(strategyConfigFor('absorbing', 100)).toEqual({ maskTokenId: 100 });
 	});
 });
 

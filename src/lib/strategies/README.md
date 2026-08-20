@@ -31,7 +31,8 @@
 
 ## Current strategies
 
-| id         | description                                                             | stationary   |
-| ---------- | ----------------------------------------------------------------------- | ------------ |
-| `identity` | No noise; every token stays as itself.                                  | `point-mass` |
-| `uniform`  | Each token independently samples uniformly from the vocab with prob βₜ. | `uniform`    |
+| id          | description                                                                 | stationary   |
+| ----------- | --------------------------------------------------------------------------- | ------------ |
+| `absorbing` | Each non-mask token becomes [MASK] with prob βₜ; once masked, stays masked. | `point-mass` |
+| `identity`  | No noise; every token stays as itself.                                      | `point-mass` |
+| `uniform`   | Each token independently samples uniformly from the vocab with prob βₜ.     | `uniform`    |
