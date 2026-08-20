@@ -1,4 +1,5 @@
 import type { NoiseStrategy, StrategyFactory, StrategyInfo } from './types.js';
+import { createAbsorbing } from './absorbing.js';
 import { createIdentity } from './identity.js';
 import { createUniform } from './uniform.js';
 
@@ -16,6 +17,13 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 		description: 'Each token independently samples uniformly from the vocab with probability βₜ.',
 		stationary: 'uniform',
 	},
+	absorbing: {
+		id: 'absorbing',
+		label: 'Absorbing (mask)',
+		description:
+			'Each non-mask token becomes [MASK] with probability βₜ. Once masked, stays masked.',
+		stationary: 'point-mass',
+	},
 } as const;
 
 /**
@@ -24,9 +32,29 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
  * without pulling in every implementation module.
  */
 const STRATEGY_FACTORIES: Record<string, StrategyFactory<unknown>> = {
+	absorbing: createAbsorbing as StrategyFactory<unknown>,
 	identity: createIdentity as StrategyFactory<unknown>,
 	uniform: createUniform as StrategyFactory<unknown>,
 };
+
+/**
+ * Build the strategy config object for a given id and vocab size.
+ *
+ * The `absorbing` strategy needs `maskTokenId` (a reserved sentinel equal
+ * to `vocabSize`, one past the real vocabulary). Every other strategy takes
+ * an empty config. Keeping this in one place ensures the store and the
+ * trajectory request agree on the exact config (and thus the cache key).
+ *
+ * @param id - The strategy id (must be a key in `STRATEGIES`).
+ * @param vocabSize - Vocabulary size $K$ from the active tokenizer.
+ * @returns The strategy config object, JSON-serializable.
+ */
+export function strategyConfigFor(id: string, vocabSize: number): unknown {
+	if (id === 'absorbing') {
+		return { maskTokenId: vocabSize };
+	}
+	return {};
+}
 
 /**
  * Get a strategy instance by id.

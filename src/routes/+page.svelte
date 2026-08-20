@@ -15,6 +15,7 @@
 	import { trajectoryStore } from '$lib/stores/trajectory.svelte.js';
 	import { TOKENIZERS } from '$lib/tokenizers/index.js';
 	import { STRATEGIES } from '$lib/strategies/index.js';
+	import { strategyConfigFor } from '$lib/strategies/index.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
 	import { changedMask } from '$lib/engine/diff.js';
 
@@ -34,15 +35,40 @@
 	});
 
 	// Tokens to display: trajectory at current $t$ if ready, otherwise encoded input.
+	// Sentinel mask ids (=== vocabSize) are replaced with the literal "[MASK]" label
+	// since they are out of range for the tokenizer's idsToTokens.
 	const displayTokens = $derived.by(() => {
 		const traj = trajectoryStore.trajectory;
 		const tok = tokenizerStore.tokenizer;
-		if (traj && tok && traj.length > 0) {
+		if (!tok) return { ids: new Int32Array(0), tokens: [] as readonly string[] };
+		if (traj && traj.length > 0) {
 			const ids = traj.tokensAt(trajectoryStore.t);
-			return { ids, tokens: tok.idsToTokens(ids) };
+			return _renderTokens(ids, tok);
 		}
 		return encoded;
 	});
+
+	/**
+	 * Build display tokens, replacing sentinel mask ids with "[MASK]".
+	 * The sentinel id (vocabSize) is out of range for idsToTokens, so we
+	 * substitute it with 0 before calling the tokenizer, then patch the
+	 * result.
+	 */
+	function _renderTokens(
+		ids: Int32Array,
+		tok: import('$lib/tokenizers/types.js').Tokenizer,
+	): { ids: Int32Array; tokens: readonly string[] } {
+		const maskTokenId = tok.vocabSize;
+		// Build a copy with mask positions replaced by 0 (a safe real id).
+		const safe = new Int32Array(ids.length);
+		for (let i = 0; i < ids.length; i++) {
+			safe[i] = ids[i] === maskTokenId ? 0 : ids[i]!;
+		}
+		const tokens = tok.idsToTokens(safe);
+		// Patch mask positions.
+		const patched = tokens.map((t, i) => (ids[i] === maskTokenId ? '[MASK]' : t));
+		return { ids, tokens: patched };
+	}
 
 	// Reusable buffer for changedMask to avoid allocation on every tick.
 	const _maskBuf = new Uint8Array(2048);
@@ -80,7 +106,11 @@
 	const decodedText = $derived.by(() => {
 		const tok = tokenizerStore.tokenizer;
 		if (!tok || displayTokens.ids.length === 0) return '';
-		return tok.decode(displayTokens.ids);
+		// Filter out sentinel mask ids so they render invisibly.
+		const maskTokenId = tok.vocabSize;
+		const filtered = new Int32Array(displayTokens.ids.filter((id) => id !== maskTokenId));
+		if (filtered.length === 0) return '';
+		return tok.decode(filtered);
 	});
 
 	const statusText = $derived.by(() => {
@@ -122,7 +152,7 @@
 		trajectoryStore.request({
 			inputIds: ids,
 			strategyId: strategyStore.currentId,
-			strategyConfig: {},
+			strategyConfig: strategyConfigFor(strategyStore.currentId, tok.vocabSize),
 			scheduleId: scheduleStore.currentId,
 			scheduleConfig: {},
 			T: scheduleStore.T,
