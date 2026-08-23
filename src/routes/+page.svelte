@@ -13,11 +13,13 @@
 	import { strategyStore } from '$lib/stores/strategy.svelte.js';
 	import { scheduleStore } from '$lib/stores/schedule.svelte.js';
 	import { trajectoryStore } from '$lib/stores/trajectory.svelte.js';
+	import { lexicalStore } from '$lib/stores/lexical.svelte.js';
 	import { TOKENIZERS } from '$lib/tokenizers/index.js';
 	import { STRATEGIES } from '$lib/strategies/index.js';
 	import { strategyConfigFor } from '$lib/strategies/index.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
 	import { changedMask } from '$lib/engine/diff.js';
+	import LexicalParams from '$lib/components/LexicalParams.svelte';
 
 	let text = $state('Hello, world!');
 	let showChips = $state(true);
@@ -149,20 +151,39 @@
 		const tok = tokenizerStore.tokenizer;
 		if (!tok || ids.length === 0) return;
 
+		// For lexical: gate on precompute readiness.
+		if (strategyStore.currentId === 'lexical' && lexicalStore.status !== 'ready') {
+			return;
+		}
+
 		trajectoryStore.request({
 			inputIds: ids,
 			strategyId: strategyStore.currentId,
-			strategyConfig: strategyConfigFor(strategyStore.currentId, tok.vocabSize),
+			strategyConfig: strategyConfigFor(
+				strategyStore.currentId,
+				tok.vocabSize,
+				strategyStore.currentId === 'lexical' ? lexicalStore.params : undefined,
+			),
 			scheduleId: scheduleStore.currentId,
 			scheduleConfig: {},
 			T: scheduleStore.T,
 			vocabSize: tok.vocabSize,
 			seed: trajectoryStore.seed,
+			tokenizerId: tokenizerStore.currentId,
 		});
 	});
 
 	onMount(() => {
 		tokenizerStore.selectTokenizer('gpt2');
+	});
+
+	// When lexical strategy is selected and tokenizer changes, trigger
+	// neighbor table precomputation.
+	const _isLexical = $derived(strategyStore.currentId === 'lexical');
+	$effect(() => {
+		if (_isLexical && tokenizerStore.tokenizer) {
+			lexicalStore.ensureTable(tokenizerStore.currentId);
+		}
 	});
 </script>
 
@@ -206,6 +227,20 @@
 			}}
 		/>
 	</div>
+
+	{#if strategyStore.currentId === 'lexical'}
+		<LexicalParams
+			maxDistance={lexicalStore.maxDistance}
+			k={lexicalStore.k}
+			epsilon={lexicalStore.epsilon}
+			status={lexicalStore.status}
+			progress={lexicalStore.progress}
+			disabled={tokenizerStore.status !== 'ready'}
+			onmaxdistancechange={(v) => (lexicalStore.maxDistance = v)}
+			onkchange={(v) => (lexicalStore.k = v)}
+			onepsilonchange={(v) => (lexicalStore.epsilon = v)}
+		/>
+	{/if}
 
 	<SchedulePlot schedule={scheduleStore.instance} />
 
