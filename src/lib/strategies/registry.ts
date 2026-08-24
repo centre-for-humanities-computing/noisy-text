@@ -3,7 +3,7 @@ import { createAbsorbing } from './absorbing.js';
 import { createIdentity } from './identity.js';
 import { createLexical } from './lexical.js';
 import { createUniform } from './uniform.js';
-import type { LexicalNeighborTable } from './lexical-neighbors.js';
+import type { NeighborhoodProvider } from './neighborhood.js';
 
 /** All known strategies (metadata only — safe to import from UI code). */
 export const STRATEGIES: Record<string, StrategyInfo> = {
@@ -51,7 +51,7 @@ const STRATEGY_FACTORIES: Record<string, StrategyFactory<unknown>> = {
  *
  * The `absorbing` strategy needs `maskTokenId` (a reserved sentinel equal
  * to `vocabSize`, one past the real vocabulary). The `lexical` strategy
- * needs only its lightweight params — the neighbor table is loaded
+ * carries its lightweight params — the neighborhood provider is loaded
  * independently inside the worker.
  *
  * Every other strategy takes an empty config. Keeping this in one place
@@ -85,18 +85,18 @@ export function strategyConfigFor(id: string, vocabSize: number, _extra?: Record
  * @param id - The strategy id (must be a key in `STRATEGIES`).
  * @param config - Strategy-specific configuration object.
  * @param vocabSize - Vocabulary size $K$ from the active tokenizer.
- * @param table - Optional precomputed lexical neighbor table.
+ * @param provider - Optional lazy neighborhood provider (for lexical).
  * @returns A configured `NoiseStrategy` instance.
  */
 export function getStrategy(
 	id: string,
 	config: unknown,
 	vocabSize: number,
-	table?: LexicalNeighborTable,
+	provider?: NeighborhoodProvider,
 ): NoiseStrategy<unknown> {
 	const factory = STRATEGY_FACTORIES[id];
 	if (!factory) {
 		throw new Error(`Unknown strategy "${id}". Known: ${Object.keys(STRATEGIES).join(', ')}`);
 	}
-	return factory(config, vocabSize, table);
+	return factory(config, vocabSize, provider);
 }

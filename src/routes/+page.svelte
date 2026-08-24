@@ -151,11 +151,6 @@
 		const tok = tokenizerStore.tokenizer;
 		if (!tok || ids.length === 0) return;
 
-		// For lexical: gate on precompute readiness.
-		if (strategyStore.currentId === 'lexical' && lexicalStore.status !== 'ready') {
-			return;
-		}
-
 		trajectoryStore.request({
 			inputIds: ids,
 			strategyId: strategyStore.currentId,
@@ -177,12 +172,10 @@
 		tokenizerStore.selectTokenizer('gpt2');
 	});
 
-	// When lexical strategy is selected and tokenizer changes, trigger
-	// neighbor table precomputation.
-	const _isLexical = $derived(strategyStore.currentId === 'lexical');
+	// Mark lexical store ready when tokenizer is available.
 	$effect(() => {
-		if (_isLexical && tokenizerStore.tokenizer) {
-			lexicalStore.ensureTable(tokenizerStore.currentId);
+		if (tokenizerStore.tokenizer) {
+			lexicalStore.markReady();
 		}
 	});
 </script>
@@ -233,8 +226,6 @@
 			maxDistance={lexicalStore.maxDistance}
 			k={lexicalStore.k}
 			epsilon={lexicalStore.epsilon}
-			status={lexicalStore.status}
-			progress={lexicalStore.progress}
 			disabled={tokenizerStore.status !== 'ready'}
 			onmaxdistancechange={(v) => (lexicalStore.maxDistance = v)}
 			onkchange={(v) => (lexicalStore.k = v)}

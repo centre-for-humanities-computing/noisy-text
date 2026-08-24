@@ -3,8 +3,6 @@
 		maxDistance: number;
 		k: number;
 		epsilon: number;
-		status: string;
-		progress: number;
 		disabled: boolean;
 		onmaxdistancechange: (v: number) => void;
 		onkchange: (v: number) => void;
@@ -15,8 +13,6 @@
 		maxDistance,
 		k,
 		epsilon,
-		status,
-		progress,
 		disabled,
 		onmaxdistancechange,
 		onkchange,
@@ -25,26 +21,13 @@
 </script>
 
 <div class="lexical-params">
-	{#if status === 'precomputing'}
-		<div class="precompute-progress">
-			<progress value={progress} max={1}></progress>
-			<span class="progress-label">Building neighbor table… {Math.round(progress * 100)}%</span>
-		</div>
-	{/if}
-
-	{#if status === 'error'}
-		<div class="precompute-error">
-			Precomputation failed. Try a different parameter combination.
-		</div>
-	{/if}
-
 	<div class="param-grid">
 		<label>
 			<span>Max distance</span>
 			<input
 				type="range"
 				min={1}
-				max={5}
+				max={3}
 				step={1}
 				value={maxDistance}
 				disabled={disabled}
@@ -88,24 +71,6 @@
 		display: flex;
 		flex-direction: column;
 		gap: 0.5rem;
-	}
-
-	.precompute-progress {
-		display: flex;
-		align-items: center;
-		gap: 0.5rem;
-		font-size: 0.8rem;
-		color: var(--color-text-muted, #666);
-	}
-
-	.precompute-progress progress {
-		flex: 1;
-		height: 4px;
-	}
-
-	.precompute-error {
-		font-size: 0.8rem;
-		color: #c00;
 	}
 
 	.param-grid {

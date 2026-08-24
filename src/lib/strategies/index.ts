@@ -10,4 +10,7 @@ export { createAbsorbing } from './absorbing.js';
 export { createUniform } from './uniform.js';
 export { createLexical } from './lexical.js';
 export type { LexicalConfig } from './lexical.js';
-export type { LexicalNeighborTable, LexicalNeighborParams } from './lexical-neighbors.js';
+export type { DistanceModel } from './distance-model.js';
+export { EditDistanceModel, normalizeTokenString, levenshtein } from './distance-model.js';
+export type { NeighborEntry } from './neighborhood.js';
+export { NeighborhoodProvider } from './neighborhood.js';

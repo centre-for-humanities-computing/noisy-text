@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { createLexical } from './lexical.js';
-import { computeNeighborTable } from './lexical-neighbors.js';
+import { EditDistanceModel } from './distance-model.js';
+import { NeighborhoodProvider } from './neighborhood.js';
 import type { LexicalConfig } from './lexical.js';
 
 /**
@@ -49,39 +50,40 @@ describe('createLexical (no table — uniform fallback)', () => {
 	});
 });
 
-describe('createLexical (with table)', () => {
-	// Build a tiny neighbor table: 5 tokens with known distances.
+describe('createLexical (with provider)', () => {
+	// Build a tiny vocab: 5 tokens with known distances.
 	// 0:'cat', 1:'cats', 2:'car', 3:'cart', 4:'dog'
 	const vocab = ['cat', 'cats', 'car', 'cart', 'dog'];
-	const table = computeNeighborTable(vocab, { maxDistance: 2, k: 20, tau: 1.0 });
+	const model = new EditDistanceModel(vocab);
+	const provider = new NeighborhoodProvider(model, 3);
 	const config: LexicalConfig = { maxDistance: 2, k: 20, epsilon: 0, tau: 1.0 };
 
 	it('returns strategy metadata', () => {
-		const s = createLexical(config, vocab.length, table);
+		const s = createLexical(config, vocab.length, provider);
 		expect(s.info.id).toBe('lexical');
 		expect(s.info.stationary).toBe('data-dependent');
 	});
 
 	it('sampleStep: stay when coin >= beta', () => {
-		const s = createLexical(config, vocab.length, table);
+		const s = createLexical(config, vocab.length, provider);
 		const rng = mockRng([0.9]); // coin >= 0.5 → stay
 		expect(s.sampleStep(0, 0.5, rng)).toBe(0);
 	});
 
 	it('sampleStep: jump to a lexical neighbor (epsilon=0)', () => {
-		const s = createLexical(config, vocab.length, table);
+		const s = createLexical(config, vocab.length, provider);
 		// coin=0.3 < 0.5 → jump; draw=0.0 → first lexical neighbor of 'cat'
 		// 'cat' neighbors: 'cats'(d=1), 'car'(d=1), 'cart'(d=2)
 		const rng = mockRng([0.3, 0.0]);
 		const result = s.sampleStep(0, 0.5, rng);
 		// Should be the first neighbor (highest weight = closest dist).
-		const start = table.offsets[0]!;
-		const expected = table.neighborIds[start]!;
+		const neighbors = provider.neighborsOf(0);
+		const expected = neighbors[0]!.id;
 		expect(result).toBe(expected);
 	});
 
 	it('sampleStep: draws exactly 2 rng values', () => {
-		const s = createLexical(config, vocab.length, table);
+		const s = createLexical(config, vocab.length, provider);
 		let callCount = 0;
 		const countingRng = () => { callCount++; return 0.3; };
 		s.sampleStep(0, 0.5, countingRng);
@@ -89,7 +91,7 @@ describe('createLexical (with table)', () => {
 	});
 
 	it('sampleStep: draws exactly 2 rng values (stay branch)', () => {
-		const s = createLexical(config, vocab.length, table);
+		const s = createLexical(config, vocab.length, provider);
 		let callCount = 0;
 		const countingRng = () => { callCount++; return 0.9; };
 		s.sampleStep(0, 0.5, countingRng);
@@ -98,7 +100,7 @@ describe('createLexical (with table)', () => {
 
 	it('sampleStep: uniform floor selection when epsilon > 0', () => {
 		const epsConfig: LexicalConfig = { maxDistance: 2, k: 20, epsilon: 0.3, tau: 1.0 };
-		const s = createLexical(epsConfig, vocab.length, table);
+		const s = createLexical(epsConfig, vocab.length, provider);
 		// coin=0.3 < 0.5 → jump; draw=0.1 < epsilon=0.3 → uniform floor.
 		// Within floor: scaled = 0.1/0.3 = 0.333 → floor(0.333*5) = 1.
 		const rng = mockRng([0.3, 0.1]);
@@ -106,13 +108,13 @@ describe('createLexical (with table)', () => {
 	});
 
 	it('getLocalDistribution: returns buffer with correct length', () => {
-		const s = createLexical(config, vocab.length, table);
+		const s = createLexical(config, vocab.length, provider);
 		const dist = s.getLocalDistribution!(0, 0.5);
 		expect(dist.length).toBe(vocab.length);
 	});
 
 	it('getLocalDistribution: sum to 1', () => {
-		const s = createLexical(config, vocab.length, table);
+		const s = createLexical(config, vocab.length, provider);
 		const dist = s.getLocalDistribution!(0, 0.5);
 		let sum = 0;
 		for (let i = 0; i < vocab.length; i++) sum += dist[i]!;
@@ -121,20 +123,19 @@ describe('createLexical (with table)', () => {
 
 	it('getLocalDistribution: self has zero mass in jump dist when epsilon=0', () => {
 		// The jump distribution alone (no stay prob) never puts mass on
-		// self because self is excluded from the neighbor table.
-		const s = createLexical(config, vocab.length, table);
+		// self because self is excluded from the neighbor list.
+		const s = createLexical(config, vocab.length, provider);
 		const dist = s.getLocalDistribution!(0, 0.5);
 		expect(dist[0]).toBe(0);
 	});
 
 	it('sampleStep: empty neighbor list falls back to uniform', () => {
-		// Build table where one token has no neighbors (maxDistance=0).
+		// Build model where one token has no neighbors (maxDistance=1).
 		const sparseVocab = ['a', 'ab', 'abcde'];
-		const sparseTable = computeNeighborTable(sparseVocab, { maxDistance: 1, k: 5, tau: 1.0 });
+		const sparseModel = new EditDistanceModel(sparseVocab);
+		const sparseProvider = new NeighborhoodProvider(sparseModel, 3);
 		// 'abcde' (id=2, len=5) has no token within distance 1.
-		const s = createLexical(config, sparseVocab.length, sparseTable);
-		// Assert empty neighbor list.
-		expect(sparseTable.offsets[2]).toBe(sparseTable.offsets[3]);
+		const s = createLexical(config, sparseVocab.length, sparseProvider);
 		// coin=0.3 < 0.5 → jump; draw=0.7 → floor(0.7*3)=2.
 		const rng = mockRng([0.3, 0.7]);
 		expect(s.sampleStep(2, 0.5, rng)).toBe(2);
@@ -145,7 +146,7 @@ describe('createLexical (with table)', () => {
 		// stuck. Run many steps from each starting token and verify we
 		// visit different tokens.
 		const epsConfig: LexicalConfig = { maxDistance: 2, k: 20, epsilon: 0.1, tau: 1.0 };
-		const s = createLexical(epsConfig, vocab.length, table);
+		const s = createLexical(epsConfig, vocab.length, provider);
 		// Use a simple sequential RNG (not actually random in a test, but
 		// we care about coverage, not randomness quality).
 		let seq = 0;
