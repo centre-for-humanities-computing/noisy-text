@@ -41,7 +41,8 @@ export interface LexicalConfig {
 const LEXICAL_INFO = {
 	id: 'lexical',
 	label: 'Lexical (edit distance)',
-	description: 'Tokens transition to visually-similar tokens based on string edit distance, mixed with uniform noise.',
+	description:
+		'Tokens transition to visually-similar tokens based on string edit distance, mixed with uniform noise.',
 	stationary: 'data-dependent',
 } as const;
 

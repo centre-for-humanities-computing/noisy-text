@@ -83,7 +83,7 @@ export function levenshtein(a: string, b: string, maxDist: number): number {
 			const ins = curr[i - 1]! + 1;
 			const sub = prev[i - 1]! + cost;
 
-			const best = del < ins ? (del < sub ? del : sub) : (ins < sub ? ins : sub);
+			const best = del < ins ? (del < sub ? del : sub) : ins < sub ? ins : sub;
 			curr[i] = best;
 			if (best < minInRow) minInRow = best;
 		}
@@ -185,7 +185,7 @@ export class EditDistanceModel implements DistanceModel {
 	 * bounds. Tokens with fewer than 2 bigrams ($|s| < 2$) fall back
 	 * to a length-filtered scan of all tokens.
 	 */
-	* candidates(token: number, radius: number): Iterable<number> {
+	*candidates(token: number, radius: number): Iterable<number> {
 		const lenI = this._lengths[token]!;
 		const bgI = this._bigramSets[token]!;
 		const seen = new Set<number>();

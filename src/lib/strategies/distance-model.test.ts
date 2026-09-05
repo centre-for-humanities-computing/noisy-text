@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-	levenshtein,
-	EditDistanceModel,
-} from './distance-model.js';
+import { levenshtein, EditDistanceModel } from './distance-model.js';
 
 describe('levenshtein', () => {
 	it('returns 0 for identical strings', () => {

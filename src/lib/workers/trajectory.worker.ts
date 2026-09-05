@@ -39,16 +39,17 @@ const R_MAX = 3;
  * The model decodes all $K$ strings once; the provider memoizes
  * per-token neighborhoods computed on first visit during the walk.
  */
-const _lexicalCache = new Map<string, { model: EditDistanceModel; provider: NeighborhoodProvider }>();
+const _lexicalCache = new Map<
+	string,
+	{ model: EditDistanceModel; provider: NeighborhoodProvider }
+>();
 
 /**
  * Ensure the EditDistanceModel + NeighborhoodProvider are ready for a
  * tokenizer. Decodes all $K$ token strings (one-time cost per tokenizer
  * lifetime), builds the model, and wraps it in a provider.
  */
-async function ensureLexicalProvider(
-	tokenizerId: string,
-): Promise<NeighborhoodProvider> {
+async function ensureLexicalProvider(tokenizerId: string): Promise<NeighborhoodProvider> {
 	const cached = _lexicalCache.get(tokenizerId);
 	if (cached) return cached.provider;
 

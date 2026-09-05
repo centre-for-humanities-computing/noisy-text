@@ -85,7 +85,10 @@ describe('createLexical (with provider)', () => {
 	it('sampleStep: draws exactly 2 rng values', () => {
 		const s = createLexical(config, vocab.length, provider);
 		let callCount = 0;
-		const countingRng = () => { callCount++; return 0.3; };
+		const countingRng = () => {
+			callCount++;
+			return 0.3;
+		};
 		s.sampleStep(0, 0.5, countingRng);
 		expect(callCount).toBe(2);
 	});
@@ -93,7 +96,10 @@ describe('createLexical (with provider)', () => {
 	it('sampleStep: draws exactly 2 rng values (stay branch)', () => {
 		const s = createLexical(config, vocab.length, provider);
 		let callCount = 0;
-		const countingRng = () => { callCount++; return 0.9; };
+		const countingRng = () => {
+			callCount++;
+			return 0.9;
+		};
 		s.sampleStep(0, 0.5, countingRng);
 		expect(callCount).toBe(2);
 	});

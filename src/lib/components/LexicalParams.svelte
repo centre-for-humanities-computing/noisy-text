@@ -30,7 +30,7 @@
 				max={3}
 				step={1}
 				value={maxDistance}
-				disabled={disabled}
+				{disabled}
 				oninput={(e) => onmaxdistancechange(Number(e.currentTarget.value))}
 			/>
 			<span class="param-value">{maxDistance}</span>
@@ -44,7 +44,7 @@
 				max={200}
 				step={1}
 				value={k}
-				disabled={disabled}
+				{disabled}
 				oninput={(e) => onkchange(Number(e.currentTarget.value))}
 			/>
 			<span class="param-value">{k}</span>
@@ -58,7 +58,7 @@
 				max={0.5}
 				step={0.005}
 				value={epsilon}
-				disabled={disabled}
+				{disabled}
 				oninput={(e) => onepsilonchange(Number(e.currentTarget.value))}
 			/>
 			<span class="param-value">{epsilon.toFixed(3)}</span>

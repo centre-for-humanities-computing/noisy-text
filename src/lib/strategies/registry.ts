@@ -29,7 +29,8 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 	lexical: {
 		id: 'lexical',
 		label: 'Lexical (edit distance)',
-		description: 'Tokens transition to visually-similar tokens based on string edit distance, mixed with uniform noise.',
+		description:
+			'Tokens transition to visually-similar tokens based on string edit distance, mixed with uniform noise.',
 		stationary: 'data-dependent',
 	},
 } as const;
@@ -63,7 +64,11 @@ const STRATEGY_FACTORIES: Record<string, StrategyFactory<unknown>> = {
  * @param _extra - Optional extra params (e.g. lexical settings from store).
  * @returns The strategy config object, JSON-serializable.
  */
-export function strategyConfigFor(id: string, vocabSize: number, _extra?: Record<string, unknown>): unknown {
+export function strategyConfigFor(
+	id: string,
+	vocabSize: number,
+	_extra?: Record<string, unknown>,
+): unknown {
 	if (id === 'absorbing') {
 		return { maskTokenId: vocabSize };
 	}
