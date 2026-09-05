@@ -1,41 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
-	normalizeTokenString,
 	levenshtein,
 	EditDistanceModel,
 } from './distance-model.js';
-
-describe('normalizeTokenString', () => {
-	it('preserves normal strings', () => {
-		expect(normalizeTokenString('hello')).toBe('hello');
-	});
-
-	it('strips BERT continuation marker ##', () => {
-		expect(normalizeTokenString('##ing')).toBe('ing');
-	});
-
-	it('converts GPT-2 Ġ marker to space then strips leading space', () => {
-		expect(normalizeTokenString('Ġhello')).toBe('hello');
-	});
-
-	it('handles Ġ followed by more text', () => {
-		expect(normalizeTokenString('Ġ ')).toBe('');
-	});
-
-	it('handles pure Ġ marker (space token)', () => {
-		expect(normalizeTokenString('Ġ')).toBe('');
-	});
-
-	it('handles ## inside word (non-leading)', () => {
-		expect(normalizeTokenString('ab##c')).toBe('ab##c');
-	});
-
-	it('applies NFC normalization', () => {
-		const composed = '\u00E9'; // é NFC
-		const decomposed = 'e\u0301'; // é NFD
-		expect(normalizeTokenString(decomposed)).toBe(composed);
-	});
-});
 
 describe('levenshtein', () => {
 	it('returns 0 for identical strings', () => {

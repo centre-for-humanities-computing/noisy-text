@@ -130,6 +130,8 @@
 		return 'Select a tokenizer';
 	});
 
+	const isComputing = $derived(trajectoryStore.status === 'computing');
+
 	// When the tokenizer becomes ready, instantiate the selected strategy
 	// with the current vocab size. Re-instantiates on tokenizer or strategy change.
 	$effect(() => {
@@ -245,21 +247,26 @@
 	/>
 
 	<div class="status" class:error={tokenizerStore.status === 'error'}>
+		{#if isComputing}
+			<span class="throbber" aria-hidden="true"></span>
+		{/if}
 		{statusText}
 	</div>
 
 	<textarea bind:value={text} placeholder="Type or paste text here…" rows={6}></textarea>
 
 	{#if displayTokens.tokens.length > 0}
-		{#if showChips}
-			<TokenChips
-				tokens={displayTokens.tokens}
-				ids={displayTokens.ids}
-				changed={changed ?? new Uint8Array(0)}
-			/>
-		{:else}
-			<InlineTokens text={decodedText} />
-		{/if}
+		<div class="tokens-area" class:computing={isComputing}>
+			{#if showChips}
+				<TokenChips
+					tokens={displayTokens.tokens}
+					ids={displayTokens.ids}
+					changed={changed ?? new Uint8Array(0)}
+				/>
+			{:else}
+				<InlineTokens text={decodedText} />
+			{/if}
+		</div>
 	{/if}
 </main>
 
@@ -281,9 +288,25 @@
 		font-size: 0.85rem;
 		color: #555;
 		margin-bottom: 0.75rem;
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
 	}
 	.status.error {
 		color: #c00;
+	}
+	.throbber {
+		display: inline-block;
+		width: 12px;
+		height: 12px;
+		border: 2px solid #ccc;
+		border-top-color: #555;
+		border-radius: 50%;
+		animation: spin 0.6s linear infinite;
+		flex-shrink: 0;
+	}
+	@keyframes spin {
+		to { transform: rotate(360deg); }
 	}
 	textarea {
 		width: 100%;
@@ -293,5 +316,11 @@
 		padding: 0.5rem;
 		margin-bottom: 1rem;
 		resize: vertical;
+	}
+	.tokens-area {
+		transition: opacity 0.15s;
+	}
+	.tokens-area.computing {
+		opacity: 0.5;
 	}
 </style>

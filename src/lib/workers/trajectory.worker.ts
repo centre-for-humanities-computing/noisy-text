@@ -21,7 +21,7 @@ import { createRng } from '../engine/rng.js';
 import { getStrategy } from '../strategies/index.js';
 import { getSchedule } from '../schedules/index.js';
 import { loadTokenizer } from '../tokenizers/index.js';
-import { EditDistanceModel, normalizeTokenString } from '../strategies/distance-model.js';
+import { EditDistanceModel } from '../strategies/distance-model.js';
 import { NeighborhoodProvider } from '../strategies/neighborhood.js';
 import type { TrajectoryWorkerRequest, TrajectoryWorkerResponse } from './trajectory.protocol.js';
 
@@ -55,7 +55,7 @@ async function ensureLexicalProvider(
 	const tok = await loadTokenizer(tokenizerId);
 	const K = tok.vocabSize;
 
-	// Decode all token ids to strings, then normalize.
+	// Decode all token ids to strings.
 	const strings: string[] = [];
 	const CHUNK = 4096;
 	for (let offset = 0; offset < K; offset += CHUNK) {
@@ -64,7 +64,7 @@ async function ensureLexicalProvider(
 		for (let i = offset; i < end; i++) ids[i - offset] = i;
 		const raw = tok.idsToTokens(ids);
 		for (const r of raw) {
-			strings.push(normalizeTokenString(r));
+			strings.push(r);
 		}
 		// Yield to the event loop.
 		await new Promise((r) => setTimeout(r, 0));

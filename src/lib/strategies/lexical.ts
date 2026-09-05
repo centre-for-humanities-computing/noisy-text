@@ -46,6 +46,44 @@ const LEXICAL_INFO = {
 } as const;
 
 /**
+ * Filter and softmax neighbors at read time.
+ *
+ * Given the raw neighbor list (all within $R_{\max}$, sorted by distance),
+ * filter to $d \le$ `maxDistance` and truncate to top-$k$, then compute
+ * softmax weights $w_m = \exp(-d_m / \tau) / \sum \exp(-d_m / \tau)$.
+ *
+ * Returns `{ entries, weights }` where entries and weights are parallel
+ * arrays. Returns `null` if the effective list is empty.
+ */
+function _resolveNeighbors(
+	allNeighbors: readonly { id: number; dist: number }[],
+	maxDistance: number,
+	k: number,
+	tau: number,
+): { entries: { id: number; dist: number }[]; weights: Float32Array } | null {
+	const entries: { id: number; dist: number }[] = [];
+	for (let i = 0; i < allNeighbors.length && entries.length < k; i++) {
+		const n = allNeighbors[i]!;
+		if (n.dist <= maxDistance) {
+			entries.push(n);
+		}
+	}
+	if (entries.length === 0) return null;
+
+	// Softmax: $w_m = \exp(-d_m / \tau)$, normalized.
+	const logits = entries.map((n) => -n.dist / tau);
+	const maxLogit = Math.max(...logits);
+	let sumExp = 0;
+	for (const l of logits) sumExp += Math.exp(l - maxLogit);
+
+	const weights = new Float32Array(entries.length);
+	for (let i = 0; i < entries.length; i++) {
+		weights[i] = Math.exp(logits[i]! - maxLogit) / sumExp;
+	}
+	return { entries, weights };
+}
+
+/**
  * Create a lexical strategy.
  *
  * `sampleStep` draws exactly 2 rng values per call so the RNG stream is
@@ -83,95 +121,47 @@ export const createLexical: StrategyFactory<LexicalConfig> = (
 			const coin = rng(); // whether to jump
 			const draw = rng(); // compound: floor-vs-lexical + token index
 
-			if (coin >= beta) {
-				// Stay at current token.
-				return token;
-			}
+			if (coin >= beta) return token;
 
 			// Jump. If no provider → pure uniform.
 			if (!_provider) {
-				const idx = Math.min(Math.floor(draw * vocabSize), vocabSize - 1);
-				return idx;
+				return Math.min(Math.floor(draw * vocabSize), vocabSize - 1);
 			}
 
-			// Derive the effective neighbor list at read time.
 			const { maxDistance, k, epsilon, tau } = config;
-			const allNeighbors = _provider.neighborsOf(token);
+			const resolved = _resolveNeighbors(_provider.neighborsOf(token), maxDistance, k, tau);
 
-			// Filter by maxDistance, truncate to top-k.
-			const effective: { id: number; dist: number }[] = [];
-			for (let i = 0; i < allNeighbors.length && effective.length < k; i++) {
-				const n = allNeighbors[i]!;
-				if (n.dist <= maxDistance) {
-					effective.push(n);
-				}
+			// Empty effective list → pure uniform.
+			if (!resolved) {
+				return Math.min(Math.floor(draw * vocabSize), vocabSize - 1);
 			}
 
-			// Empty effective list: fall back to uniform.
-			if (effective.length === 0) {
-				const idx = Math.min(Math.floor(draw * vocabSize), vocabSize - 1);
-				return idx;
-			}
-
-			// Compound selector: first determine floor vs lexical,
-			// then pick the destination within that category.
+			// Uniform floor.
 			if (draw < epsilon) {
-				// Uniform floor: scale draw to $[0, K)$.
-				const idx = Math.min(Math.floor((draw / epsilon) * vocabSize), vocabSize - 1);
-				return idx;
+				return Math.min(Math.floor((draw / epsilon) * vocabSize), vocabSize - 1);
 			}
 
-			// Lexical: compute softmax weights from raw distances at read time.
-			// $w_m = \exp(-d_m / \tau)$, normalized.
-			const logits = effective.map((n) => -n.dist / tau);
-			const maxLogit = Math.max(...logits);
-			let sumExp = 0;
-			for (const l of logits) sumExp += Math.exp(l - maxLogit);
-
-			// CDF binary search over the softmax weights.
-			// $v \in [0, 1)$ maps to the weight CDF.
+			// Lexical: CDF over softmax weights.
 			const v = (draw - epsilon) / (1 - epsilon);
 			let cum = 0;
-			for (let i = 0; i < effective.length; i++) {
-				cum += Math.exp(logits[i]! - maxLogit) / sumExp;
-				if (v < cum) {
-					return effective[i]!.id;
-				}
+			for (let i = 0; i < resolved.entries.length; i++) {
+				cum += resolved.weights[i]!;
+				if (v < cum) return resolved.entries[i]!.id;
 			}
-			// Floating-point rounding: fall back to last entry.
-			return effective[effective.length - 1]!.id;
+			return resolved.entries[resolved.entries.length - 1]!.id;
 		},
 
 		getLocalDistribution(token: number, _beta: number): Float32Array {
-			// Build the jump distribution $P(y \mid x)$ (without stay prob).
-			// The local distribution shown to the user excludes the $\beta$
-			// stay-vs-jump gate.
 			_dist.fill(0);
 
 			if (_provider) {
 				const { maxDistance, k, epsilon, tau } = config;
-				const allNeighbors = _provider.neighborsOf(token);
+				const resolved = _resolveNeighbors(_provider.neighborsOf(token), maxDistance, k, tau);
 
-				// Filter by maxDistance, truncate to top-k.
-				const effective: { id: number; dist: number }[] = [];
-				for (let i = 0; i < allNeighbors.length && effective.length < k; i++) {
-					const n = allNeighbors[i]!;
-					if (n.dist <= maxDistance) {
-						effective.push(n);
-					}
-				}
-
-				if (effective.length > 0) {
-					// Softmax weights from raw distances.
-					const logits = effective.map((n) => -n.dist / tau);
-					const maxLogit = Math.max(...logits);
-					let sumExp = 0;
-					for (const l of logits) sumExp += Math.exp(l - maxLogit);
-
+				if (resolved) {
 					const lexMass = 1 - epsilon;
-					for (let i = 0; i < effective.length; i++) {
-						const w = Math.exp(logits[i]! - maxLogit) / sumExp;
-						_dist[effective[i]!.id] = lexMass * w;
+					for (let i = 0; i < resolved.entries.length; i++) {
+						_dist[resolved.entries[i]!.id] = lexMass * resolved.weights[i]!;
 					}
 				}
 
@@ -181,7 +171,6 @@ export const createLexical: StrategyFactory<LexicalConfig> = (
 					_dist[i]! += floorPerToken;
 				}
 			} else {
-				// No provider: pure uniform distribution.
 				_dist.fill(_uniformWeight);
 			}
 

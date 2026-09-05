@@ -46,28 +46,6 @@ export interface DistanceModel {
 // ---------------------------------------------------------------------------
 
 /**
- * Normalize a raw token-string from the tokenizer into a clean form
- * for edit-distance comparison.
- *
- * - GPT-2: leading `Ġ` (U+0120) → space, then trim leading whitespace.
- * - BERT: leading `##` continuation marker → strip.
- * - Applies NFC normalization.
- */
-export function normalizeTokenString(raw: string): string {
-	let s = raw;
-	// GPT-2 Ġ marker → space.
-	if (s.startsWith('Ġ')) {
-		s = ' ' + s.slice(1);
-	}
-	s = s.trimStart();
-	// BERT continuation marker.
-	if (s.startsWith('##')) {
-		s = s.slice(2);
-	}
-	return s.normalize('NFC');
-}
-
-/**
  * Compute Levenshtein edit distance between two strings, with early exit
  * when the distance exceeds `maxDist`.
  *
@@ -163,7 +141,6 @@ export class EditDistanceModel implements DistanceModel {
 	private _strings: readonly string[];
 	private _lengths: Int32Array;
 	private _bigramSets: Set<string>[];
-	private _bigramSizes: Uint16Array;
 
 	// Built lazily on first candidates() call.
 	private _index: Map<string, number[]> | null = null;
@@ -175,12 +152,9 @@ export class EditDistanceModel implements DistanceModel {
 		// Precompute per-token properties: O(K), cheap.
 		this._lengths = new Int32Array(this.K);
 		this._bigramSets = new Array(this.K);
-		this._bigramSizes = new Uint16Array(this.K);
 
 		for (let i = 0; i < this.K; i++) {
-			const bgs = new Set(bigrams(strings[i]!));
-			this._bigramSets[i] = bgs;
-			this._bigramSizes[i] = bgs.size;
+			this._bigramSets[i] = new Set(bigrams(strings[i]!));
 			this._lengths[i] = strings[i]!.length;
 		}
 	}
@@ -208,16 +182,17 @@ export class EditDistanceModel implements DistanceModel {
 	 * Yield candidate token ids that could be within `radius` of `token`.
 	 *
 	 * Uses the bigram inverted index with length + bigram-count sound
-	 * bounds, supplemented by a sparse-token scan and zero-bigram fallback.
+	 * bounds. Tokens with fewer than 2 bigrams ($|s| < 2$) fall back
+	 * to a length-filtered scan of all tokens.
 	 */
 	* candidates(token: number, radius: number): Iterable<number> {
-		const index = this._ensureIndex();
 		const lenI = this._lengths[token]!;
 		const bgI = this._bigramSets[token]!;
 		const seen = new Set<number>();
 
-		// --- Inverted-index pass ---
 		if (bgI.size > 0) {
+			const index = this._ensureIndex();
+
 			for (const bg of bgI) {
 				const candList = index.get(bg);
 				if (!candList) continue;
@@ -244,25 +219,8 @@ export class EditDistanceModel implements DistanceModel {
 					yield j;
 				}
 			}
-
-			// --- Sparse-token supplement ---
-			// Tokens with $|G| \le 2r$ can be within distance $r$ even with
-			// completely disjoint bigram sets — the bigram-count bound is
-			// vacuous. The inverted index cannot find such pairs.
-			const maxBigrams = 2 * radius;
-			for (let j = 0; j < this.K; j++) {
-				if (j === token) continue;
-				if (seen.has(j)) continue;
-				if (this._bigramSizes[j]! > maxBigrams) continue;
-				seen.add(j);
-				if (Math.abs(lenI - this._lengths[j]!) > radius) continue;
-				yield j;
-			}
 		} else {
-			// --- Zero-bigram fallback ---
-			// Token has $|s| < 2$ — can't use the inverted index at all.
-			// Scan all tokens of similar length. Zero-bigram tokens are
-			// very rare in any real vocabulary, so this is cheap.
+			// No bigrams ($|s| < 2$): length-filtered scan of all tokens.
 			for (let j = 0; j < this.K; j++) {
 				if (j === token) continue;
 				if (Math.abs(lenI - this._lengths[j]!) > radius) continue;
