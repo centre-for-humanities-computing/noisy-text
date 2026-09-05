@@ -19,6 +19,13 @@ describe('strategy registry', () => {
 		expect(info!.id).toBe('absorbing');
 	});
 
+	it('contains the char-overlap strategy', () => {
+		const info = STRATEGIES['char-overlap'];
+		expect(info).toBeDefined();
+		expect(info!.id).toBe('char-overlap');
+		expect(info!.stationary).toBe('data-dependent');
+	});
+
 	it('every entry has the required shape', () => {
 		for (const [id, info] of Object.entries(STRATEGIES)) {
 			expect(info.id).toBe(id);
