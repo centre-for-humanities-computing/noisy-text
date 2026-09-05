@@ -27,6 +27,9 @@ export interface TrajectorySpec {
 	vocabSize: number;
 	/** Random seed for reproducibility. */
 	seed: number;
+	/** Tokenizer id (kebab-case). Used by strategies that need tokenizer context
+	 *  (e.g. lexical for building the distance model in the worker). */
+	tokenizerId: string;
 }
 
 /**

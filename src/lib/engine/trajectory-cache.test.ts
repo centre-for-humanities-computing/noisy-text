@@ -25,6 +25,7 @@ function makeSpec(overrides: Partial<TrajectorySpec> = {}): TrajectorySpec {
 		T: 100,
 		vocabSize: 1000,
 		seed: 42,
+		tokenizerId: 'gpt2',
 		...overrides,
 	};
 }

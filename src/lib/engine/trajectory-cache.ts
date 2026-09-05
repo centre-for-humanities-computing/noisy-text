@@ -19,10 +19,11 @@ export class TrajectoryCache {
 	/**
 	 * Compute a cache key from a trajectory spec and input hash.
 	 *
-	 * Key format: `${inputHash}:${strategyId}:${strategyConfigJson}:${scheduleId}:${scheduleConfigJson}:${T}:${seed}`
+	 * Key format: `${tokenizerId}:${inputHash}:${strategyId}:${strategyConfigJson}:${scheduleId}:${scheduleConfigJson}:${T}:${seed}`
 	 */
 	static key(spec: TrajectorySpec, inputHash: number): string {
 		return [
+			spec.tokenizerId,
 			inputHash,
 			spec.strategyId,
 			JSON.stringify(spec.strategyConfig),

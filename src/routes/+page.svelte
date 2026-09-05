@@ -13,11 +13,13 @@
 	import { strategyStore } from '$lib/stores/strategy.svelte.js';
 	import { scheduleStore } from '$lib/stores/schedule.svelte.js';
 	import { trajectoryStore } from '$lib/stores/trajectory.svelte.js';
+	import { lexicalStore } from '$lib/stores/lexical.svelte.js';
 	import { TOKENIZERS } from '$lib/tokenizers/index.js';
 	import { STRATEGIES } from '$lib/strategies/index.js';
 	import { strategyConfigFor } from '$lib/strategies/index.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
 	import { changedMask } from '$lib/engine/diff.js';
+	import LexicalParams from '$lib/components/LexicalParams.svelte';
 
 	let text = $state('Hello, world!');
 	let showChips = $state(true);
@@ -128,6 +130,8 @@
 		return 'Select a tokenizer';
 	});
 
+	const isComputing = $derived(trajectoryStore.status === 'computing');
+
 	// When the tokenizer becomes ready, instantiate the selected strategy
 	// with the current vocab size. Re-instantiates on tokenizer or strategy change.
 	$effect(() => {
@@ -152,17 +156,29 @@
 		trajectoryStore.request({
 			inputIds: ids,
 			strategyId: strategyStore.currentId,
-			strategyConfig: strategyConfigFor(strategyStore.currentId, tok.vocabSize),
+			strategyConfig: strategyConfigFor(
+				strategyStore.currentId,
+				tok.vocabSize,
+				strategyStore.currentId === 'lexical' ? lexicalStore.params : undefined,
+			),
 			scheduleId: scheduleStore.currentId,
 			scheduleConfig: {},
 			T: scheduleStore.T,
 			vocabSize: tok.vocabSize,
 			seed: trajectoryStore.seed,
+			tokenizerId: tokenizerStore.currentId,
 		});
 	});
 
 	onMount(() => {
 		tokenizerStore.selectTokenizer('gpt2');
+	});
+
+	// Mark lexical store ready when tokenizer is available.
+	$effect(() => {
+		if (tokenizerStore.tokenizer) {
+			lexicalStore.markReady();
+		}
 	});
 </script>
 
@@ -207,6 +223,18 @@
 		/>
 	</div>
 
+	{#if strategyStore.currentId === 'lexical'}
+		<LexicalParams
+			maxDistance={lexicalStore.maxDistance}
+			k={lexicalStore.k}
+			epsilon={lexicalStore.epsilon}
+			disabled={tokenizerStore.status !== 'ready'}
+			onmaxdistancechange={(v) => (lexicalStore.maxDistance = v)}
+			onkchange={(v) => (lexicalStore.k = v)}
+			onepsilonchange={(v) => (lexicalStore.epsilon = v)}
+		/>
+	{/if}
+
 	<SchedulePlot schedule={scheduleStore.instance} />
 
 	<TimeSlider
@@ -219,21 +247,26 @@
 	/>
 
 	<div class="status" class:error={tokenizerStore.status === 'error'}>
+		{#if isComputing}
+			<span class="throbber" aria-hidden="true"></span>
+		{/if}
 		{statusText}
 	</div>
 
 	<textarea bind:value={text} placeholder="Type or paste text here…" rows={6}></textarea>
 
 	{#if displayTokens.tokens.length > 0}
-		{#if showChips}
-			<TokenChips
-				tokens={displayTokens.tokens}
-				ids={displayTokens.ids}
-				changed={changed ?? new Uint8Array(0)}
-			/>
-		{:else}
-			<InlineTokens text={decodedText} />
-		{/if}
+		<div class="tokens-area" class:computing={isComputing}>
+			{#if showChips}
+				<TokenChips
+					tokens={displayTokens.tokens}
+					ids={displayTokens.ids}
+					changed={changed ?? new Uint8Array(0)}
+				/>
+			{:else}
+				<InlineTokens text={decodedText} />
+			{/if}
+		</div>
 	{/if}
 </main>
 
@@ -255,9 +288,27 @@
 		font-size: 0.85rem;
 		color: #555;
 		margin-bottom: 0.75rem;
+		display: flex;
+		align-items: center;
+		gap: 0.4rem;
 	}
 	.status.error {
 		color: #c00;
+	}
+	.throbber {
+		display: inline-block;
+		width: 12px;
+		height: 12px;
+		border: 2px solid #ccc;
+		border-top-color: #555;
+		border-radius: 50%;
+		animation: spin 0.6s linear infinite;
+		flex-shrink: 0;
+	}
+	@keyframes spin {
+		to {
+			transform: rotate(360deg);
+		}
 	}
 	textarea {
 		width: 100%;
@@ -267,5 +318,11 @@
 		padding: 0.5rem;
 		margin-bottom: 1rem;
 		resize: vertical;
+	}
+	.tokens-area {
+		transition: opacity 0.15s;
+	}
+	.tokens-area.computing {
+		opacity: 0.5;
 	}
 </style>

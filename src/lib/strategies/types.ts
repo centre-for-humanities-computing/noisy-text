@@ -94,4 +94,5 @@ export interface NoiseStrategy<Config = unknown> {
 export type StrategyFactory<Config = unknown> = (
 	config: Config,
 	vocabSize: number,
+	provider?: import('./neighborhood.js').NeighborhoodProvider,
 ) => NoiseStrategy<Config>;
