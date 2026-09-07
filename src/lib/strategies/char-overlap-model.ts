@@ -1,21 +1,27 @@
 /**
  * Character-overlap `DistanceModel` backed by a character inverted index.
  *
- * Distance between two tokens is the Jaccard distance over their character
- * sets (code points of the raw subword string):
+ * Supports two modes:
  *
- * $$d(a, b) = 1 - \frac{|C(a) \cap C(b)|}{|C(a) \cup C(b)|}$$
+ * - **set** (default): Jaccard distance over distinct character sets.
+ *   $d(a,b) = 1 - |C(a) \cap C(b)| / |C(a) \cup C(b)|$.
+ *   Repeated characters are ignored; `dog`, `doggo`, `good` and `god` have $d = 0$.
  *
- * where $C(t)$ is the set of code points in token $t$'s string.
- * Self-distance is $0$; disjoint or empty sets yield $d = 1$.
+ * - **multiset**: Multiset Jaccard distance over character counts.
+ *   $d(a,b) = 1 - \frac{\sum_c \min(n_a(c), n_b(c))}{\sum_c \max(n_a(c), n_b(c))}$
+ *   where $n_t(c)$ is the count of character $c$ in token $t$.
+ *   Repeated characters matter: `dog` and `god` still have $d = 0$,
+ *   but `dog` and `doggo` have $d = 1 - 3/5 = 0.4$.
+ *
+ * Self-distance is $0$; disjoint or empty strings yield $d = 1$.
  *
  * ## Candidate pruning (sound to radius $r$)
  *
- * Any token with $d(a,b) \le r$ must share at least one character with
- * $a$ (unless $r = 1$, which includes everything). A character inverted
- * index (char → token ids) provides a sound superset: candidates are
- * the union of index lists for $a$'s characters. Tokens with an empty
- * character set have no candidates (they are distance 1 from everything).
+ * Any token with $d(a,b) \le r$ must share at least one distinct
+ * character with $a$ (unless $r = 1$, which includes everything).
+ * A character inverted index (char → token ids) provides a sound
+ * superset for both modes. Tokens with an empty character set have
+ * no candidates (they are distance 1 from everything).
  *
  * ## Construction cost
  * $O(K \cdot \bar{c})$ to build the character inverted index, where
@@ -24,6 +30,8 @@
  */
 
 import type { DistanceModel } from './distance-model.js';
+
+export type CharOverlapMode = 'set' | 'multiset';
 
 /**
  * Yield distinct code points of $s$ as strings.
@@ -35,22 +43,47 @@ function* codePoints(s: string): Generator<string> {
 	}
 }
 
-export class CharOverlapModel implements DistanceModel {
-	readonly id = 'char-overlap';
-	readonly K: number;
+/**
+ * Build a character-count map for multiset mode.
+ * Maps each distinct code point to its occurrence count.
+ */
+function charCounts(s: string): Map<string, number> {
+	const counts = new Map<string, number>();
+	for (const cp of s) {
+		counts.set(cp, (counts.get(cp) ?? 0) + 1);
+	}
+	return counts;
+}
 
+export class CharOverlapModel implements DistanceModel {
+	readonly id: string;
+	readonly K: number;
+	readonly mode: CharOverlapMode;
+
+	// Set mode: distinct characters per token.
 	private _charSets: Set<string>[];
+
+	// Multiset mode: character counts per token.
+	private _charCounts: Map<string, number>[] | null;
 
 	// Built lazily on first candidates() call.
 	private _index: Map<string, number[]> | null = null;
 
-	constructor(strings: readonly string[]) {
+	constructor(strings: readonly string[], mode: CharOverlapMode = 'set') {
+		this.mode = mode;
+		this.id = mode === 'multiset' ? 'char-overlap-multiset' : 'char-overlap';
 		this.K = strings.length;
 
-		// Precompute per-token character sets: O(K), cheap.
+		// Precompute per-token character data: O(K), cheap.
 		this._charSets = new Array(this.K);
+		this._charCounts = mode === 'multiset' ? new Array(this.K) : null;
+
 		for (let i = 0; i < this.K; i++) {
-			this._charSets[i] = new Set(codePoints(strings[i]!));
+			const s = strings[i]!;
+			this._charSets[i] = new Set(codePoints(s));
+			if (this._charCounts) {
+				this._charCounts[i] = charCounts(s);
+			}
 		}
 	}
 
@@ -77,8 +110,9 @@ export class CharOverlapModel implements DistanceModel {
 	 * Yield candidate token ids that could be within `radius` of `token`.
 	 *
 	 * Uses the character inverted index: any token with $d \le r < 1$
-	 * must share at least one character. Tokens with an empty character
-	 * set yield no candidates (they are distance 1 from everything).
+	 * must share at least one distinct character. Tokens with an empty
+	 * character set yield no candidates (they are distance 1 from
+	 * everything).
 	 */
 	*candidates(token: number, radius: number): Iterable<number> {
 		const charSet = this._charSets[token]!;
@@ -111,14 +145,25 @@ export class CharOverlapModel implements DistanceModel {
 	 * Exact Jaccard distance between two token ids, with early exit at
 	 * `maxDist`.
 	 *
-	 * Returns $d(a,b) = 1 - |C(a) \cap C(b)| / |C(a) \cup C(b)|$ if
-	 * $\le$ `maxDist`, or `maxDist + 1` otherwise.
+	 * In **set** mode: $d = 1 - |A \cap B| / |A \cup B|$.
 	 *
+	 * In **multiset** mode:
+	 * $d = 1 - \frac{\sum_c \min(n_a(c), n_b(c))}{\sum_c \max(n_a(c), n_b(c))}$.
+	 *
+	 * Returns the distance if $\le$ `maxDist`, or `maxDist + 1` otherwise.
 	 * Symmetric: $d(a,b) = d(b,a)$. Self-distance is $0$.
 	 */
 	distance(a: number, b: number, maxDist: number): number {
 		if (a === b) return 0;
 
+		if (this._charCounts) {
+			return this._multisetDistance(a, b, maxDist);
+		}
+		return this._setDistance(a, b, maxDist);
+	}
+
+	/** Set-mode Jaccard distance. */
+	private _setDistance(a: number, b: number, maxDist: number): number {
 		const setA = this._charSets[a]!;
 		const setB = this._charSets[b]!;
 
@@ -138,6 +183,41 @@ export class CharOverlapModel implements DistanceModel {
 		const union = setA.size + setB.size - intersection;
 		const d = 1 - intersection / union;
 
+		return d <= maxDist ? d : maxDist + 1;
+	}
+
+	/** Multiset-mode Jaccard distance. */
+	private _multisetDistance(a: number, b: number, maxDist: number): number {
+		const countsA = this._charCounts![a]!;
+		const countsB = this._charCounts![b]!;
+
+		// Both empty → distance 1.
+		if (countsA.size === 0 && countsB.size === 0) return 1 <= maxDist ? 1 : maxDist + 1;
+
+		// One empty → distance 1.
+		if (countsA.size === 0 || countsB.size === 0) return 1 <= maxDist ? 1 : maxDist + 1;
+
+		// Sum min and max over the union of keys.
+		// Iterate over the smaller map's keys first, then the larger's.
+		const [small, large] = countsA.size <= countsB.size ? [countsA, countsB] : [countsB, countsA];
+		let sumMin = 0;
+		let sumMax = 0;
+		const seen = new Set<string>();
+
+		for (const [ch, countSmall] of small) {
+			const countLarge = large.get(ch) ?? 0;
+			sumMin += Math.min(countSmall, countLarge);
+			sumMax += Math.max(countSmall, countLarge);
+			seen.add(ch);
+		}
+
+		// Keys only in the larger map contribute 0 to min, count to max.
+		for (const [ch, countLarge] of large) {
+			if (seen.has(ch)) continue;
+			sumMax += countLarge;
+		}
+
+		const d = 1 - sumMin / sumMax;
 		return d <= maxDist ? d : maxDist + 1;
 	}
 }

@@ -1,4 +1,5 @@
 import { browser } from '$app/environment';
+import type { CharOverlapMode } from '$lib/strategies/char-overlap-model.js';
 
 export type CharOverlapStatus = 'idle' | 'ready';
 
@@ -21,6 +22,8 @@ class CharOverlapStore {
 	epsilon: number = $state(0.01);
 	/** Softmax temperature $\tau$. */
 	tau: number = $state(1.0);
+	/** Distance mode: `'set'` (distinct chars) or `'multiset'` (count-aware). */
+	mode: CharOverlapMode = $state('set');
 
 	/** Status: `'idle'` until first use, then `'ready'`. */
 	status: CharOverlapStatus = $state('idle');
@@ -32,6 +35,7 @@ class CharOverlapStore {
 			k: this.k,
 			epsilon: this.epsilon,
 			tau: this.tau,
+			mode: this.mode,
 		};
 	}
 

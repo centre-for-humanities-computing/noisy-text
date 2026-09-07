@@ -3,20 +3,24 @@
 		minSimilarity: number;
 		k: number;
 		epsilon: number;
+		mode: 'set' | 'multiset';
 		disabled: boolean;
 		onminsimilaritychange: (v: number) => void;
 		onkchange: (v: number) => void;
 		onepsilonchange: (v: number) => void;
+		onmodechange: (v: 'set' | 'multiset') => void;
 	}
 
 	let {
 		minSimilarity,
 		k,
 		epsilon,
+		mode,
 		disabled,
 		onminsimilaritychange,
 		onkchange,
 		onepsilonchange,
+		onmodechange,
 	}: Props = $props();
 </script>
 
@@ -63,6 +67,16 @@
 			/>
 			<span class="param-value">{epsilon.toFixed(3)}</span>
 		</label>
+
+		<label class="mode-toggle">
+			<span>Multiset</span>
+			<input
+				type="checkbox"
+				checked={mode === 'multiset'}
+				{disabled}
+				onchange={(e) => onmodechange(e.currentTarget.checked ? 'multiset' : 'set')}
+			/>
+		</label>
 	</div>
 </div>
 
@@ -90,5 +104,13 @@
 		min-width: 2.5rem;
 		text-align: right;
 		font-variant-numeric: tabular-nums;
+	}
+
+	.mode-toggle {
+		display: flex;
+		align-items: center;
+		gap: 0.3rem;
+		font-size: 0.8rem;
+		cursor: pointer;
 	}
 </style>

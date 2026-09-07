@@ -126,3 +126,80 @@ describe('CharOverlapModel', () => {
 		expect(model.distance(2, 3, 1)).toBeCloseTo(1 / 3, 5);
 	});
 });
+
+describe('CharOverlapModel (multiset mode)', () => {
+	const vocab = ['dog', 'god', 'doggo', 'dogg', 'cat', ''];
+
+	it('has id "char-overlap-multiset"', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		expect(model.id).toBe('char-overlap-multiset');
+	});
+
+	it('has mode "multiset"', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		expect(model.mode).toBe('multiset');
+	});
+
+	it('distance: "dog" to "god" — same multiset, d=0', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		expect(model.distance(0, 1, 1)).toBe(0);
+	});
+
+	it('distance: "dog" to "doggo" — min={d:1,o:1,g:1}=3, max={d:1,o:2,g:2}=5, J=3/5, d=0.4', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		const d = model.distance(0, 2, 1);
+		expect(d).toBeCloseTo(0.4, 5);
+	});
+
+	it('distance: "dog" to "dogg" — min={d:1,o:1,g:1}=3, max={d:1,o:1,g:2}=4, J=3/4, d=0.25', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		const d = model.distance(0, 3, 1);
+		expect(d).toBeCloseTo(0.25, 5);
+	});
+
+	it('distance: "doggo" to "dogg" — min={d:1,o:1,g:2}=4, max={d:1,o:2,g:2}=5, J=4/5, d=0.2', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		const d = model.distance(2, 3, 1);
+		expect(d).toBeCloseTo(0.2, 5);
+	});
+
+	it('distance: "dog" to "cat" — disjoint, d=1', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		expect(model.distance(0, 4, 1)).toBe(1);
+	});
+
+	it('distance: symmetric', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		expect(model.distance(0, 2, 1)).toBe(model.distance(2, 0, 1));
+	});
+
+	it('distance: identical tokens return 0', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		expect(model.distance(0, 0, 1)).toBe(0);
+	});
+
+	it('distance: returns maxDist+1 when exceeds cap', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		// 'dog' to 'doggo' d=0.4, maxDist=0.3 → should return 1.3.
+		expect(model.distance(0, 2, 0.3)).toBe(1.3);
+	});
+
+	it('distance: empty string to anything is 1', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		expect(model.distance(5, 0, 1)).toBe(1);
+	});
+
+	it('candidates: soundness holds for multiset mode', () => {
+		const model = new CharOverlapModel(vocab, 'multiset');
+		for (let i = 0; i < vocab.length; i++) {
+			const cands = new Set(model.candidates(i, 0.9));
+			for (let j = 0; j < vocab.length; j++) {
+				if (i === j) continue;
+				const d = model.distance(i, j, 0.9);
+				if (d <= 0.9) {
+					expect(cands.has(j)).toBe(true);
+				}
+			}
+		}
+	});
+});

@@ -1,5 +1,6 @@
 import type { NoiseStrategy, Rng, StrategyFactory } from './types.js';
 import type { NeighborhoodProvider } from './neighborhood.js';
+import type { CharOverlapMode } from './char-overlap-model.js';
 import { fillLocalDistribution, resolveNeighbors, sampleFromResolved } from './neighbor-softmax.js';
 
 /**
@@ -40,6 +41,8 @@ export interface CharOverlapConfig {
 	epsilon: number;
 	/** Softmax temperature $\tau$. */
 	tau: number;
+	/** Distance mode: `'set'` (distinct chars) or `'multiset'` (count-aware). */
+	mode: CharOverlapMode;
 }
 
 const CHAR_OVERLAP_INFO = {

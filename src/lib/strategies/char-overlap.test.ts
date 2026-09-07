@@ -17,7 +17,13 @@ function mockRng(values: number[]): () => number {
 }
 
 describe('createCharOverlap (no table — uniform fallback)', () => {
-	const config: CharOverlapConfig = { maxDistance: 0.5, k: 20, epsilon: 0.1, tau: 1.0 };
+	const config: CharOverlapConfig = {
+		maxDistance: 0.5,
+		k: 20,
+		epsilon: 0.1,
+		tau: 1.0,
+		mode: 'set',
+	};
 	const K = 10;
 
 	it('returns the strategy info', () => {
@@ -55,7 +61,7 @@ describe('createCharOverlap (with provider)', () => {
 	const vocab = ['cat', 'cats', 'car', 'cart', 'dog'];
 	const model = new CharOverlapModel(vocab);
 	const provider = new NeighborhoodProvider(model, 1.0);
-	const config: CharOverlapConfig = { maxDistance: 0.5, k: 20, epsilon: 0, tau: 1.0 };
+	const config: CharOverlapConfig = { maxDistance: 0.5, k: 20, epsilon: 0, tau: 1.0, mode: 'set' };
 
 	it('returns strategy metadata', () => {
 		const s = createCharOverlap(config, vocab.length, provider);
@@ -104,7 +110,13 @@ describe('createCharOverlap (with provider)', () => {
 	});
 
 	it('sampleStep: uniform floor selection when epsilon > 0', () => {
-		const epsConfig: CharOverlapConfig = { maxDistance: 0.5, k: 20, epsilon: 0.3, tau: 1.0 };
+		const epsConfig: CharOverlapConfig = {
+			maxDistance: 0.5,
+			k: 20,
+			epsilon: 0.3,
+			tau: 1.0,
+			mode: 'set',
+		};
 		const s = createCharOverlap(epsConfig, vocab.length, provider);
 		// coin=0.3 < 0.5 → jump; draw=0.1 < epsilon=0.3 → uniform floor.
 		// Within floor: scaled = 0.1/0.3 = 0.333 → floor(0.333*5) = 1.
@@ -139,7 +151,13 @@ describe('createCharOverlap (with provider)', () => {
 		const sparseProvider = new NeighborhoodProvider(sparseModel, 1.0);
 		// 'xyz' (id=2) shares no chars with 'a' or 'ab' → d=1 for both.
 		// With maxDistance=0.5, no neighbors.
-		const tightConfig: CharOverlapConfig = { maxDistance: 0.5, k: 20, epsilon: 0, tau: 1.0 };
+		const tightConfig: CharOverlapConfig = {
+			maxDistance: 0.5,
+			k: 20,
+			epsilon: 0,
+			tau: 1.0,
+			mode: 'set',
+		};
 		const s = createCharOverlap(tightConfig, sparseVocab.length, sparseProvider);
 		// coin=0.3 < 0.5 → jump; draw=0.7 → floor(0.7*3)=2.
 		const rng = mockRng([0.3, 0.7]);
@@ -147,7 +165,13 @@ describe('createCharOverlap (with provider)', () => {
 	});
 
 	it('empirical irreducibility: chain visits diverse tokens', () => {
-		const epsConfig: CharOverlapConfig = { maxDistance: 0.5, k: 20, epsilon: 0.1, tau: 1.0 };
+		const epsConfig: CharOverlapConfig = {
+			maxDistance: 0.5,
+			k: 20,
+			epsilon: 0.1,
+			tau: 1.0,
+			mode: 'set',
+		};
 		const s = createCharOverlap(epsConfig, vocab.length, provider);
 		let seq = 0;
 		const seqRng = () => {

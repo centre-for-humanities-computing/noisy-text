@@ -23,6 +23,7 @@ import { getSchedule } from '../schedules/index.js';
 import { loadTokenizer } from '../tokenizers/index.js';
 import { EditDistanceModel } from '../strategies/distance-model.js';
 import { CharOverlapModel } from '../strategies/char-overlap-model.js';
+import type { CharOverlapMode } from '../strategies/char-overlap-model.js';
 import { NeighborhoodProvider } from '../strategies/neighborhood.js';
 import type { TrajectoryWorkerRequest, TrajectoryWorkerResponse } from './trajectory.protocol.js';
 
@@ -55,6 +56,7 @@ const _lexicalCache = new Map<
 
 /**
  * Cached model/provider pair per tokenizer id for char-overlap.
+ * Keyed by `${tokenizerId}:${mode}` so set and multiset don't collide.
  */
 const _charOverlapCache = new Map<
 	string,
@@ -99,8 +101,12 @@ async function ensureLexicalProvider(tokenizerId: string): Promise<NeighborhoodP
  * tokenizer. Decodes all $K$ token strings (one-time cost per tokenizer
  * lifetime), builds the model, and wraps it in a provider.
  */
-async function ensureCharOverlapProvider(tokenizerId: string): Promise<NeighborhoodProvider> {
-	const cached = _charOverlapCache.get(tokenizerId);
+async function ensureCharOverlapProvider(
+	tokenizerId: string,
+	mode: CharOverlapMode,
+): Promise<NeighborhoodProvider> {
+	const cacheKey = `${tokenizerId}:${mode}`;
+	const cached = _charOverlapCache.get(cacheKey);
 	if (cached) return cached.provider;
 
 	const tok = await loadTokenizer(tokenizerId);
@@ -121,9 +127,9 @@ async function ensureCharOverlapProvider(tokenizerId: string): Promise<Neighborh
 		await new Promise((r) => setTimeout(r, 0));
 	}
 
-	const model = new CharOverlapModel(strings);
+	const model = new CharOverlapModel(strings, mode);
 	const provider = new NeighborhoodProvider(model, R_MAX_CHAR);
-	_charOverlapCache.set(tokenizerId, { model, provider });
+	_charOverlapCache.set(cacheKey, { model, provider });
 	return provider;
 }
 
@@ -140,7 +146,8 @@ self.onmessage = (event: MessageEvent<TrajectoryWorkerRequest>) => {
 			if (spec.strategyId === 'lexical') {
 				provider = await ensureLexicalProvider(spec.tokenizerId);
 			} else if (spec.strategyId === 'char-overlap') {
-				provider = await ensureCharOverlapProvider(spec.tokenizerId);
+				const mode = (spec.strategyConfig as { mode?: CharOverlapMode }).mode ?? 'set';
+				provider = await ensureCharOverlapProvider(spec.tokenizerId, mode);
 			}
 
 			const strategy = getStrategy(spec.strategyId, spec.strategyConfig, spec.vocabSize, provider);

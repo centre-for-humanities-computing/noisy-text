@@ -96,6 +96,7 @@ export function strategyConfigFor(
 			k: _extra?.k ?? 50,
 			epsilon: _extra?.epsilon ?? 0.01,
 			tau: _extra?.tau ?? 1.0,
+			mode: _extra?.mode ?? 'set',
 		};
 	}
 	return {};

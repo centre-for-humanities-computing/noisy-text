@@ -247,10 +247,12 @@
 			minSimilarity={charOverlapStore.minSimilarity}
 			k={charOverlapStore.k}
 			epsilon={charOverlapStore.epsilon}
+			mode={charOverlapStore.mode}
 			disabled={tokenizerStore.status !== 'ready'}
 			onminsimilaritychange={(v) => (charOverlapStore.minSimilarity = v)}
 			onkchange={(v) => (charOverlapStore.k = v)}
 			onepsilonchange={(v) => (charOverlapStore.epsilon = v)}
+			onmodechange={(v) => (charOverlapStore.mode = v)}
 		/>
 	{/if}
 
