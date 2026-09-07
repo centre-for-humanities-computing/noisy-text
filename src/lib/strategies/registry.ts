@@ -1,5 +1,6 @@
 import type { NoiseStrategy, StrategyFactory, StrategyInfo } from './types.js';
 import { createAbsorbing } from './absorbing.js';
+import { createCharOverlap } from './char-overlap.js';
 import { createIdentity } from './identity.js';
 import { createLexical } from './lexical.js';
 import { createUniform } from './uniform.js';
@@ -33,6 +34,13 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 			'Tokens transition to visually-similar tokens based on string edit distance, mixed with uniform noise.',
 		stationary: 'data-dependent',
 	},
+	'char-overlap': {
+		id: 'char-overlap',
+		label: 'Character overlap (Jaccard)',
+		description:
+			'Tokens transition to tokens with similar character sets based on Jaccard distance, mixed with uniform noise.',
+		stationary: 'data-dependent',
+	},
 } as const;
 
 /**
@@ -42,6 +50,7 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
  */
 const STRATEGY_FACTORIES: Record<string, StrategyFactory<unknown>> = {
 	absorbing: createAbsorbing as StrategyFactory<unknown>,
+	'char-overlap': createCharOverlap as StrategyFactory<unknown>,
 	identity: createIdentity as StrategyFactory<unknown>,
 	lexical: createLexical as StrategyFactory<unknown>,
 	uniform: createUniform as StrategyFactory<unknown>,
@@ -79,6 +88,15 @@ export function strategyConfigFor(
 			k: _extra?.k ?? 50,
 			epsilon: _extra?.epsilon ?? 0.01,
 			tau: _extra?.tau ?? 1.0,
+		};
+	}
+	if (id === 'char-overlap') {
+		return {
+			maxDistance: _extra?.maxDistance ?? 0.5,
+			k: _extra?.k ?? 50,
+			epsilon: _extra?.epsilon ?? 0.01,
+			tau: _extra?.tau ?? 1.0,
+			mode: _extra?.mode ?? 'set',
 		};
 	}
 	return {};

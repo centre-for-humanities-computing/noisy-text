@@ -1,25 +1,29 @@
 import type { NoiseStrategy, Rng, StrategyFactory } from './types.js';
 import type { NeighborhoodProvider } from './neighborhood.js';
+import type { CharOverlapMode } from './char-overlap-model.js';
 import { fillLocalDistribution, resolveNeighbors, sampleFromResolved } from './neighbor-softmax.js';
 
 /**
- * Configuration for the lexical strategy.
+ * Configuration for the character-overlap strategy.
  *
  * At each step, a token $x$ stays with probability $1-\beta_t$, or jumps
  * with probability $\beta_t$ to a destination $y$ drawn from:
  *
- * $$P(y \mid x) = (1 - \varepsilon) \cdot \mathrm{lex}(y \mid x) + \varepsilon / K$$
+ * $$P(y \mid x) = (1 - \varepsilon) \cdot \mathrm{overlap}(y \mid x) + \varepsilon / K$$
  *
- * where $\mathrm{lex}(y \mid x)$ is a softmax over negative edit distances
- * to $x$'s neighbor list $N(x)$ (all neighbors within $R_{\max}$, filtered
- * to $\le$ `maxDistance` and truncated to top-$k$):
+ * where $\mathrm{overlap}(y \mid x)$ is a softmax over negative Jaccard
+ * distances to $x$'s neighbor list $N(x)$ (all neighbors within
+ * $R_{\max}$, filtered to $\le$ `maxDistance` and truncated to top-$k$):
  *
- * $$\mathrm{lex}(y \mid x) \propto \begin{cases}
+ * $$\mathrm{overlap}(y \mid x) \propto \begin{cases}
  *   \exp(-d(x, y) / \tau) & y \in N(x),\ d(x,y) \le \text{maxDistance} \\
  *   0 & \text{otherwise}
  * \end{cases}$$
  *
- * If $N(x) = \varnothing$ the lexical term vanishes and $P(y \mid x) = 1/K$
+ * where $d(x,y) = 1 - J(C(x), C(y))$ is the Jaccard distance over the
+ * character sets (code points) of the raw subword strings.
+ *
+ * If $N(x) = \varnothing$ the overlap term vanishes and $P(y \mid x) = 1/K$
  * (pure uniform). The ergodicity floor $\varepsilon$ guarantees irreducibility
  * regardless of the neighbor table quality.
  *
@@ -28,8 +32,8 @@ import { fillLocalDistribution, resolveNeighbors, sampleFromResolved } from './n
  * distances out to a fixed ceiling $R_{\max}$, so changing any of these
  * four parameters never triggers a recompute.
  */
-export interface LexicalConfig {
-	/** Maximum edit distance for neighbor inclusion (radius). */
+export interface CharOverlapConfig {
+	/** Maximum Jaccard distance for neighbor inclusion (radius, in $[0,1]$). */
 	maxDistance: number;
 	/** Maximum number of neighbors per token (list truncation). */
 	k: number;
@@ -37,25 +41,20 @@ export interface LexicalConfig {
 	epsilon: number;
 	/** Softmax temperature $\tau$. */
 	tau: number;
+	/** Distance mode: `'set'` (distinct chars) or `'multiset'` (count-aware). */
+	mode: CharOverlapMode;
 }
 
-const LEXICAL_INFO = {
-	id: 'lexical',
-	label: 'Lexical (edit distance)',
+const CHAR_OVERLAP_INFO = {
+	id: 'char-overlap',
+	label: 'Character overlap (Jaccard)',
 	description:
-		'Tokens transition to visually-similar tokens based on string edit distance, mixed with uniform noise.',
+		'Tokens transition to tokens with similar character sets based on Jaccard distance, mixed with uniform noise.',
 	stationary: 'data-dependent',
 } as const;
 
 /**
- * Filter and softmax neighbors at read time.
- *
- * Delegates to the shared `resolveNeighbors` helper.
- */
-const _resolveNeighbors = resolveNeighbors;
-
-/**
- * Create a lexical strategy.
+ * Create a character-overlap strategy.
  *
  * `sampleStep` draws exactly 2 rng values per call so the RNG stream is
  * path-independent — this is documented in `engine/README.md`.
@@ -64,16 +63,16 @@ const _resolveNeighbors = resolveNeighbors;
  * `vocabSize`. Each call overwrites it; callers must not retain the
  * returned reference.
  *
- * @param config - Lexical params ($k$, $\varepsilon$, $\tau$, `maxDistance`).
+ * @param config - Char-overlap params ($k$, $\varepsilon$, $\tau$, `maxDistance`).
  * @param vocabSize - Vocabulary size $K$.
  * @param provider - Lazy neighborhood provider. When absent, the strategy
  *   degenerates to pure uniform (usable during initialization).
  */
-export const createLexical: StrategyFactory<LexicalConfig> = (
-	config: LexicalConfig,
+export const createCharOverlap: StrategyFactory<CharOverlapConfig> = (
+	config: CharOverlapConfig,
 	vocabSize: number,
 	provider?: NeighborhoodProvider,
-): NoiseStrategy<LexicalConfig> => {
+): NoiseStrategy<CharOverlapConfig> => {
 	// Pre-allocated buffer for getLocalDistribution.
 	const _dist = new Float32Array(vocabSize);
 
@@ -84,13 +83,13 @@ export const createLexical: StrategyFactory<LexicalConfig> = (
 	const _provider = provider ?? null;
 
 	return {
-		info: LEXICAL_INFO,
+		info: CHAR_OVERLAP_INFO,
 		config,
 
 		sampleStep(token: number, beta: number, rng: Rng): number {
 			// Draw exactly 2 values to keep the RNG stream path-independent.
 			const coin = rng(); // whether to jump
-			const draw = rng(); // compound: floor-vs-lexical + token index
+			const draw = rng(); // compound: floor-vs-overlap + token index
 
 			if (coin >= beta) return token;
 
@@ -100,7 +99,7 @@ export const createLexical: StrategyFactory<LexicalConfig> = (
 			}
 
 			const { maxDistance, k, epsilon, tau } = config;
-			const resolved = _resolveNeighbors(_provider.neighborsOf(token), maxDistance, k, tau);
+			const resolved = resolveNeighbors(_provider.neighborsOf(token), maxDistance, k, tau);
 
 			// Empty effective list → pure uniform.
 			if (!resolved) {
@@ -115,7 +114,7 @@ export const createLexical: StrategyFactory<LexicalConfig> = (
 
 			if (_provider) {
 				const { maxDistance, k, epsilon, tau } = config;
-				const resolved = _resolveNeighbors(_provider.neighborsOf(token), maxDistance, k, tau);
+				const resolved = resolveNeighbors(_provider.neighborsOf(token), maxDistance, k, tau);
 
 				if (resolved) {
 					fillLocalDistribution(_dist, resolved, epsilon, vocabSize);

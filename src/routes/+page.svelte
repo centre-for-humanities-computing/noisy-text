@@ -14,12 +14,14 @@
 	import { scheduleStore } from '$lib/stores/schedule.svelte.js';
 	import { trajectoryStore } from '$lib/stores/trajectory.svelte.js';
 	import { lexicalStore } from '$lib/stores/lexical.svelte.js';
+	import { charOverlapStore } from '$lib/stores/charOverlap.svelte.js';
 	import { TOKENIZERS } from '$lib/tokenizers/index.js';
 	import { STRATEGIES } from '$lib/strategies/index.js';
 	import { strategyConfigFor } from '$lib/strategies/index.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
 	import { changedMask } from '$lib/engine/diff.js';
 	import LexicalParams from '$lib/components/LexicalParams.svelte';
+	import CharOverlapParams from '$lib/components/CharOverlapParams.svelte';
 
 	let text = $state('Hello, world!');
 	let showChips = $state(true);
@@ -159,7 +161,11 @@
 			strategyConfig: strategyConfigFor(
 				strategyStore.currentId,
 				tok.vocabSize,
-				strategyStore.currentId === 'lexical' ? lexicalStore.params : undefined,
+				strategyStore.currentId === 'lexical'
+					? lexicalStore.params
+					: strategyStore.currentId === 'char-overlap'
+						? charOverlapStore.params
+						: undefined,
 			),
 			scheduleId: scheduleStore.currentId,
 			scheduleConfig: {},
@@ -174,10 +180,11 @@
 		tokenizerStore.selectTokenizer('gpt2');
 	});
 
-	// Mark lexical store ready when tokenizer is available.
+	// Mark lexical and char-overlap stores ready when tokenizer is available.
 	$effect(() => {
 		if (tokenizerStore.tokenizer) {
 			lexicalStore.markReady();
+			charOverlapStore.markReady();
 		}
 	});
 </script>
@@ -232,6 +239,20 @@
 			onmaxdistancechange={(v) => (lexicalStore.maxDistance = v)}
 			onkchange={(v) => (lexicalStore.k = v)}
 			onepsilonchange={(v) => (lexicalStore.epsilon = v)}
+		/>
+	{/if}
+
+	{#if strategyStore.currentId === 'char-overlap'}
+		<CharOverlapParams
+			minSimilarity={charOverlapStore.minSimilarity}
+			k={charOverlapStore.k}
+			epsilon={charOverlapStore.epsilon}
+			mode={charOverlapStore.mode}
+			disabled={tokenizerStore.status !== 'ready'}
+			onminsimilaritychange={(v) => (charOverlapStore.minSimilarity = v)}
+			onkchange={(v) => (charOverlapStore.k = v)}
+			onepsilonchange={(v) => (charOverlapStore.epsilon = v)}
+			onmodechange={(v) => (charOverlapStore.mode = v)}
 		/>
 	{/if}
 
