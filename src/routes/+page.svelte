@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import TokenChips from '$lib/components/TokenChips.svelte';
 	import InlineTokens from '$lib/components/InlineTokens.svelte';
+	import InputBar from '$lib/components/InputBar.svelte';
 	import TokenizerPicker from '$lib/components/TokenizerPicker.svelte';
 	import StrategyPicker from '$lib/components/StrategyPicker.svelte';
 	import SchedulePicker from '$lib/components/SchedulePicker.svelte';
@@ -15,6 +16,7 @@
 	import { trajectoryStore } from '$lib/stores/trajectory.svelte.js';
 	import { lexicalStore } from '$lib/stores/lexical.svelte.js';
 	import { charOverlapStore } from '$lib/stores/charOverlap.svelte.js';
+	import { viewStore } from '$lib/stores/view.svelte.js';
 	import { TOKENIZERS } from '$lib/tokenizers/index.js';
 	import { STRATEGIES } from '$lib/strategies/index.js';
 	import { strategyConfigFor } from '$lib/strategies/index.js';
@@ -26,11 +28,22 @@
 	let text = $state(
 		'Governments of the Industrial World, you weary giants of flesh and steel, I come from Cyberspace, the new home of Mind. On behalf of the future, I ask you of the past to leave us alone. You are not welcome among us. You have no sovereignty where we gather.\n\nWe have no elected government, nor are we likely to have one, so I address you with no greater authority than that with which liberty itself always speaks. I declare the global social space we are building to be naturally independent of the tyrannies you seek to impose on us. You have no moral right to rule us nor do you possess any methods of enforcement we have true reason to fear.\n\nGovernments derive their just powers from the consent of the governed. You have neither solicited nor received ours. We did not invite you. You do not know us, nor do you know our world. Cyberspace does not lie within your borders. Do not think that you can build it, as though it were a public construction project. You cannot. It is an act of nature and it grows itself through our collective actions.',
 	);
-	let showChips = $state(true);
+
+	const showChips = $derived(viewStore.display === 'chips');
 
 	const tokenizerOptions = $derived(Object.values(TOKENIZERS));
 	const strategyOptions = $derived(Object.values(STRATEGIES));
 	const scheduleOptions = $derived(Object.values(SCHEDULES));
+
+	// Captions for the Tokenizer and Strategy pickers, sourced from registry info.
+	const tokenizerCaption = $derived.by(() => {
+		const t = tokenizerStore.tokenizer;
+		return t ? t.info.description : '';
+	});
+	const strategyCaption = $derived.by(() => {
+		const info = strategyStore.info;
+		return info ? info.description : '';
+	});
 
 	const canStep = $derived(
 		(trajectoryStore.status === 'ready' || trajectoryStore.status === 'computing') &&
@@ -218,102 +231,165 @@
 <main>
 	<h1>noisy-text</h1>
 
-	<div class="controls">
-		<TokenizerPicker
-			value={tokenizerStore.currentId}
-			options={tokenizerOptions}
-			disabled={tokenizerStore.status === 'loading'}
-			onchange={(id) => tokenizerStore.selectTokenizer(id)}
-		/>
-		<StrategyPicker
-			value={strategyStore.currentId}
-			options={strategyOptions}
-			disabled={tokenizerStore.status !== 'ready'}
-			onchange={(id) => strategyStore.selectStrategy(id, tokenizerStore.tokenizer?.vocabSize ?? 0)}
-		/>
-		<SchedulePicker
-			value={scheduleStore.currentId}
-			options={scheduleOptions}
-			disabled={false}
-			T={scheduleStore.T}
-			onchange={(id) => scheduleStore.selectSchedule(id)}
-			onTchange={(n) => scheduleStore.setT(n)}
-		/>
-		<SeedControl
-			seed={trajectoryStore.seed}
-			disabled={tokenizerStore.status !== 'ready'}
-			onseedchange={(s) => {
-				trajectoryStore.seed = s;
-			}}
-			onreroll={() => trajectoryStore.reroll()}
-		/>
-		<DisplayModeToggle
-			{showChips}
-			disabled={trajectoryStore.status !== 'ready'}
-			onchange={(v) => {
-				showChips = v;
-			}}
-		/>
-	</div>
+	{#if viewStore.mode === 'edit'}
+		<!-- ===== EDIT MODE ===== -->
+		<p class="intro">Paste some text, then watch it dissolve through a noise process.</p>
 
-	{#if strategyStore.currentId === 'lexical'}
-		<LexicalParams
-			maxDistance={lexicalStore.maxDistance}
-			k={lexicalStore.k}
-			epsilon={lexicalStore.epsilon}
-			disabled={tokenizerStore.status !== 'ready'}
-			onmaxdistancechange={(v) => (lexicalStore.maxDistance = v)}
-			onkchange={(v) => (lexicalStore.k = v)}
-			onepsilonchange={(v) => (lexicalStore.epsilon = v)}
-		/>
-	{/if}
-
-	{#if strategyStore.currentId === 'char-overlap'}
-		<CharOverlapParams
-			minSimilarity={charOverlapStore.minSimilarity}
-			k={charOverlapStore.k}
-			epsilon={charOverlapStore.epsilon}
-			mode={charOverlapStore.mode}
-			disabled={tokenizerStore.status !== 'ready'}
-			onminsimilaritychange={(v) => (charOverlapStore.minSimilarity = v)}
-			onkchange={(v) => (charOverlapStore.k = v)}
-			onepsilonchange={(v) => (charOverlapStore.epsilon = v)}
-			onmodechange={(v) => (charOverlapStore.mode = v)}
-		/>
-	{/if}
-
-	<SchedulePlot schedule={scheduleStore.instance} />
-
-	<TimeSlider
-		t={trajectoryStore.t}
-		T={scheduleStore.T}
-		disabled={trajectoryStore.status !== 'ready' && trajectoryStore.status !== 'computing'}
-		ontchange={(t) => {
-			trajectoryStore.t = t;
-		}}
-	/>
-
-	<div class="status" class:error={tokenizerStore.status === 'error'}>
-		{#if isComputing}
-			<span class="throbber" aria-hidden="true"></span>
-		{/if}
-		{statusText}
-	</div>
-
-	<textarea bind:value={text} placeholder="Type or paste text here…" rows={6}></textarea>
-
-	{#if displayTokens.tokens.length > 0}
-		<div class="tokens-area" class:computing={isComputing}>
-			{#if showChips}
-				<TokenChips
-					tokens={displayTokens.tokens}
-					ids={displayTokens.ids}
-					changed={changed ?? new Uint8Array(0)}
+		<div class="edit-pickers">
+			<div class="picker-group">
+				<TokenizerPicker
+					value={tokenizerStore.currentId}
+					options={tokenizerOptions}
+					disabled={tokenizerStore.status === 'loading'}
+					onchange={(id) => tokenizerStore.selectTokenizer(id)}
 				/>
-			{:else}
-				<InlineTokens text={decodedText} />
-			{/if}
+				{#if tokenizerCaption}
+					<p class="caption">{tokenizerCaption}</p>
+				{/if}
+			</div>
+			<div class="picker-group">
+				<StrategyPicker
+					value={strategyStore.currentId}
+					options={strategyOptions}
+					disabled={tokenizerStore.status !== 'ready'}
+					onchange={(id) =>
+						strategyStore.selectStrategy(id, tokenizerStore.tokenizer?.vocabSize ?? 0)}
+				/>
+				{#if strategyCaption}
+					<p class="caption">{strategyCaption}</p>
+				{/if}
+			</div>
 		</div>
+
+		<textarea bind:value={text} placeholder="Type or paste text here…" rows={8}></textarea>
+
+		<button
+			class="noise-btn"
+			disabled={tokenizerStore.status !== 'ready' || text.trim().length === 0}
+			onclick={() => {
+				viewStore.mode = 'explore';
+			}}
+		>
+			Noise it &rarr;
+		</button>
+	{:else}
+		<!-- ===== EXPLORE MODE ===== -->
+		<InputBar
+			{text}
+			onedit={() => {
+				viewStore.mode = 'edit';
+			}}
+		/>
+
+		{#if displayTokens.tokens.length > 0}
+			<div class="tokens-area" class:computing={isComputing}>
+				{#if showChips}
+					<TokenChips
+						tokens={displayTokens.tokens}
+						ids={displayTokens.ids}
+						changed={changed ?? new Uint8Array(0)}
+					/>
+				{:else}
+					<InlineTokens text={decodedText} />
+				{/if}
+			</div>
+		{/if}
+
+		<TimeSlider
+			t={trajectoryStore.t}
+			T={scheduleStore.T}
+			disabled={trajectoryStore.status !== 'ready' && trajectoryStore.status !== 'computing'}
+			ontchange={(t) => {
+				trajectoryStore.t = t;
+			}}
+		/>
+
+		<div class="status" class:error={tokenizerStore.status === 'error'}>
+			{#if isComputing}
+				<span class="throbber" aria-hidden="true"></span>
+			{/if}
+			{statusText}
+		</div>
+
+		<div class="control-strip">
+			<TokenizerPicker
+				value={tokenizerStore.currentId}
+				options={tokenizerOptions}
+				disabled={tokenizerStore.status === 'loading'}
+				onchange={(id) => tokenizerStore.selectTokenizer(id)}
+			/>
+			<StrategyPicker
+				value={strategyStore.currentId}
+				options={strategyOptions}
+				disabled={tokenizerStore.status !== 'ready'}
+				onchange={(id) =>
+					strategyStore.selectStrategy(id, tokenizerStore.tokenizer?.vocabSize ?? 0)}
+			/>
+			<SchedulePicker
+				value={scheduleStore.currentId}
+				options={scheduleOptions}
+				disabled={false}
+				T={scheduleStore.T}
+				onchange={(id) => scheduleStore.selectSchedule(id)}
+				onTchange={(n) => scheduleStore.setT(n)}
+			/>
+			<SeedControl
+				seed={trajectoryStore.seed}
+				disabled={tokenizerStore.status !== 'ready'}
+				onseedchange={(s) => {
+					trajectoryStore.seed = s;
+				}}
+				onreroll={() => trajectoryStore.reroll()}
+			/>
+			<DisplayModeToggle
+				{showChips}
+				disabled={trajectoryStore.status !== 'ready'}
+				onchange={(v) => {
+					viewStore.display = v ? 'chips' : 'prose';
+				}}
+			/>
+			<button
+				class="advanced-toggle"
+				class:active={viewStore.advancedOpen}
+				onclick={() => {
+					viewStore.advancedOpen = !viewStore.advancedOpen;
+				}}
+			>
+				⚙ Advanced
+			</button>
+		</div>
+
+		{#if viewStore.advancedOpen}
+			<div class="advanced-panel">
+				{#if strategyStore.currentId === 'lexical'}
+					<LexicalParams
+						maxDistance={lexicalStore.maxDistance}
+						k={lexicalStore.k}
+						epsilon={lexicalStore.epsilon}
+						disabled={tokenizerStore.status !== 'ready'}
+						onmaxdistancechange={(v) => (lexicalStore.maxDistance = v)}
+						onkchange={(v) => (lexicalStore.k = v)}
+						onepsilonchange={(v) => (lexicalStore.epsilon = v)}
+					/>
+				{/if}
+
+				{#if strategyStore.currentId === 'char-overlap'}
+					<CharOverlapParams
+						minSimilarity={charOverlapStore.minSimilarity}
+						k={charOverlapStore.k}
+						epsilon={charOverlapStore.epsilon}
+						mode={charOverlapStore.mode}
+						disabled={tokenizerStore.status !== 'ready'}
+						onminsimilaritychange={(v) => (charOverlapStore.minSimilarity = v)}
+						onkchange={(v) => (charOverlapStore.k = v)}
+						onepsilonchange={(v) => (charOverlapStore.epsilon = v)}
+						onmodechange={(v) => (charOverlapStore.mode = v)}
+					/>
+				{/if}
+
+				<SchedulePlot schedule={scheduleStore.instance} />
+			</div>
+		{/if}
 	{/if}
 </main>
 
@@ -328,9 +404,85 @@
 		margin: 0 0 1rem;
 		font-size: 1.25rem;
 	}
-	.controls {
-		margin-bottom: 0.5rem;
+
+	/* Edit mode */
+	.intro {
+		margin: 0 0 1.25rem;
+		color: #555;
+		font-size: 0.95rem;
 	}
+	.edit-pickers {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 1.5rem;
+		margin-bottom: 1rem;
+	}
+	.picker-group {
+		display: flex;
+		flex-direction: column;
+		gap: 0.25rem;
+	}
+	.caption {
+		margin: 0;
+		font-size: 0.8rem;
+		color: #777;
+		max-width: 320px;
+	}
+	.noise-btn {
+		display: block;
+		margin: 1rem 0 0;
+		padding: 0.6rem 1.5rem;
+		font-size: 1rem;
+		font-weight: 600;
+		border: none;
+		border-radius: 6px;
+		background: #2563eb;
+		color: #fff;
+		cursor: pointer;
+	}
+	.noise-btn:hover:not(:disabled) {
+		background: #1d4ed8;
+	}
+	.noise-btn:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+
+	/* Explore mode */
+	.control-strip {
+		display: flex;
+		flex-wrap: wrap;
+		align-items: center;
+		gap: 0.5rem;
+		margin-bottom: 0.75rem;
+		font-size: 0.85rem;
+		color: #666;
+	}
+	.advanced-toggle {
+		font-size: 0.8rem;
+		padding: 0.2rem 0.5rem;
+		border: 1px solid #ccc;
+		border-radius: 4px;
+		background: #fff;
+		cursor: pointer;
+		color: #555;
+	}
+	.advanced-toggle:hover {
+		background: #eee;
+	}
+	.advanced-toggle.active {
+		background: #e0e7ff;
+		border-color: #2563eb;
+		color: #2563eb;
+	}
+	.advanced-panel {
+		margin-top: 0.75rem;
+		padding: 0.75rem;
+		border: 1px solid #e5e7eb;
+		border-radius: 6px;
+		background: #f9fafb;
+	}
+
 	.status {
 		font-size: 0.85rem;
 		color: #555;
@@ -363,7 +515,7 @@
 		font-family: monospace;
 		font-size: 0.95rem;
 		padding: 0.5rem;
-		margin-bottom: 1rem;
+		margin-bottom: 0.5rem;
 		resize: vertical;
 	}
 	.tokens-area {
