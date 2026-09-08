@@ -23,12 +23,36 @@
 	import LexicalParams from '$lib/components/LexicalParams.svelte';
 	import CharOverlapParams from '$lib/components/CharOverlapParams.svelte';
 
-	let text = $state('Hello, world!');
+	let text = $state(
+		'Governments of the Industrial World, you weary giants of flesh and steel, I come from Cyberspace, the new home of Mind. On behalf of the future, I ask you of the past to leave us alone. You are not welcome among us. You have no sovereignty where we gather.\n\nWe have no elected government, nor are we likely to have one, so I address you with no greater authority than that with which liberty itself always speaks. I declare the global social space we are building to be naturally independent of the tyrannies you seek to impose on us. You have no moral right to rule us nor do you possess any methods of enforcement we have true reason to fear.\n\nGovernments derive their just powers from the consent of the governed. You have neither solicited nor received ours. We did not invite you. You do not know us, nor do you know our world. Cyberspace does not lie within your borders. Do not think that you can build it, as though it were a public construction project. You cannot. It is an act of nature and it grows itself through our collective actions.',
+	);
 	let showChips = $state(true);
 
 	const tokenizerOptions = $derived(Object.values(TOKENIZERS));
 	const strategyOptions = $derived(Object.values(STRATEGIES));
 	const scheduleOptions = $derived(Object.values(SCHEDULES));
+
+	const canStep = $derived(
+		(trajectoryStore.status === 'ready' || trajectoryStore.status === 'computing') &&
+			scheduleStore.T > 0,
+	);
+
+	function handleKeydown(e: KeyboardEvent) {
+		// Ignore when focus is inside a text input, textarea, or select.
+		const tag = (e.target as HTMLElement).tagName;
+		if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+		if (!canStep) return;
+
+		if (e.key === 'ArrowLeft') {
+			e.preventDefault();
+			const next = trajectoryStore.t - 1;
+			if (next >= 0) trajectoryStore.t = next;
+		} else if (e.key === 'ArrowRight') {
+			e.preventDefault();
+			const next = trajectoryStore.t + 1;
+			if (next <= scheduleStore.T) trajectoryStore.t = next;
+		}
+	}
 
 	const encoded = $derived.by(() => {
 		const t = tokenizerStore.tokenizer;
@@ -188,6 +212,8 @@
 		}
 	});
 </script>
+
+<svelte:window onkeydown={handleKeydown} />
 
 <main>
 	<h1>noisy-text</h1>

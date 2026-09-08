@@ -8,6 +8,15 @@ export default tseslint.config(
 	...tseslint.configs.recommended,
 	...eslintPluginSvelte.configs['flat/recommended'],
 	{
+		languageOptions: {
+			globals: {
+				KeyboardEvent: 'readonly',
+				HTMLElement: 'readonly',
+				EventTarget: 'readonly',
+			},
+		},
+	},
+	{
 		rules: {
 			'no-console': ['error', { allow: ['warn', 'error'] }],
 			'@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
