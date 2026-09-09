@@ -253,18 +253,20 @@ Grounded in the current codebase (`src/routes/+page.svelte`, `src/lib/**`).
   derived logic. Move display/mode concerns into the store; keep encoding and
   trajectory wiring where they are.
 
-### 10.2 Prose change highlighting via string diff
+### 10.2 Prose change highlighting via token-boundary character spans
 
-- Decode each trajectory row to a string once and cache the results (avoids
-  re-decoding on every slider tick).
-- Diff consecutive decoded strings to find changed character ranges. A simple
-  forward-scan diff is sufficient (the strings are mostly identical between
-  adjacent steps).
-- `InlineTokens.svelte` accepts the decoded text plus an array of changed
-  `[start, end]` ranges with recency values, and renders the text with
-  `<span>` wrappers around changed regions.
-- This avoids the per-token span mapping problem entirely — no BPE join
-  semantics to handle. Per-token precision is the token chips view's job.
+- Use `recencyAt` (token-level, already correct) to determine which tokens
+  changed and with what recency.
+- Map each token to its character span in the decoded prose string by decoding
+  tokens individually and tracking cumulative character length. Adjacent tokens
+  with the same recency are merged into a single span.
+- `InlineTokens.svelte` accepts the decoded text plus an array of `CharRange`
+  objects (`{start, end, recency}`), and renders the text with `<span>`
+  wrappers around changed regions.
+- This approach uses token boundaries to constrain character spans, avoiding
+  the false positives that arise from pure character-level diffs when token
+  replacements shift character positions. Mask sentinel tokens are skipped
+  (they are invisible in prose mode).
 
 ### 10.3 Taper / recency computation
 

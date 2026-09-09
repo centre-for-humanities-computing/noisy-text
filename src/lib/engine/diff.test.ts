@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { countChanged, changedMask, recencyAt } from './diff.js';
+import { countChanged, changedMask, recencyAt, tokenCharRanges } from './diff.js';
 import type { Trajectory } from './types.js';
 
 /** Build a minimal Trajectory from a 2D array of rows for testing. */
@@ -164,5 +164,95 @@ describe('recencyAt', () => {
 		expect(r[0]).toBe(0);
 		// pos 1 changed at t=2 → 1.
 		expect(r[1]).toBeCloseTo(1);
+	});
+});
+
+describe('tokenCharRanges', () => {
+	/** Stub decoder: each token id maps to a fixed-length string. */
+	function decode(id: number): string {
+		// id 0 = empty (e.g. padding), id 99 = mask sentinel
+		if (id === 0) return '';
+		if (id === 99) return '[MASK]';
+		return `t${id}`;
+	}
+
+	it('returns empty when no tokens have recency > 0', () => {
+		const ids = new Int32Array([1, 2, 3]);
+		const recency = new Float32Array([0, 0, 0]);
+		expect(tokenCharRanges(ids, recency, decode, 99)).toEqual([]);
+	});
+
+	it('returns empty for empty input', () => {
+		const ids = new Int32Array(0);
+		const recency = new Float32Array(0);
+		expect(tokenCharRanges(ids, recency, decode, 99)).toEqual([]);
+	});
+
+	it('maps single changed token to its character span', () => {
+		// ids [1, 2, 3] → "t1t2t3" (each 2 chars)
+		const ids = new Int32Array([1, 2, 3]);
+		const recency = new Float32Array([0, 1, 0]);
+		const ranges = tokenCharRanges(ids, recency, decode, 99);
+		expect(ranges).toHaveLength(1);
+		expect(ranges[0]!.start).toBe(2); // after "t1"
+		expect(ranges[0]!.end).toBe(4); // "t2"
+		expect(ranges[0]!.recency).toBe(1);
+	});
+
+	it('merges adjacent tokens with same recency', () => {
+		const ids = new Int32Array([1, 2, 3, 4]);
+		const recency = new Float32Array([0, 1, 1, 0]);
+		const ranges = tokenCharRanges(ids, recency, decode, 99);
+		expect(ranges).toHaveLength(1);
+		expect(ranges[0]!.start).toBe(2); // after "t1"
+		expect(ranges[0]!.end).toBe(6); // "t2t3"
+		expect(ranges[0]!.recency).toBe(1);
+	});
+
+	it('keeps separate ranges for different recency values', () => {
+		const ids = new Int32Array([1, 2, 3]);
+		const recency = new Float32Array([0.5, 1, 0]);
+		const ranges = tokenCharRanges(ids, recency, decode, 99);
+		expect(ranges).toHaveLength(2);
+		expect(ranges[0]!.start).toBe(0);
+		expect(ranges[0]!.end).toBe(2);
+		expect(ranges[0]!.recency).toBe(0.5);
+		expect(ranges[1]!.start).toBe(2);
+		expect(ranges[1]!.end).toBe(4);
+		expect(ranges[1]!.recency).toBe(1);
+	});
+
+	it('skips mask sentinel tokens', () => {
+		const ids = new Int32Array([1, 99, 2]);
+		const recency = new Float32Array([0, 1, 1]);
+		const ranges = tokenCharRanges(ids, recency, decode, 99);
+		// Token 1 (recency 0) → "t1" at [0,2), skipped.
+		// Token 99 (mask) → skipped entirely.
+		// Token 2 (recency 1) → "t2" at [2,4).
+		expect(ranges).toHaveLength(1);
+		expect(ranges[0]!.start).toBe(2);
+		expect(ranges[0]!.end).toBe(4);
+		expect(ranges[0]!.recency).toBe(1);
+	});
+
+	it('skips tokens that decode to empty string', () => {
+		const ids = new Int32Array([0, 1, 0]);
+		const recency = new Float32Array([1, 1, 1]);
+		const ranges = tokenCharRanges(ids, recency, decode, 99);
+		// id 0 → "", id 1 → "t1", id 0 → ""
+		expect(ranges).toHaveLength(1);
+		expect(ranges[0]!.start).toBe(0);
+		expect(ranges[0]!.end).toBe(2);
+		expect(ranges[0]!.recency).toBe(1);
+	});
+
+	it('handles all tokens changed', () => {
+		const ids = new Int32Array([1, 2]);
+		const recency = new Float32Array([1, 1]);
+		const ranges = tokenCharRanges(ids, recency, decode, 99);
+		expect(ranges).toHaveLength(1);
+		expect(ranges[0]!.start).toBe(0);
+		expect(ranges[0]!.end).toBe(4);
+		expect(ranges[0]!.recency).toBe(1);
 	});
 });

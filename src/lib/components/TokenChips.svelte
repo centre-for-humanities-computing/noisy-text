@@ -2,10 +2,10 @@
 	interface Props {
 		tokens: readonly string[];
 		ids: Int32Array;
-		changed: Uint8Array;
+		recency: Float32Array;
 	}
 
-	let { tokens, ids, changed }: Props = $props();
+	let { tokens, ids, recency }: Props = $props();
 
 	/**
 	 * Make whitespace and control characters visible in chip labels.
@@ -19,7 +19,12 @@
 
 <div class="chips">
 	{#each tokens as token, i (i)}
-		<span class="chip" class:changed={changed[i] === 1} title="id: {ids[i] ?? '?'}">
+		<span
+			class="chip"
+			class:changed={recency[i]! > 0}
+			style="--r: {recency[i]!}"
+			title="id: {ids[i] ?? '?'}"
+		>
 			<span class="chip-token">{visibleToken(token)}</span>
 			<span class="chip-id">{ids[i] ?? '?'}</span>
 		</span>
@@ -43,8 +48,15 @@
 		font-size: 0.85rem;
 	}
 	.chip.changed {
-		background: #fff3cd;
-		border-bottom: 2px solid #b8860b;
+		/*
+		 * Fading highlight: recency $r \in [0, 1]$ drives the background
+		 * blend. $r = 1$ (just changed) → full amber; $r \to 0$ → base gray.
+		 * We layer a semi-transparent amber over the base gray using a
+		 * linear-gradient trick: the amber layer's opacity is var(--r).
+		 */
+		background:
+			linear-gradient(rgba(255, 200, 50, var(--r)), rgba(255, 200, 50, var(--r))), #e8e8e8;
+		border-bottom: 2px solid rgba(184, 134, 11, var(--r));
 	}
 	.chip-token {
 		color: #222;
