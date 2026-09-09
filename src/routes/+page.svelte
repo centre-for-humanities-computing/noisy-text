@@ -21,7 +21,7 @@
 	import { STRATEGIES } from '$lib/strategies/index.js';
 	import { strategyConfigFor } from '$lib/strategies/index.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
-	import { changedMask } from '$lib/engine/diff.js';
+	import { recencyAt, tokenCharRanges } from '$lib/engine/diff.js';
 	import LexicalParams from '$lib/components/LexicalParams.svelte';
 	import CharOverlapParams from '$lib/components/CharOverlapParams.svelte';
 
@@ -111,47 +111,57 @@
 		return { ids, tokens: patched };
 	}
 
-	// Reusable buffer for changedMask to avoid allocation on every tick.
-	const _maskBuf = new Uint8Array(2048);
+	// Reusable buffer for recencyAt to avoid allocation on every tick.
+	const _recencyBuf = new Float32Array(2048);
 
-	// Changed mask: which tokens differ from the previous timestep $x_{t-1}$.
-	// At $t=0$ there is no previous step, so the mask is all zeros.
-	// Returns null when no trajectory is ready.
-	const changed = $derived.by(() => {
-		const traj = trajectoryStore.trajectory;
-		if (!traj || traj.length === 0) return null;
-		const t = trajectoryStore.t;
-		if (t === 0) {
-			// Nothing changed from "before t=0".
-			const empty = new Uint8Array(traj.length);
-			return empty;
-		}
-		const prev = traj.tokensAt(t - 1);
-		const curr = traj.tokensAt(t);
-		if (curr.length > _maskBuf.length) {
-			return changedMask(prev, curr);
-		}
-		return changedMask(prev, curr, _maskBuf);
-	});
-
-	// Changed count (null when no trajectory is ready).
-	const changedCount = $derived.by(() => {
-		if (!changed) return null;
-		let n = 0;
-		for (let i = 0; i < changed.length; i++) {
-			if (changed[i] === 1) n++;
-		}
-		return n;
-	});
-
+	// The decoded text for the current step (prose view).
 	const decodedText = $derived.by(() => {
 		const tok = tokenizerStore.tokenizer;
 		if (!tok || displayTokens.ids.length === 0) return '';
-		// Filter out sentinel mask ids so they render invisibly.
 		const maskTokenId = tok.vocabSize;
 		const filtered = new Int32Array(displayTokens.ids.filter((id) => id !== maskTokenId));
 		if (filtered.length === 0) return '';
 		return tok.decode(filtered);
+	});
+
+	// Character-level changed ranges with recency for prose taper.
+	// Uses token boundaries to constrain character spans: each token's
+	// recency (from recencyAt) is mapped to its character span in the
+	// decoded string by decoding tokens individually.
+	const charRanges = $derived.by(() => {
+		const tok = tokenizerStore.tokenizer;
+		if (!tok || tokenRecency.length === 0) return [];
+		const ids = displayTokens.ids;
+		const maskTokenId = tok.vocabSize;
+		return tokenCharRanges(
+			ids,
+			tokenRecency,
+			(id) => tok.decode(new Int32Array([id])),
+			maskTokenId,
+		);
+	});
+
+	// Per-token recency for chip fade.
+	const tokenRecency = $derived.by(() => {
+		const traj = trajectoryStore.trajectory;
+		if (!traj || traj.length === 0) return new Float32Array(0);
+		const t = trajectoryStore.t;
+		const L = traj.length;
+		if (L > _recencyBuf.length) {
+			return recencyAt(traj, t, viewStore.taperWindow);
+		}
+		return recencyAt(traj, t, viewStore.taperWindow, _recencyBuf);
+	});
+
+	// Changed count: positions with recency === 1 (changed this step).
+	const changedCount = $derived.by(() => {
+		const r = tokenRecency;
+		if (r.length === 0) return null;
+		let n = 0;
+		for (let i = 0; i < r.length; i++) {
+			if (r[i] === 1) n++;
+		}
+		return n;
 	});
 
 	const statusText = $derived.by(() => {
@@ -287,10 +297,10 @@
 					<TokenChips
 						tokens={displayTokens.tokens}
 						ids={displayTokens.ids}
-						changed={changed ?? new Uint8Array(0)}
+						recency={tokenRecency}
 					/>
 				{:else}
-					<InlineTokens text={decodedText} />
+					<InlineTokens text={decodedText} ranges={charRanges} />
 				{/if}
 			</div>
 		{/if}

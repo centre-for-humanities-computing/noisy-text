@@ -6,6 +6,8 @@
 
 import type { Trajectory } from './types.js';
 
+// ── Token-level diffs ────────────────────────────────────────────────
+
 /**
  * Count the number of positions where $x_t$ differs from $x_0$.
  *
@@ -95,4 +97,72 @@ export function recencyAt(
 		}
 	}
 	return recency;
+}
+
+// ── Character-level ranges from token recency ────────────────────────
+
+/**
+ * A changed character range with a recency value in $[0, 1]$.
+ */
+export interface CharRange {
+	/** Start index (inclusive) in the current decoded string. */
+	start: number;
+	/** End index (exclusive) in the current decoded string. */
+	end: number;
+	/** Recency $r \in [0, 1]$; $1$ = changed this step, $0$ = faded out. */
+	recency: number;
+}
+
+/**
+ * Map per-token recency to character ranges in the decoded prose string.
+ *
+ * Each token ID is decoded individually to determine its character length
+ * in the final string. Mask sentinel positions are skipped (they are
+ * invisible in prose mode). Adjacent tokens with the same recency are
+ * merged into a single span.
+ *
+ * This approach uses token boundaries to constrain character spans,
+ * avoiding the false positives that arise from pure character-level
+ * diffs when token replacements shift character positions.
+ *
+ * @param ids - Token IDs for the current step (includes mask sentinels).
+ * @param tokenRecency - Per-position recency from `recencyAt`, length $L$.
+ * @param decodeToken - Function that decodes a single token ID to its
+ *   rendered text (e.g. `tok.decode(new Int32Array([id]))`).
+ * @param maskSentinel - The sentinel ID used for mask tokens; these
+ *   positions are skipped.
+ * @returns Sorted, non-overlapping `CharRange` objects with recency in $[0, 1]$.
+ */
+export function tokenCharRanges(
+	ids: Int32Array,
+	tokenRecency: Float32Array,
+	decodeToken: (id: number) => string,
+	maskSentinel: number,
+): CharRange[] {
+	const ranges: CharRange[] = [];
+	let charPos = 0;
+
+	for (let i = 0; i < ids.length; i++) {
+		const r = tokenRecency[i]!;
+		const id = ids[i]!;
+
+		if (id === maskSentinel) continue;
+
+		const text = decodeToken(id);
+		const len = text.length;
+
+		if (r > 0 && len > 0) {
+			// Merge with previous range if same recency and adjacent.
+			const prev = ranges[ranges.length - 1];
+			if (prev && prev.recency === r && prev.end === charPos) {
+				prev.end = charPos + len;
+			} else {
+				ranges.push({ start: charPos, end: charPos + len, recency: r });
+			}
+		}
+
+		charPos += len;
+	}
+
+	return ranges;
 }
