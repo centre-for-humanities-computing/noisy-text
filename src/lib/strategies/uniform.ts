@@ -19,6 +19,13 @@ const UNIFORM_INFO = {
 	label: 'Uniform',
 	description: 'Each token independently samples uniformly from the vocab with probability βₜ.',
 	stationary: 'uniform',
+	plainName: 'Completely random',
+	gloss:
+		' Tokens are randomly replaced by completely random tokens in the vocabulary, like static on a radio.',
+	tooltip: {
+		text: 'At each step, every token has probability $\\beta_t$ of being replaced by a uniformly random token from the entire vocabulary. Over time the text converges to pure noise — every token equally likely.',
+		math: 'Q_t = (1-\\beta_t)\\,I + \\frac{\\beta_t}{K}\\,\\mathbf{1}\\mathbf{1}^\\top',
+	},
 } as const;
 
 /**

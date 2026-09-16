@@ -6,7 +6,6 @@
 	import TokenizerPicker from '$lib/components/TokenizerPicker.svelte';
 	import StrategyPicker from '$lib/components/StrategyPicker.svelte';
 	import SchedulePicker from '$lib/components/SchedulePicker.svelte';
-	import SchedulePlot from '$lib/components/SchedulePlot.svelte';
 	import SeedControl from '$lib/components/SeedControl.svelte';
 	import TimeSlider from '$lib/components/TimeSlider.svelte';
 	import DisplayModeToggle from '$lib/components/DisplayModeToggle.svelte';
@@ -24,6 +23,7 @@
 	import { recencyAt, tokenCharRanges } from '$lib/engine/diff.js';
 	import LexicalParams from '$lib/components/LexicalParams.svelte';
 	import CharOverlapParams from '$lib/components/CharOverlapParams.svelte';
+	import AdvancedPanel from '$lib/components/AdvancedPanel.svelte';
 
 	let text = $state(
 		'Governments of the Industrial World, you weary giants of flesh and steel, I come from Cyberspace, the new home of Mind. On behalf of the future, I ask you of the past to leave us alone. You are not welcome among us. You have no sovereignty where we gather.\n\nWe have no elected government, nor are we likely to have one, so I address you with no greater authority than that with which liberty itself always speaks. I declare the global social space we are building to be naturally independent of the tyrannies you seek to impose on us. You have no moral right to rule us nor do you possess any methods of enforcement we have true reason to fear.\n\nGovernments derive their just powers from the consent of the governed. You have neither solicited nor received ours. We did not invite you. You do not know us, nor do you know our world. Cyberspace does not lie within your borders. Do not think that you can build it, as though it were a public construction project. You cannot. It is an act of nature and it grows itself through our collective actions.',
@@ -38,11 +38,11 @@
 	// Captions for the Tokenizer and Strategy pickers, sourced from registry info.
 	const tokenizerCaption = $derived.by(() => {
 		const t = tokenizerStore.tokenizer;
-		return t ? t.info.description : '';
+		return t ? t.info.gloss : '';
 	});
 	const strategyCaption = $derived.by(() => {
 		const info = strategyStore.info;
-		return info ? info.description : '';
+		return info ? info.gloss : '';
 	});
 
 	const canStep = $derived(
@@ -370,7 +370,7 @@
 		</div>
 
 		{#if viewStore.advancedOpen}
-			<div class="advanced-panel">
+			<div class="advanced-region">
 				{#if strategyStore.currentId === 'lexical'}
 					<LexicalParams
 						maxDistance={lexicalStore.maxDistance}
@@ -397,7 +397,7 @@
 					/>
 				{/if}
 
-				<SchedulePlot schedule={scheduleStore.instance} />
+				<AdvancedPanel schedule={scheduleStore.instance} strategyInfo={strategyStore.info} />
 			</div>
 		{/if}
 	{/if}
@@ -485,12 +485,8 @@
 		border-color: #2563eb;
 		color: #2563eb;
 	}
-	.advanced-panel {
+	.advanced-region {
 		margin-top: 0.75rem;
-		padding: 0.75rem;
-		border: 1px solid #e5e7eb;
-		border-radius: 6px;
-		background: #f9fafb;
 	}
 
 	.status {

@@ -8,6 +8,17 @@ export interface TokenizerInfo {
 	label: string;
 	/** One-line description shown in the picker or tooltip. */
 	description: string;
+	/** Plain-language name for a broad audience, e.g. `'GPT-2 subwords'`. */
+	plainName: string;
+	/** One-sentence plain-language gloss of what this tokenizer does. */
+	gloss: string;
+	/** Tooltip content: plain-language explanation followed by maths. */
+	tooltip: {
+		/** Plain-language explanation (first paragraph). */
+		text: string;
+		/** KaTeX maths string in $...$ notation (second paragraph). */
+		math?: string;
+	};
 }
 
 /** A tokenizer ready for use. */

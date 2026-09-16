@@ -20,6 +20,17 @@ export interface ScheduleInfo {
 	label: string;
 	/** One-line description shown in the picker or tooltip. */
 	description: string;
+	/** Plain-language name for a broad audience, e.g. `'Steady ramp'`. */
+	plainName: string;
+	/** One-sentence plain-language gloss of what the schedule does. */
+	gloss: string;
+	/** Tooltip content: plain-language explanation followed by maths. */
+	tooltip: {
+		/** Plain-language explanation (first paragraph). */
+		text: string;
+		/** KaTeX maths string in $...$ notation (second paragraph). */
+		math?: string;
+	};
 }
 
 /**

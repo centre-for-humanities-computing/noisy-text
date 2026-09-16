@@ -11,6 +11,13 @@ const COSINE_INFO = {
 	id: 'cosine',
 	label: 'Cosine',
 	description: 'Cosine schedule — preserves signal early, collapses near the end.',
+	plainName: 'Gentle then sudden',
+	gloss:
+		'Noise stays low at first, then accelerates — the text holds on before dissolving quickly.',
+	tooltip: {
+		text: 'The cosine schedule (Nichol & Dhariwal, 2021) preserves most of the original signal through the early steps, then collapses rapidly near the end. This creates a dramatic effect: the text appears stable for a while, then suddenly disintegrates.',
+		math: '\\bar\\alpha_t = \\frac{f(t)}{f(0)},\\quad f(t) = \\cos^2\\!\\left(\\frac{t/T + s}{1+s} \\cdot \\frac{\\pi}{2}\\right)',
+	},
 } as const;
 
 /** Offset $s$ from Nichol & Dhariwal (2021). */

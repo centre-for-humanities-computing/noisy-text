@@ -17,6 +17,12 @@ const LINEAR_INFO = {
 	id: 'linear',
 	label: 'Linear',
 	description: 'Noise rate increases linearly from start to end.',
+	plainName: 'Steady ramp',
+	gloss: 'Noise increases at a constant pace — the same amount of corruption at every step.',
+	tooltip: {
+		text: 'The linear schedule raises the per-step noise rate $\\beta_t$ at a constant pace from a small starting value to a larger ending value. Every step adds roughly the same amount of new noise. This is the simplest schedule and a good default.',
+		math: '\\beta_t = \\beta_{\\min} + (\\beta_{\\max} - \\beta_{\\min}) \\cdot \\frac{t}{T-1}',
+	},
 } as const;
 
 const DEFAULT_CONFIG: LinearConfig = {

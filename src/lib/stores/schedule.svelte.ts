@@ -9,7 +9,7 @@ import { getSchedule, type Schedule, type ScheduleInfo } from '$lib/schedules/in
  */
 class ScheduleStore {
 	currentId: string = $state('linear');
-	T: number = $state(100);
+	T: number = $state(300);
 	instance: Schedule<unknown> | null = $state(null);
 
 	/**

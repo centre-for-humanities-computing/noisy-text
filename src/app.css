@@ -1,0 +1,68 @@
+/*
+ * Global CSS custom properties for noisy-text.
+ *
+ * Establishes a quiet-vs-primary visual hierarchy so "quiet" controls
+ * (schedule, seed, display toggle) are visually de-emphasised while
+ * primary elements (the decaying text, strategy picker) draw attention.
+ *
+ * All component styles should reference these variables instead of
+ * hard-coded hex values. See DESIGN.md §10.6.
+ */
+
+:root {
+	/* ---- Spacing ---- */
+	--space-xs: 0.25rem;
+	--space-sm: 0.5rem;
+	--space-md: 0.75rem;
+	--space-lg: 1rem;
+	--space-xl: 1.5rem;
+
+	/* ---- Typography ---- */
+	--font-ui: system-ui, sans-serif;
+	--font-mono: monospace;
+	--font-size-xs: 0.75rem;
+	--font-size-sm: 0.85rem;
+	--font-size-md: 0.95rem;
+	--font-size-lg: 1rem;
+	--font-size-xl: 1.25rem;
+
+	/* ---- Colors: primary (accent) ---- */
+	--color-primary: #2563eb;
+	--color-primary-hover: #1d4ed8;
+	--color-primary-tint: #e0e7ff;
+
+	/* ---- Colors: text ---- */
+	--color-text: #222;
+	--color-text-secondary: #555;
+	--color-text-muted: #777;
+	--color-text-quiet: #888;
+
+	/* ---- Colors: surfaces & borders ---- */
+	--color-border: #ccc;
+	--color-border-light: #e5e7eb;
+	--color-border-lighter: #e0e0e0;
+	--color-panel-bg: #f9fafb;
+	--color-surface: #fafafa;
+	--color-chip-bg: #e8e8e8;
+
+	/* ---- Colors: semantic ---- */
+	--color-error: #c00;
+
+	/* ---- Colors: highlight (amber taper) ---- */
+	--highlight-amber: 255, 200, 50;
+	--highlight-amber-underline: 184, 134, 11;
+
+	/* ---- Radii ---- */
+	--radius-sm: 4px;
+	--radius-md: 6px;
+
+	/* ---- Transitions ---- */
+	--transition-fast: 0.15s;
+}
+
+/* Respect the user's motion preference: disable taper transitions. */
+@media (prefers-reduced-motion: reduce) {
+	.taper {
+		transition: none !important;
+	}
+}

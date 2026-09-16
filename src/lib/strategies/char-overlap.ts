@@ -51,6 +51,13 @@ const CHAR_OVERLAP_INFO = {
 	description:
 		'Tokens transition to tokens with similar character sets based on Jaccard distance, mixed with uniform noise.',
 	stationary: 'data-dependent',
+	plainName: 'Drift by shared letters',
+	gloss:
+		'Tokens morph into tokens that share the same letters, e.g. "cat" -> "act", "dog" -> "god" — like anagrams drifting apart.',
+	tooltip: {
+		text: 'At each step, a token either stays the same or jumps to a token with a similar set of characters. Similarity is measured by Jaccard distance: how much two tokens\' character sets overlap. Tokens sharing many letters (like "cat" and "act") are close neighbours. A small uniform floor $\\varepsilon$ keeps the process connected.',
+		math: 'P(y \\mid x) = (1-\\varepsilon)\\,\\mathrm{overlap}(y\\mid x) + \\frac{\\varepsilon}{K},\\quad d(x,y) = 1 - J\\big(C(x), C(y)\\big)',
+	},
 } as const;
 
 /**

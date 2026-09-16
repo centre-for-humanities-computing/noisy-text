@@ -11,8 +11,11 @@ export default tseslint.config(
 		languageOptions: {
 			globals: {
 				KeyboardEvent: 'readonly',
+				MouseEvent: 'readonly',
 				HTMLElement: 'readonly',
+				HTMLButtonElement: 'readonly',
 				EventTarget: 'readonly',
+				document: 'readonly',
 			},
 		},
 	},

@@ -13,7 +13,15 @@ import { MAX_CELLS } from './types.js';
  */
 function makePlusOneStrategy(vocabSize: number) {
 	return {
-		info: { id: 'plus-one', label: '', description: '', stationary: 'uniform' as const },
+		info: {
+			id: 'plus-one',
+			label: '',
+			description: '',
+			stationary: 'uniform' as const,
+			plainName: '',
+			gloss: '',
+			tooltip: { text: '' },
+		},
 		config: {},
 		sampleStep(token: number, _beta: number, _rng: () => number): number {
 			return (token + 1) % vocabSize;

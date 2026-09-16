@@ -15,8 +15,11 @@ structure, not a spec to follow slavishly.
 
 ## Audience and deployment
 
-- Audience: ML researchers (the author and peers).
-- Visual style: minimal, functional, not flashy.
+- Audience: research colleagues spanning literature, aesthetics, NLP, and
+  computer science. See `DESIGN.md` for the full audience rationale and
+  experience principles.
+- Visual style: the decaying text is the centre of attention; technical depth
+  is progressively disclosed. See `DESIGN.md` §2 for the experience principles.
 - Deployment: static site (SvelteKit + `adapter-static`), zero server-side
   compute. All work happens in the browser.
 
@@ -93,6 +96,9 @@ any schedule.
 - Latent-space diffusion (may be considered later but is out of scope for the
   current milestones).
 - Visually-impressive design. Functionality and clarity come first.
+  **Revised by `DESIGN.md` §9:** visual and UX quality is now a first-class
+  goal given the broadened audience. See `DESIGN.md` for the current design
+  direction.
 
 ## Reference
 
