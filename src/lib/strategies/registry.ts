@@ -13,12 +13,24 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 		label: 'Identity (no noise)',
 		description: 'No noise applied. Every token stays as itself at every timestep.',
 		stationary: 'point-mass',
+		plainName: 'No noise',
+		gloss: 'Every token stays exactly as you typed it — a baseline for comparison.',
+		tooltip: {
+			text: 'The identity strategy applies no noise at all. Every token remains unchanged at every step. This is useful as a baseline: scrub the timeline and confirm that nothing moves.',
+			math: 'Q_t = I \\quad \\text{for all } t',
+		},
 	},
 	uniform: {
 		id: 'uniform',
 		label: 'Uniform',
 		description: 'Each token independently samples uniformly from the vocab with probability βₜ.',
 		stationary: 'uniform',
+		plainName: 'Random swap',
+		gloss: 'Tokens are randomly replaced by any token in the vocabulary, like static on a radio.',
+		tooltip: {
+			text: 'At each step, every token has probability $\\beta_t$ of being replaced by a uniformly random token from the entire vocabulary. Over time the text converges to pure noise — every token equally likely.',
+			math: 'Q_t = (1-\\beta_t)\\,I + \\frac{\\beta_t}{K}\\,\\mathbf{1}\\mathbf{1}^\\top',
+		},
 	},
 	absorbing: {
 		id: 'absorbing',
@@ -26,6 +38,13 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 		description:
 			'Each non-mask token becomes [MASK] with probability βₜ. Once masked, stays masked.',
 		stationary: 'point-mass',
+		plainName: 'Erase tokens',
+		gloss:
+			'Tokens gradually turn into blanks, like redacting a classified document one token at a time.',
+		tooltip: {
+			text: 'At each step, every non-masked token has probability $\\beta_t$ of turning into [MASK]. Once a token is masked, it stays masked forever — the mask state is absorbing. Over time, all words disappear into blanks.',
+			math: 'Q_t = (1-\\beta_t)\\,I + \\beta_t\\,\\mathbf{1}\\,e_m^\\top',
+		},
 	},
 	lexical: {
 		id: 'lexical',
@@ -33,6 +52,12 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 		description:
 			'Tokens transition to visually-similar tokens based on string edit distance, mixed with uniform noise.',
 		stationary: 'data-dependent',
+		plainName: 'Drift by spelling',
+		gloss: 'Words morph into similarly-spelled words — like typos that accumulate over time.',
+		tooltip: {
+			text: 'At each step, a token either stays the same or jumps to a spelling-similar token. Similarity is measured by Levenshtein edit distance: how many character insertions, deletions, or substitutions separate two words. A small amount of uniform noise (the ergodicity floor $\\varepsilon$) ensures the process can eventually reach any token.',
+			math: 'P(y \\mid x) = (1-\\varepsilon)\\,\\mathrm{lex}(y\\mid x) + \\frac{\\varepsilon}{K},\\quad \\mathrm{lex}(y\\mid x) \\propto \\exp(-d(x,y)/\\tau)',
+		},
 	},
 	'char-overlap': {
 		id: 'char-overlap',
@@ -40,6 +65,12 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 		description:
 			'Tokens transition to tokens with similar character sets based on Jaccard distance, mixed with uniform noise.',
 		stationary: 'data-dependent',
+		plainName: 'Drift by shared letters',
+		gloss: 'Words morph into words that share the same letters — like anagrams drifting apart.',
+		tooltip: {
+			text: 'At each step, a token either stays the same or jumps to a token with a similar set of characters. Similarity is measured by Jaccard distance: how much two words\' character sets overlap. Words sharing many letters (like "cat" and "act") are close neighbours. A small uniform floor $\\varepsilon$ keeps the process connected.',
+			math: 'P(y \\mid x) = (1-\\varepsilon)\\,\\mathrm{overlap}(y\\mid x) + \\frac{\\varepsilon}{K},\\quad d(x,y) = 1 - J\\big(C(x), C(y)\\big)',
+		},
 	},
 } as const;
 

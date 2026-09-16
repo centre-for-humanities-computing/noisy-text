@@ -26,6 +26,13 @@ const ABSORBING_INFO = {
 	label: 'Absorbing (mask)',
 	description: 'Each non-mask token becomes [MASK] with probability βₜ. Once masked, stays masked.',
 	stationary: 'point-mass',
+	plainName: 'Mask tokens',
+	gloss:
+		'Tokens gradually turn into blanks ([MASK]-tokens), like redacting a classified document one token at a time.',
+	tooltip: {
+		text: 'At each step, every non-masked token has probability $\\beta_t$ of turning into [MASK]. Once a token is masked, it stays masked forever — the mask state is absorbing. Over time, all words disappear into blanks.',
+		math: 'Q_t = (1-\\beta_t)\\,I + \\beta_t\\,\\mathbf{1}\\,e_m^\\top',
+	},
 } as const;
 
 /**

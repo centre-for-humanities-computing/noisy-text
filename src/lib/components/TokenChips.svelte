@@ -57,6 +57,9 @@
 		background:
 			linear-gradient(rgba(255, 200, 50, var(--r)), rgba(255, 200, 50, var(--r))), #e8e8e8;
 		border-bottom: 2px solid rgba(184, 134, 11, var(--r));
+		transition:
+			background 0.15s,
+			border-color 0.15s;
 	}
 	.chip-token {
 		color: #222;
@@ -64,5 +67,11 @@
 	.chip-id {
 		color: #888;
 		font-size: 0.7rem;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.chip.changed {
+			transition: none;
+		}
 	}
 </style>

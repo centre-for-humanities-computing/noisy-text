@@ -45,6 +45,13 @@ const LEXICAL_INFO = {
 	description:
 		'Tokens transition to visually-similar tokens based on string edit distance, mixed with uniform noise.',
 	stationary: 'data-dependent',
+	plainName: 'Drift by spelling',
+	gloss:
+		'Tokens morph into similarly-spelled tokens, e.g. "Thus" -> "This", "dog" -> "log" — like typos that accumulate over time.',
+	tooltip: {
+		text: 'At each step, a token either stays the same or jumps to a spelling-similar token. Similarity is measured by Levenshtein edit distance: how many character insertions, deletions, or substitutions separate two words. A small amount of uniform noise (the ergodicity floor $\\varepsilon$) ensures the process can eventually reach any token.',
+		math: 'P(y \\mid x) = (1-\\varepsilon)\\,\\mathrm{lex}(y\\mid x) + \\frac{\\varepsilon}{K},\\quad \\mathrm{lex}(y\\mid x) \\propto \\exp(-d(x,y)/\\tau)',
+	},
 } as const;
 
 /**

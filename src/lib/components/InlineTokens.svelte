@@ -67,5 +67,12 @@
 		 */
 		background: rgba(255, 200, 50, var(--r));
 		border-radius: 2px;
+		transition: background 0.15s;
+	}
+
+	@media (prefers-reduced-motion: reduce) {
+		.taper {
+			transition: none;
+		}
 	}
 </style>

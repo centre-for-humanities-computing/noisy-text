@@ -13,6 +13,12 @@ const IDENTITY_INFO = {
 	label: 'Identity (no noise)',
 	description: 'No noise applied. Every token stays as itself at every timestep.',
 	stationary: 'point-mass',
+	plainName: 'No noise',
+	gloss: 'Every word stays exactly as you typed it — a baseline for comparison.',
+	tooltip: {
+		text: 'The identity strategy applies no noise at all. Every token remains unchanged at every step. This is useful as a baseline: scrub the timeline and confirm that nothing moves.',
+		math: 'Q_t = I \\quad \\text{for all } t',
+	},
 } as const;
 
 /**

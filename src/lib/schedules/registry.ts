@@ -8,11 +8,24 @@ export const SCHEDULES: Record<string, ScheduleInfo> = {
 		id: 'linear',
 		label: 'Linear',
 		description: 'Noise rate increases linearly from start to end.',
+		plainName: 'Steady ramp',
+		gloss: 'Noise increases at a constant pace — the same amount of corruption at every step.',
+		tooltip: {
+			text: 'The linear schedule raises the per-step noise rate $\\beta_t$ at a constant pace from a small starting value to a larger ending value. Every step adds roughly the same amount of new noise. This is the simplest schedule and a good default.',
+			math: '\\beta_t = \\beta_{\\min} + (\\beta_{\\max} - \\beta_{\\min}) \\cdot \\frac{t}{T-1}',
+		},
 	},
 	cosine: {
 		id: 'cosine',
 		label: 'Cosine',
 		description: 'Cosine schedule — preserves signal early, collapses near the end.',
+		plainName: 'Gentle then sudden',
+		gloss:
+			'Noise stays low at first, then accelerates — the text holds on before dissolving quickly.',
+		tooltip: {
+			text: 'The cosine schedule (Nichol & Dhariwal, 2021) preserves most of the original signal through the early steps, then collapses rapidly near the end. This creates a dramatic effect: the text appears stable for a while, then suddenly disintegrates.',
+			math: '\\bar\\alpha_t = \\frac{f(t)}{f(0)},\\quad f(t) = \\cos^2\\!\\left(\\frac{t/T + s}{1+s} \\cdot \\frac{\\pi}{2}\\right)',
+		},
 	},
 } as const;
 

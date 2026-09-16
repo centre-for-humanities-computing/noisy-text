@@ -1,4 +1,5 @@
 <script lang="ts">
+	import CardPicker from './CardPicker.svelte';
 	import type { ScheduleInfo } from '$lib/schedules/types.js';
 
 	interface Props {
@@ -14,11 +15,7 @@
 </script>
 
 <div class="schedule-picker">
-	<select {disabled} {value} onchange={(e) => onchange(e.currentTarget.value)}>
-		{#each options as opt (opt.id)}
-			<option value={opt.id} title={opt.description}>{opt.label}</option>
-		{/each}
-	</select>
+	<CardPicker {value} {options} {disabled} {onchange} variant="quiet" />
 	<label>
 		T =
 		<input
