@@ -23,7 +23,7 @@ class CharOverlapStore {
 	/** Softmax temperature $\tau$. */
 	tau: number = $state(1.0);
 	/** Distance mode: `'set'` (distinct chars) or `'multiset'` (count-aware). */
-	mode: CharOverlapMode = $state('set');
+	mode: CharOverlapMode = $state('multiset');
 
 	/** Status: `'idle'` until first use, then `'ready'`. */
 	status: CharOverlapStatus = $state('idle');
