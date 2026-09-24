@@ -25,7 +25,13 @@ import { EditDistanceModel } from '../strategies/distance-model.js';
 import { CharOverlapModel } from '../strategies/char-overlap-model.js';
 import type { CharOverlapMode } from '../strategies/char-overlap-model.js';
 import { NeighborhoodProvider } from '../strategies/neighborhood.js';
-import type { TrajectoryWorkerRequest, TrajectoryWorkerResponse } from './trajectory.protocol.js';
+import type {
+	TrajectoryWorkerRequest,
+	TrajectoryWorkerResponse,
+	NeighborGraph,
+} from './trajectory.protocol.js';
+import { buildNeighborGraph } from '../strategies/neighbor-graph.js';
+import type { NeighborGraphParams } from '../strategies/neighbor-graph.js';
 
 const PROGRESS_THRESHOLD = 10_000;
 
@@ -135,58 +141,136 @@ async function ensureCharOverlapProvider(
 
 self.onmessage = (event: MessageEvent<TrajectoryWorkerRequest>) => {
 	const msg = event.data;
-	if (msg.kind !== 'compute') return;
+	if (msg.kind === 'compute') {
+		void handleCompute(msg);
+	} else if (msg.kind === 'neighbors') {
+		void handleNeighbors(msg);
+	}
+};
 
+/** Handle a trajectory compute request. */
+async function handleCompute(
+	msg: Extract<TrajectoryWorkerRequest, { kind: 'compute' }>,
+): Promise<void> {
 	const { requestId, spec } = msg;
 
-	(async () => {
-		try {
-			// For lexical: build (or reuse) the neighborhood provider.
-			let provider: NeighborhoodProvider | undefined;
-			if (spec.strategyId === 'lexical') {
-				provider = await ensureLexicalProvider(spec.tokenizerId);
-			} else if (spec.strategyId === 'char-overlap') {
-				const mode = (spec.strategyConfig as { mode?: CharOverlapMode }).mode ?? 'set';
-				provider = await ensureCharOverlapProvider(spec.tokenizerId, mode);
+	try {
+		// For lexical: build (or reuse) the neighborhood provider.
+		let provider: NeighborhoodProvider | undefined;
+		if (spec.strategyId === 'lexical') {
+			provider = await ensureLexicalProvider(spec.tokenizerId);
+		} else if (spec.strategyId === 'char-overlap') {
+			const mode = (spec.strategyConfig as { mode?: CharOverlapMode }).mode ?? 'set';
+			provider = await ensureCharOverlapProvider(spec.tokenizerId, mode);
+		}
+
+		const strategy = getStrategy(spec.strategyId, spec.strategyConfig, spec.vocabSize, provider);
+		const schedule = getSchedule(spec.scheduleId, spec.scheduleConfig, spec.T);
+		const rng = createRng(spec.seed);
+
+		const totalCells = (spec.T + 1) * spec.inputIds.length;
+		const shouldReportProgress = totalCells > PROGRESS_THRESHOLD;
+
+		const traj = computeTrajectory(spec.inputIds, { strategy, schedule, rng }, (progress) => {
+			if (shouldReportProgress) {
+				const response: TrajectoryWorkerResponse = {
+					kind: 'progress',
+					requestId,
+					step: progress.step,
+					total: progress.total,
+				};
+				self.postMessage(response);
 			}
+		});
 
-			const strategy = getStrategy(spec.strategyId, spec.strategyConfig, spec.vocabSize, provider);
-			const schedule = getSchedule(spec.scheduleId, spec.scheduleConfig, spec.T);
-			const rng = createRng(spec.seed);
+		const response: TrajectoryWorkerResponse = {
+			kind: 'result',
+			requestId,
+			rows: traj.rows,
+			T: traj.T,
+			length: traj.length,
+			seed: spec.seed,
+		};
 
-			const totalCells = (spec.T + 1) * spec.inputIds.length;
-			const shouldReportProgress = totalCells > PROGRESS_THRESHOLD;
+		// Transfer the ArrayBuffer to avoid copying.
+		self.postMessage(response, { transfer: [traj.rows.buffer] });
+	} catch (e: unknown) {
+		const response: TrajectoryWorkerResponse = {
+			kind: 'error',
+			requestId,
+			message: e instanceof Error ? e.message : String(e),
+		};
+		self.postMessage(response);
+	}
+}
 
-			const traj = computeTrajectory(spec.inputIds, { strategy, schedule, rng }, (progress) => {
-				if (shouldReportProgress) {
-					const response: TrajectoryWorkerResponse = {
-						kind: 'progress',
-						requestId,
-						step: progress.step,
-						total: progress.total,
-					};
-					self.postMessage(response);
-				}
-			});
+/**
+ * Handle a neighborhood query for the hover tooltip.
+ *
+ * Reuses the cached provider for the tokenizer/strategy pair. Returns
+ * `graph: null` for strategies without a neighborhood (identity, uniform,
+ * absorbing) — the UI shows "not available".
+ */
+async function handleNeighbors(
+	msg: Extract<TrajectoryWorkerRequest, { kind: 'neighbors' }>,
+): Promise<void> {
+	const { requestId, tokenizerId, strategyId, strategyConfig, token, limitMode, k, p } = msg;
 
-			const response: TrajectoryWorkerResponse = {
-				kind: 'result',
-				requestId,
-				rows: traj.rows,
-				T: traj.T,
-				length: traj.length,
-				seed: spec.seed,
+	try {
+		let provider: NeighborhoodProvider | undefined;
+		let graphParams: NeighborGraphParams | null = null;
+
+		if (strategyId === 'lexical') {
+			provider = await ensureLexicalProvider(tokenizerId);
+			const cfg = strategyConfig as { maxDistance?: number; k?: number; tau?: number };
+			graphParams = {
+				maxDistance: cfg.maxDistance ?? 2,
+				k: cfg.k ?? 50,
+				tau: cfg.tau ?? 1.0,
 			};
+		} else if (strategyId === 'char-overlap') {
+			const mode = (strategyConfig as { mode?: 'set' | 'multiset' }).mode ?? 'set';
+			provider = await ensureCharOverlapProvider(tokenizerId, mode);
+			const cfg = strategyConfig as { maxDistance?: number; k?: number; tau?: number };
+			graphParams = {
+				maxDistance: cfg.maxDistance ?? 0.5,
+				k: cfg.k ?? 50,
+				tau: cfg.tau ?? 1.0,
+			};
+		}
 
-			// Transfer the ArrayBuffer to avoid copying.
-			self.postMessage(response, { transfer: [traj.rows.buffer] });
-		} catch (e: unknown) {
+		// Unsupported strategy → no graph.
+		if (!provider || !graphParams) {
 			const response: TrajectoryWorkerResponse = {
-				kind: 'error',
+				kind: 'neighbors',
 				requestId,
-				message: e instanceof Error ? e.message : String(e),
+				graph: null,
 			};
 			self.postMessage(response);
+			return;
 		}
-	})();
-};
+
+		const tok = await loadTokenizer(tokenizerId);
+		const graph: NeighborGraph | null = buildNeighborGraph(
+			provider,
+			token,
+			graphParams,
+			{ limitMode, k, p },
+			(id) => tok.idsToTokens(new Int32Array([id]))[0] ?? `#${id}`,
+		);
+
+		const response: TrajectoryWorkerResponse = {
+			kind: 'neighbors',
+			requestId,
+			graph,
+		};
+		self.postMessage(response);
+	} catch (e: unknown) {
+		const response: TrajectoryWorkerResponse = {
+			kind: 'neighbors-error',
+			requestId,
+			message: e instanceof Error ? e.message : String(e),
+		};
+		self.postMessage(response);
+	}
+}

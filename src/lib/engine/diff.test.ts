@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { countChanged, changedMask, recencyAt, tokenCharRanges } from './diff.js';
+import {
+	countChanged,
+	changedMask,
+	recencyAt,
+	tokenCharRanges,
+	allTokenCharSpans,
+} from './diff.js';
 import type { Trajectory } from './types.js';
 
 /** Build a minimal Trajectory from a 2D array of rows for testing. */
@@ -254,5 +260,71 @@ describe('tokenCharRanges', () => {
 		expect(ranges[0]!.start).toBe(0);
 		expect(ranges[0]!.end).toBe(4);
 		expect(ranges[0]!.recency).toBe(1);
+	});
+});
+
+describe('allTokenCharSpans', () => {
+	/** Stub decoder: each token id maps to a fixed-length string. */
+	function decode(id: number): string {
+		if (id === 0) return '';
+		if (id === 99) return '[MASK]';
+		return `t${id}`;
+	}
+
+	it('returns empty for empty input', () => {
+		const ids = new Int32Array(0);
+		const recency = new Float32Array(0);
+		expect(allTokenCharSpans(ids, recency, decode, 99)).toEqual([]);
+	});
+
+	it('emits one span per visible token', () => {
+		const ids = new Int32Array([1, 2, 3]);
+		const recency = new Float32Array([0, 0, 0]);
+		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		expect(spans).toHaveLength(3);
+		expect(spans.map((s) => s.tokenId)).toEqual([1, 2, 3]);
+	});
+
+	it('computes contiguous character positions', () => {
+		// ids [1, 2, 3] → "t1t2t3" (each 2 chars)
+		const ids = new Int32Array([1, 2, 3]);
+		const recency = new Float32Array([0, 0, 0]);
+		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		expect(spans[0]).toMatchObject({ start: 0, end: 2 });
+		expect(spans[1]).toMatchObject({ start: 2, end: 4 });
+		expect(spans[2]).toMatchObject({ start: 4, end: 6 });
+	});
+
+	it('skips mask sentinel positions', () => {
+		const ids = new Int32Array([1, 99, 3]);
+		const recency = new Float32Array([0, 0, 0]);
+		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		expect(spans).toHaveLength(2);
+		expect(spans.map((s) => s.tokenId)).toEqual([1, 3]);
+	});
+
+	it('skips empty-decoded tokens', () => {
+		const ids = new Int32Array([1, 0, 3]);
+		const recency = new Float32Array([0, 0, 0]);
+		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		expect(spans).toHaveLength(2);
+		// "t1" then "t3": positions 0-2 and 2-4.
+		expect(spans[1]).toMatchObject({ start: 2, end: 4 });
+	});
+
+	it('carries recency per token', () => {
+		const ids = new Int32Array([1, 2]);
+		const recency = new Float32Array([0.5, 1]);
+		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		expect(spans[0]!.recency).toBe(0.5);
+		expect(spans[1]!.recency).toBe(1);
+	});
+
+	it('preserves original position index', () => {
+		const ids = new Int32Array([1, 99, 3]);
+		const recency = new Float32Array([0, 0, 0]);
+		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		expect(spans[0]!.index).toBe(0);
+		expect(spans[1]!.index).toBe(2);
 	});
 });

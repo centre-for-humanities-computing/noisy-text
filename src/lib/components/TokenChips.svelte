@@ -3,9 +3,13 @@
 		tokens: readonly string[];
 		ids: Int32Array;
 		recency: Float32Array;
+		/** Called on chip hover with the token id and its bounding rect. */
+		onhover?: (tokenId: number, rect: DOMRect) => void;
+		/** Called when the pointer leaves a chip. */
+		onunhover?: () => void;
 	}
 
-	let { tokens, ids, recency }: Props = $props();
+	let { tokens, ids, recency, onhover, onunhover }: Props = $props();
 
 	/**
 	 * Make whitespace and control characters visible in chip labels.
@@ -24,6 +28,19 @@
 			class:changed={recency[i]! > 0}
 			style="--r: {recency[i]!}"
 			title="id: {ids[i] ?? '?'}"
+			role="button"
+			tabindex={0}
+			aria-label="token {visibleToken(token)}"
+			onmouseenter={(e) => {
+				const id = ids[i];
+				if (id !== undefined && onhover) onhover(id, e.currentTarget.getBoundingClientRect());
+			}}
+			onmouseleave={() => onunhover?.()}
+			onfocus={(e) => {
+				const id = ids[i];
+				if (id !== undefined && onhover) onhover(id, e.currentTarget.getBoundingClientRect());
+			}}
+			onblur={() => onunhover?.()}
 		>
 			<span class="chip-token">{visibleToken(token)}</span>
 			<span class="chip-id">{ids[i] ?? '?'}</span>

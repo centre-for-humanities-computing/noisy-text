@@ -6,9 +6,16 @@
 	interface Props {
 		schedule: Schedule<unknown> | null;
 		strategyInfo: StrategyInfo | null;
+		limitMode: 'top-k' | 'top-p';
+		k: number;
+		p: number;
+		onlimitmodechange: (mode: 'top-k' | 'top-p') => void;
+		onkchange: (k: number) => void;
+		onpchange: (p: number) => void;
 	}
 
-	let { schedule, strategyInfo }: Props = $props();
+	let { schedule, strategyInfo, limitMode, k, p, onlimitmodechange, onkchange, onpchange }: Props =
+		$props();
 
 	const stationaryLabel = $derived.by(() => {
 		if (!strategyInfo) return null;
@@ -49,9 +56,48 @@
 
 	<section class="panel-section">
 		<h4 class="section-heading">Token inspector</h4>
-		<p class="stub-note">
-			Click a token in the chips view to see its per-step transition distribution. (Coming soon.)
+		<p class="hint">
+			Hover a token in the noisy view to see its local neighborhood. These settings control how many
+			neighbors are shown per hop.
 		</p>
+		<div class="inspector-controls">
+			<label class="control">
+				<span class="control-label">Spread limit</span>
+				<select
+					value={limitMode}
+					onchange={(e) =>
+						onlimitmodechange((e.currentTarget as HTMLSelectElement).value as 'top-k' | 'top-p')}
+				>
+					<option value="top-p">top-p (cumulative)</option>
+					<option value="top-k">top-k (count)</option>
+				</select>
+			</label>
+			{#if limitMode === 'top-k'}
+				<label class="control">
+					<span class="control-label">k</span>
+					<input
+						type="number"
+						min={1}
+						max={50}
+						step={1}
+						value={k}
+						onchange={(e) => onkchange(Number((e.currentTarget as HTMLInputElement).value))}
+					/>
+				</label>
+			{:else}
+				<label class="control">
+					<span class="control-label">p</span>
+					<input
+						type="number"
+						min={0.05}
+						max={1}
+						step={0.05}
+						value={p}
+						onchange={(e) => onpchange(Number((e.currentTarget as HTMLInputElement).value))}
+					/>
+				</label>
+			{/if}
+		</div>
 	</section>
 </div>
 
@@ -104,10 +150,37 @@
 		color: var(--color-text-secondary);
 	}
 
-	.stub-note {
-		margin: 0;
+	.hint {
+		margin: 0 0 var(--space-sm);
 		font-size: var(--font-size-xs);
 		color: var(--color-text-quiet);
-		font-style: italic;
+	}
+
+	.inspector-controls {
+		display: flex;
+		gap: var(--space-md);
+		align-items: end;
+		flex-wrap: wrap;
+	}
+
+	.control {
+		display: flex;
+		flex-direction: column;
+		gap: 2px;
+	}
+
+	.control-label {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-muted);
+	}
+
+	.control select,
+	.control input {
+		font-size: var(--font-size-sm);
+		padding: 2px 4px;
+	}
+
+	.control input {
+		width: 5rem;
 	}
 </style>

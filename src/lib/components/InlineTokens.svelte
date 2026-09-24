@@ -1,32 +1,37 @@
 <script lang="ts">
-	import type { CharRange } from '$lib/engine/diff.js';
+	import type { TokenCharSpan } from '$lib/engine/diff.js';
 
 	interface Props {
 		text: string;
-		ranges?: readonly CharRange[];
+		/** Per-token character spans (from `allTokenCharSpans`). */
+		spans?: readonly TokenCharSpan[];
+		/** Called on token hover with the token id and its bounding rect. */
+		onhover?: (tokenId: number, rect: DOMRect) => void;
+		/** Called when the pointer leaves a token span. */
+		onunhover?: () => void;
 	}
 
-	let { text, ranges = [] }: Props = $props();
+	let { text, spans = [], onhover, onunhover }: Props = $props();
 
 	/**
-	 * Split `text` into segments, marking changed spans with their recency.
-	 * `ranges` must be sorted and non-overlapping (as produced by
-	 * `tokenCharRanges`).
+	 * Split `text` into per-token segments. Each span contributes its slice
+	 * of `text`; gaps between spans (mask positions, empty tokens) are
+	 * emitted as plain text. Spans must be sorted and non-overlapping.
 	 */
 	function segments(
 		text: string,
-		ranges: readonly CharRange[],
-	): Array<{ text: string; recency?: number }> {
-		const out: Array<{ text: string; recency?: number }> = [];
+		spans: readonly TokenCharSpan[],
+	): Array<{ text: string; span?: TokenCharSpan }> {
+		const out: Array<{ text: string; span?: TokenCharSpan }> = [];
 		let pos = 0;
-		for (const r of ranges) {
-			if (r.start > pos) {
-				out.push({ text: text.slice(pos, r.start) });
+		for (const s of spans) {
+			if (s.start > pos) {
+				out.push({ text: text.slice(pos, s.start) });
 			}
-			if (r.end > r.start) {
-				out.push({ text: text.slice(r.start, r.end), recency: r.recency });
+			if (s.end > s.start) {
+				out.push({ text: text.slice(s.start, s.end), span: s });
 			}
-			pos = r.end;
+			pos = s.end;
 		}
 		if (pos < text.length) {
 			out.push({ text: text.slice(pos) });
@@ -35,13 +40,24 @@
 	}
 </script>
 
-{#if ranges.length === 0}
+{#if spans.length === 0}
 	<p class="inline-text">{text}</p>
 {:else}
 	<p class="inline-text">
-		{#each segments(text, ranges) as seg, i (i)}
-			{#if seg.recency !== undefined}
-				<span class="taper" style="--r: {seg.recency}">{seg.text}</span>
+		{#each segments(text, spans) as seg, i (i)}
+			{#if seg.span}
+				<span
+					class="taper"
+					style="--r: {seg.span.recency}"
+					role="button"
+					tabindex={0}
+					aria-label="token {seg.text}"
+					onmouseenter={(e) =>
+						onhover?.(seg.span!.tokenId, e.currentTarget.getBoundingClientRect())}
+					onmouseleave={() => onunhover?.()}
+					onfocus={(e) => onhover?.(seg.span!.tokenId, e.currentTarget.getBoundingClientRect())}
+					onblur={() => onunhover?.()}>{seg.text}</span
+				>
 			{:else}
 				{seg.text}
 			{/if}
