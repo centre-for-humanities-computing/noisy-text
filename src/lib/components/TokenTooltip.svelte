@@ -20,7 +20,7 @@
 
 	const OFFSET = 12;
 	/** Tooltip width; position flips to the left when near the right edge. */
-	const WIDTH = 340;
+	const WIDTH = 380;
 
 	const style = $derived.by(() => {
 		const vw = typeof window !== 'undefined' ? window.innerWidth : 1200;

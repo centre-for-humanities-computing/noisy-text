@@ -87,15 +87,14 @@ export interface NeighborGraphNode {
 	id: number;
 	/** Role in the graph: `'trajectory'` (on the walked path) or `'neighbor'`. */
 	role: 'trajectory' | 'neighbor';
-	/** Trajectory step index $s$ (0 = origin); -1 for neighbor nodes. */
-	step: number;
+	/**
+	 * Chronology anchor: the trajectory step $s$ at which this token
+	 * appeared (first occurrence for trajectory nodes; the anchor step
+	 * for neighbors). Drives the saturation ramp.
+	 */
+	anchorStep: number;
 	/** Display string for the token. */
 	label: string;
-	/**
-	 * Number of consecutive steps this trajectory node covers (stay
-	 * events collapse into one node). 1 for neighbor nodes.
-	 */
-	count?: number;
 }
 
 /** A directed edge in the inspection graph. */
@@ -114,6 +113,18 @@ export interface NeighborGraphEdge {
 	dist: number;
 	/** Whether this edge is on the walked trajectory. */
 	trajectory: boolean;
+	/**
+	 * Chronology anchor: the step $s$ at which this transition happened
+	 * (trajectory edges) or the anchor step of the neighborhood
+	 * (neighborhood edges). Drives the saturation ramp.
+	 */
+	anchorStep: number;
+	/**
+	 * The trajectory steps $s$ at which this transition was taken
+	 * (trajectory edges only; a token pair can recur). Empty for
+	 * neighborhood edges.
+	 */
+	steps: number[];
 }
 
 /** The inspection graph: trajectory chain + 1-hop neighborhood. */

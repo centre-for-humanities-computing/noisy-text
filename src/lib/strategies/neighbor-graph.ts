@@ -1,20 +1,27 @@
 /**
  * Build the inspection graph for the hover tooltip: the hovered token's
- * trajectory chain plus the 1-hop neighborhood of its current token.
+ * trajectory (the distinct tokens it passed through) plus the 1-hop
+ * neighborhood of **every** trajectory node.
  *
  * Pure function over a strategy + optional provider: no worker, no DOM.
+ * Designed as a composable accumulator so a future "all trajectories in
+ * one graph" view can reuse `addTrajectory` / `addNeighborhood` on a
+ * shared accumulator.
  *
+ * Semantics:
+ * - **Token-space dedup**: a token id is one node, no matter how many
+ *   steps it appears at in the trajectory (a revisit is the same node).
+ * - **Stays produce nothing**: consecutive equal tokens add no edge; only
+ *   actual changes do. Each change edge records the steps $s$ at which
+ *   that transition was taken (a pair can recur).
  * - **Trajectory edges** carry the exact transition probability
  *   $Q_s(x_{s+1} \mid x_s)$ from `strategy.getLocalDistribution` (this
  *   *includes* the ergodicity floor — it is the true probability the
  *   walk used).
  * - **Neighborhood edges** carry the floor-free softmax weights from
- *   `resolveNeighbors` (the ergodicity floor is excluded, per the
- *   inspection spec).
- *
- * The trajectory is always present; the neighborhood is optional
- * (`hasNeighborhood: false` when the strategy has no provider or no
- * neighbors are in range).
+ *   `resolveNeighbors` (the ergodicity floor is excluded).
+ * - The neighborhood is optional (`hasNeighborhood: false` when the
+ *   strategy has no provider or no neighbors are in range).
  */
 
 import type {
@@ -41,10 +48,92 @@ export interface NeighborGraphLimits {
 	/** Cumulative probability cutoff in $[0, 1]$ (used when `limitMode === 'top-p'`). */
 	p: number;
 	/**
-	 * Maximum neighborhood nodes kept for legibility, applied after the
+	 * Maximum neighborhood nodes kept per anchor, applied after the
 	 * top-$k$/$p$ cut (heaviest weights first). Default 8.
 	 */
-	maxPerHop?: number;
+	maxPerAnchor?: number;
+}
+
+/**
+ * Mutable graph accumulator over token-space nodes.
+ *
+ * Nodes are keyed by token id; edges by `from → to` (directed). Trajectory
+ * edges accumulate the set of steps at which each transition was taken.
+ * Reusable across multiple trajectories for the future all-trajectories
+ * view.
+ */
+export class GraphAccumulator {
+	readonly nodes = new Map<number, NeighborGraphNode>();
+	readonly edges = new Map<string, NeighborGraphEdge>();
+
+	/** Add a trajectory node (or keep the earliest anchor of an existing one). */
+	addTrajectoryNode(id: number, step: number, labelOf: (id: number) => string): void {
+		const existing = this.nodes.get(id);
+		if (existing) {
+			// Keep the earliest appearance as the chronology anchor.
+			if (step < existing.anchorStep) existing.anchorStep = step;
+			return;
+		}
+		this.nodes.set(id, { id, role: 'trajectory', anchorStep: step, label: labelOf(id) });
+	}
+
+	/** Add a neighborhood node anchored at `step`. */
+	addNeighborNode(id: number, step: number, labelOf: (id: number) => string): void {
+		const existing = this.nodes.get(id);
+		if (existing) return; // trajectory role wins; anchor unchanged
+		this.nodes.set(id, { id, role: 'neighbor', anchorStep: step, label: labelOf(id) });
+	}
+
+	/**
+	 * Record a trajectory transition taken at step `s`. Stays (`from ===
+	 * to`) are ignored. Repeated transitions accumulate their steps.
+	 */
+	addTrajectoryEdge(from: number, to: number, step: number, weight: number): void {
+		if (from === to) return;
+		const key = `${from}->${to}`;
+		const existing = this.edges.get(key);
+		if (existing) {
+			existing.steps.push(step);
+			// Keep the latest weight (most recent occurrence).
+			existing.weight = weight;
+			existing.anchorStep = step;
+			return;
+		}
+		this.edges.set(key, {
+			from,
+			to,
+			weight,
+			dist: 0,
+			trajectory: true,
+			anchorStep: step,
+			steps: [step],
+		});
+	}
+
+	/** Record a floor-free neighborhood edge anchored at `step`. */
+	addNeighborEdge(from: number, to: number, step: number, weight: number, dist: number): void {
+		if (from === to) return;
+		const key = `${from}->${to}`;
+		if (this.edges.has(key)) return; // trajectory edge wins
+		this.edges.set(key, {
+			from,
+			to,
+			weight,
+			dist,
+			trajectory: false,
+			anchorStep: step,
+			steps: [],
+		});
+	}
+
+	/** Snapshot the accumulated graph. */
+	snapshot(hasNeighborhood: boolean): NeighborGraph {
+		return {
+			nodes: [...this.nodes.values()],
+			edges: [...this.edges.values()],
+			hasNeighborhood,
+		};
+	}
 }
 
 /**
@@ -68,74 +157,46 @@ export function buildNeighborGraph(
 	limits: NeighborGraphLimits,
 	labelOf: (id: number) => string,
 ): NeighborGraph {
-	const nodes: NeighborGraphNode[] = [];
-	const edges: NeighborGraphEdge[] = [];
-	// Token ids on the trajectory (for neighbor dedup). Trajectory nodes
-	// themselves are emitted per step — repeated ids (stay events) are
-	// kept so the chain shows every step.
-	const seen = new Set<number>();
+	const acc = new GraphAccumulator();
 
-	// ---- Trajectory chain: $x_0 \to x_1 \to \cdots \to x_t$ ----
-	// Consecutive identical tokens (stay events) collapse into one node
-	// carrying a repeat count; each step still contributes its edge so
-	// stay probabilities remain visible.
+	// ---- Trajectory: distinct tokens + change edges ----
 	for (let s = 0; s < column.length; s++) {
-		const id = column[s]!;
-		const last = nodes[nodes.length - 1];
-		if (last && last.role === 'trajectory' && last.id === id) {
-			last.count = (last.count ?? 1) + 1;
-		} else {
-			nodes.push({ id, role: 'trajectory', step: s, label: labelOf(id), count: 1 });
-		}
-		seen.add(id);
+		acc.addTrajectoryNode(column[s]!, s, labelOf);
 		if (s < column.length - 1) {
-			// Exact transition probability: row $Q_s$ of the strategy at
-			// $\beta_s$, read at the actual next token. Strategies without
-			// `getLocalDistribution` get weight 1 (the walk did happen).
-			const next = column[s + 1]!;
-			const dist = strategy.getLocalDistribution?.(id, betas[s] ?? 0);
-			edges.push({
-				from: id,
-				to: next,
-				weight: dist ? (dist[next] ?? 0) : 1,
-				dist: 0,
-				trajectory: true,
-			});
-		}
-	}
-
-	// ---- 1-hop neighborhood of the current token ----
-	let hasNeighborhood = false;
-	const current = column[column.length - 1]!;
-
-	if (provider && params) {
-		const { maxDistance, k, tau } = params;
-		const resolved = resolveNeighbors(provider.neighborsOf(current), maxDistance, k, tau);
-		const limited = applyLimit(resolved, limits.limitMode, limits.k, limits.p);
-		if (limited) {
-			const maxKeep = limits.maxPerHop ?? 8;
-			const kept = truncateByWeight(limited.entries, limited.weights, maxKeep);
-			if (kept) {
-				hasNeighborhood = true;
-				for (let i = 0; i < kept.entries.length; i++) {
-					const n = kept.entries[i]!;
-					if (!seen.has(n.id)) {
-						nodes.push({ id: n.id, role: 'neighbor', step: -1, label: labelOf(n.id) });
-						seen.add(n.id);
-					}
-					edges.push({
-						from: current,
-						to: n.id,
-						weight: kept.weights[i]!,
-						dist: n.dist,
-						trajectory: false,
-					});
-				}
+			const from = column[s]!;
+			const to = column[s + 1]!;
+			if (from !== to) {
+				// Exact transition probability: row $Q_s$ at $\beta_s$, read
+				// at the actual next token. Strategies without
+				// `getLocalDistribution` get weight 1 (the walk did happen).
+				const dist = strategy.getLocalDistribution?.(from, betas[s] ?? 0);
+				acc.addTrajectoryEdge(from, to, s, dist ? (dist[to] ?? 0) : 1);
 			}
 		}
 	}
 
-	return { nodes, edges, hasNeighborhood };
+	// ---- 1-hop neighborhood of every trajectory node ----
+	let hasNeighborhood = false;
+	if (provider && params) {
+		const { maxDistance, k, tau } = params;
+		const maxKeep = limits.maxPerAnchor ?? 8;
+		for (const node of acc.nodes.values()) {
+			if (node.role !== 'trajectory') continue;
+			const resolved = resolveNeighbors(provider.neighborsOf(node.id), maxDistance, k, tau);
+			const limited = applyLimit(resolved, limits.limitMode, limits.k, limits.p);
+			if (!limited) continue;
+			const kept = truncateByWeight(limited.entries, limited.weights, maxKeep);
+			if (!kept) continue;
+			hasNeighborhood = true;
+			for (let i = 0; i < kept.entries.length; i++) {
+				const n = kept.entries[i]!;
+				acc.addNeighborNode(n.id, node.anchorStep, labelOf);
+				acc.addNeighborEdge(node.id, n.id, node.anchorStep, kept.weights[i]!, n.dist);
+			}
+		}
+	}
+
+	return acc.snapshot(hasNeighborhood);
 }
 
 /**

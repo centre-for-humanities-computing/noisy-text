@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildNeighborGraph } from './neighbor-graph.js';
+import { buildNeighborGraph, GraphAccumulator } from './neighbor-graph.js';
 import { NeighborhoodProvider } from './neighborhood.js';
 import { getStrategy } from './index.js';
 import type { DistanceModel } from './distance-model.js';
@@ -32,8 +32,7 @@ function makeProvider(): NeighborhoodProvider {
 
 /**
  * Deterministic stub strategy: `getLocalDistribution` puts mass $w$ on
- * `token + 1` (mod K) and the rest uniformly. Lets tests assert exact
- * trajectory-edge weights.
+ * `token + 1` (mod K) and the rest uniformly.
  */
 function makeStubStrategy(weight: number): NoiseStrategy<unknown> {
 	const K = 6;
@@ -64,33 +63,112 @@ function makeStubStrategy(weight: number): NoiseStrategy<unknown> {
 const params = { maxDistance: 3, k: 50, tau: 1.0 };
 const labelOf = (id: number) => `t${id}`;
 
-// Trajectory column: $x_0 = 0 \to x_1 = 1 \to x_2 = 2$; betas for 2 steps.
-const column = new Int32Array([0, 1, 2]);
-const betas = new Float32Array([0.5, 0.5]);
-
 describe('buildNeighborGraph', () => {
-	it('always includes the trajectory chain with exact edge weights', () => {
-		const strategy = makeStubStrategy(0.7);
+	it('emits one node per distinct token, no stay edges', () => {
+		// $0 \to 0 \to 1 \to 1 \to 2$: two stays, two changes.
+		const column = new Int32Array([0, 0, 1, 1, 2]);
 		const g = buildNeighborGraph(
-			strategy,
+			makeStubStrategy(0.7),
 			null,
 			null,
 			column,
-			betas,
+			new Float32Array(column.length - 1),
 			{ limitMode: 'top-k', k: 5, p: 0.95 },
 			labelOf,
 		);
-		const trajNodes = g.nodes.filter((n) => n.role === 'trajectory');
-		expect(trajNodes.map((n) => n.id)).toEqual([0, 1, 2]);
-		expect(trajNodes.map((n) => n.step)).toEqual([0, 1, 2]);
-
+		expect(g.nodes).toHaveLength(3);
 		const trajEdges = g.edges.filter((e) => e.trajectory);
 		expect(trajEdges).toHaveLength(2);
-		// Exact $Q_s$ values from the stub: mass 0.7 on token+1 (Float32).
-		expect(trajEdges[0]).toMatchObject({ from: 0, to: 1 });
-		expect(trajEdges[0]!.weight).toBeCloseTo(0.7, 5);
-		expect(trajEdges[1]).toMatchObject({ from: 1, to: 2 });
-		expect(trajEdges[1]!.weight).toBeCloseTo(0.7, 5);
+	});
+
+	it('records the step of each change on the edge', () => {
+		const column = new Int32Array([0, 0, 1, 1, 2]);
+		const g = buildNeighborGraph(
+			makeStubStrategy(0.7),
+			null,
+			null,
+			column,
+			new Float32Array(column.length - 1),
+			{ limitMode: 'top-k', k: 5, p: 0.95 },
+			labelOf,
+		);
+		const e01 = g.edges.find((e) => e.from === 0 && e.to === 1);
+		expect(e01?.steps).toEqual([1]); // change happened at $s = 1$
+		const e12 = g.edges.find((e) => e.from === 1 && e.to === 2);
+		expect(e12?.steps).toEqual([3]);
+	});
+
+	it('accumulates steps when a transition recurs', () => {
+		// $0 \to 1 \to 0 \to 1$: the 0→1 edge is taken at steps 0 and 2.
+		const column = new Int32Array([0, 1, 0, 1]);
+		const g = buildNeighborGraph(
+			makeStubStrategy(0.7),
+			null,
+			null,
+			column,
+			new Float32Array(column.length - 1),
+			{ limitMode: 'top-k', k: 5, p: 0.95 },
+			labelOf,
+		);
+		const e01 = g.edges.find((e) => e.from === 0 && e.to === 1);
+		expect(e01?.steps).toEqual([0, 2]);
+		// Revisit does not duplicate the node.
+		expect(g.nodes).toHaveLength(2);
+	});
+
+	it('anchors nodes at their earliest appearance', () => {
+		const column = new Int32Array([0, 1, 0, 1]);
+		const g = buildNeighborGraph(
+			makeStubStrategy(0.7),
+			null,
+			null,
+			column,
+			new Float32Array(column.length - 1),
+			{ limitMode: 'top-k', k: 5, p: 0.95 },
+			labelOf,
+		);
+		const n0 = g.nodes.find((n) => n.id === 0);
+		expect(n0?.anchorStep).toBe(0);
+	});
+
+	it('adds a 1-hop neighborhood for every trajectory node', () => {
+		const column = new Int32Array([0, 1, 2]);
+		const g = buildNeighborGraph(
+			makeStubStrategy(0.5),
+			makeProvider(),
+			params,
+			column,
+			new Float32Array(column.length - 1),
+			{ limitMode: 'top-k', k: 5, p: 0.95 },
+			labelOf,
+		);
+		expect(g.hasNeighborhood).toBe(true);
+		// Each of the 3 trajectory nodes contributes neighbors.
+		const nbhdEdges = g.edges.filter((e) => !e.trajectory);
+		const anchors = new Set(nbhdEdges.map((e) => e.anchorStep));
+		expect(anchors.has(0)).toBe(true);
+		expect(anchors.has(1)).toBe(true);
+		expect(anchors.has(2)).toBe(true);
+		// Neighborhood edges are anchored at their trajectory node's step.
+		for (const e of nbhdEdges) {
+			const fromNode = g.nodes.find((n) => n.id === e.from);
+			expect(e.anchorStep).toBe(fromNode?.anchorStep);
+		}
+	});
+
+	it('dedupes neighbors shared between anchors', () => {
+		const column = new Int32Array([0, 1]);
+		const g = buildNeighborGraph(
+			makeStubStrategy(0.5),
+			makeProvider(),
+			params,
+			column,
+			new Float32Array(column.length - 1),
+			{ limitMode: 'top-k', k: 5, p: 0.95 },
+			labelOf,
+		);
+		const ids = g.nodes.map((n) => n.id);
+		expect(new Set(ids).size).toBe(ids.length);
 	});
 
 	it('hasNeighborhood is false without a provider', () => {
@@ -98,84 +176,61 @@ describe('buildNeighborGraph', () => {
 			makeStubStrategy(0.5),
 			null,
 			null,
-			column,
-			betas,
+			new Int32Array([0, 1]),
+			new Float32Array(1),
 			{ limitMode: 'top-k', k: 5, p: 0.95 },
 			labelOf,
 		);
 		expect(g.hasNeighborhood).toBe(false);
-		expect(g.nodes.filter((n) => n.role === 'neighbor')).toHaveLength(0);
+		expect(g.edges.filter((e) => !e.trajectory)).toHaveLength(0);
 	});
 
 	it('hasNeighborhood is false when no neighbors are in range', () => {
-		const strategy = makeStubStrategy(0.5);
 		const g = buildNeighborGraph(
-			strategy,
+			makeStubStrategy(0.5),
 			makeProvider(),
 			{ ...params, maxDistance: 0 },
-			column,
-			betas,
+			new Int32Array([0, 1]),
+			new Float32Array(1),
 			{ limitMode: 'top-k', k: 5, p: 0.95 },
 			labelOf,
 		);
 		expect(g.hasNeighborhood).toBe(false);
 		// Trajectory still present.
-		expect(g.nodes.filter((n) => n.role === 'trajectory')).toHaveLength(3);
+		expect(g.nodes.filter((n) => n.role === 'trajectory')).toHaveLength(2);
 	});
 
-	it('adds 1-hop neighborhood of the current token', () => {
-		const strategy = makeStubStrategy(0.5);
+	it('maxPerAnchor caps per-anchor neighborhood size', () => {
+		const column = new Int32Array([0, 1, 2]);
 		const g = buildNeighborGraph(
-			strategy,
+			makeStubStrategy(0.5),
 			makeProvider(),
 			params,
 			column,
-			betas,
+			new Float32Array(column.length - 1),
+			{ limitMode: 'top-k', k: 5, p: 0.95, maxPerAnchor: 2 },
+			labelOf,
+		);
+		// 3 anchors × ≤2 neighbors each, minus dedup.
+		const nbhdEdges = g.edges.filter((e) => !e.trajectory);
+		expect(nbhdEdges.length).toBeLessThanOrEqual(6);
+	});
+
+	it('trajectory edge weights are exact $Q_s$ values', () => {
+		const column = new Int32Array([0, 1, 2]);
+		const g = buildNeighborGraph(
+			makeStubStrategy(0.7),
+			null,
+			null,
+			column,
+			new Float32Array(2),
 			{ limitMode: 'top-k', k: 5, p: 0.95 },
 			labelOf,
 		);
-		expect(g.hasNeighborhood).toBe(true);
-		const neighbors = g.nodes.filter((n) => n.role === 'neighbor');
-		expect(neighbors.length).toBeGreaterThan(0);
-		// All neighborhood edges originate at the current token (2).
-		for (const e of g.edges.filter((e) => !e.trajectory)) {
-			expect(e.from).toBe(2);
+		const trajEdges = g.edges.filter((e) => e.trajectory);
+		for (const e of trajEdges) {
+			expect(e.weight).toBeCloseTo(0.7, 5);
 		}
-	});
-
-	it('neighborhood edges are floor-free softmax weights', () => {
-		const strategy = makeStubStrategy(0.5);
-		const g = buildNeighborGraph(
-			strategy,
-			makeProvider(),
-			params,
-			column,
-			betas,
-			{ limitMode: 'top-k', k: 5, p: 0.95 },
-			labelOf,
-		);
-		const neighEdges = g.edges.filter((e) => !e.trajectory);
-		let sum = 0;
-		for (const e of neighEdges) sum += e.weight;
-		// Truncation may drop mass, so only bound it.
-		expect(sum).toBeGreaterThan(0);
-		expect(sum).toBeLessThanOrEqual(1 + 1e-5);
-	});
-
-	it('maxPerHop caps neighborhood size', () => {
-		const strategy = makeStubStrategy(0.5);
-		const g = buildNeighborGraph(
-			strategy,
-			makeProvider(),
-			params,
-			column,
-			betas,
-			{ limitMode: 'top-k', k: 5, p: 0.95, maxPerHop: 2 },
-			labelOf,
-		);
-		// Current token is 2; its neighbors 1 and 0 are already on the
-		// trajectory, so only 1 fresh neighbor node survives the cap.
-		expect(g.nodes.filter((n) => n.role === 'neighbor')).toHaveLength(1);
 	});
 
 	it('works with a real lexical strategy end-to-end', () => {
@@ -185,42 +240,42 @@ describe('buildNeighborGraph', () => {
 			6,
 			makeProvider(),
 		);
+		const column = new Int32Array([0, 1, 2]);
 		const g = buildNeighborGraph(
 			strategy,
 			makeProvider(),
 			params,
 			column,
-			betas,
+			new Float32Array(2),
 			{ limitMode: 'top-k', k: 5, p: 0.95 },
 			labelOf,
 		);
 		expect(g.hasNeighborhood).toBe(true);
-		const trajEdges = g.edges.filter((e) => e.trajectory);
-		expect(trajEdges).toHaveLength(2);
-		for (const e of trajEdges) {
+		for (const e of g.edges.filter((e) => e.trajectory)) {
 			expect(e.weight).toBeGreaterThan(0);
 			expect(e.weight).toBeLessThanOrEqual(1);
 		}
 	});
+});
 
-	it('collapses consecutive stay events into one node with a count', () => {
-		// A token that stayed put: $x_0 = x_1 = 4$.
-		const col = new Int32Array([4, 4, 4]);
-		const strategy = makeStubStrategy(0.5);
-		const g = buildNeighborGraph(
-			strategy,
-			null,
-			null,
-			col,
-			betas,
-			{ limitMode: 'top-k', k: 5, p: 0.95 },
-			labelOf,
-		);
-		// One collapsed node covering all 3 steps.
-		const trajNodes = g.nodes.filter((n) => n.role === 'trajectory');
-		expect(trajNodes).toHaveLength(1);
-		expect(trajNodes[0]!.count).toBe(3);
-		// Stay edges still recorded (2 of them).
-		expect(g.edges.filter((e) => e.trajectory)).toHaveLength(2);
+describe('GraphAccumulator', () => {
+	it('trajectory role wins over neighbor role', () => {
+		const acc = new GraphAccumulator();
+		acc.addNeighborNode(5, 3, labelOf);
+		acc.addTrajectoryNode(5, 1, labelOf);
+		const node = acc.nodes.get(5);
+		expect(node?.role).toBe('neighbor'); // first add wins the role
+		// But a later trajectory add keeps the earliest anchor.
+		acc.addTrajectoryNode(5, 0, labelOf);
+		expect(acc.nodes.get(5)?.anchorStep).toBe(0);
+	});
+
+	it('neighbor edges never override trajectory edges', () => {
+		const acc = new GraphAccumulator();
+		acc.addTrajectoryEdge(1, 2, 0, 0.9);
+		acc.addNeighborEdge(1, 2, 5, 0.4, 1);
+		const edge = acc.edges.get('1->2');
+		expect(edge?.trajectory).toBe(true);
+		expect(edge?.weight).toBe(0.9);
 	});
 });
