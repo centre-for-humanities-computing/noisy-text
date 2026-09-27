@@ -5,8 +5,8 @@
 		text: string;
 		/** Per-token character spans (from `allTokenCharSpans`). */
 		spans?: readonly TokenCharSpan[];
-		/** Called on token hover with the token id and its bounding rect. */
-		onhover?: (tokenId: number, rect: DOMRect) => void;
+		/** Called on token hover with the token id, its index, and bounding rect. */
+		onhover?: (tokenId: number, index: number, rect: DOMRect) => void;
 		/** Called when the pointer leaves a token span. */
 		onunhover?: () => void;
 	}
@@ -53,9 +53,10 @@
 					tabindex={0}
 					aria-label="token {seg.text}"
 					onmouseenter={(e) =>
-						onhover?.(seg.span!.tokenId, e.currentTarget.getBoundingClientRect())}
+						onhover?.(seg.span!.tokenId, seg.span!.index, e.currentTarget.getBoundingClientRect())}
 					onmouseleave={() => onunhover?.()}
-					onfocus={(e) => onhover?.(seg.span!.tokenId, e.currentTarget.getBoundingClientRect())}
+					onfocus={(e) =>
+						onhover?.(seg.span!.tokenId, seg.span!.index, e.currentTarget.getBoundingClientRect())}
 					onblur={() => onunhover?.()}>{seg.text}</span
 				>
 			{:else}

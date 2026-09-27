@@ -19,12 +19,17 @@ export interface TrajectoryWorkerComputeRequest {
 }
 
 /**
- * Query the local token neighborhood for the hover tooltip.
+ * Query the inspection graph for the hover tooltip.
  *
- * Asks the worker to build a 2-hop neighborhood graph centered on `token`
- * using its cached `NeighborhoodProvider` (floor-free: the ergodicity
- * floor $\varepsilon$ is excluded). Each hop's spread is limited by
- * `limitMode` (`'top-k'` or `'top-p'`).
+ * Asks the worker to build a graph showing the hovered token's trajectory
+ * (the chain of tokens $x_0 \to x_1 \to \cdots \to x_t$ at one sequence
+ * position) plus the 1-hop neighborhood of the current token. Edge
+ * weights are exact transition probabilities $Q_s(x_{s+1} \mid x_s)$
+ * computed by the strategy. Neighborhoods exclude the ergodicity floor.
+ *
+ * The trajectory column and per-step $\beta$ values are supplied by the
+ * main thread (it owns the computed trajectory); the worker owns the
+ * strategy instance needed to evaluate $Q_s$.
  */
 export interface TrajectoryWorkerNeighborsRequest {
 	kind: 'neighbors';
@@ -34,9 +39,13 @@ export interface TrajectoryWorkerNeighborsRequest {
 	strategyId: string;
 	/** Strategy config (maxDistance, k, tau, mode, …) for read-time filtering. */
 	strategyConfig: Record<string, unknown>;
-	/** Center token id. */
-	token: number;
-	/** Spread limit mode per hop. */
+	/** Vocabulary size $K$ (needed to instantiate the strategy). */
+	vocabSize: number;
+	/** The hovered token's trajectory column: $x_0, x_1, \ldots, x_t$. */
+	column: Int32Array;
+	/** Schedule $\beta$ values: $\beta_0, \ldots, \beta_{t-1}$ (length = column.length - 1). */
+	betas: Float32Array;
+	/** Spread limit mode for the neighborhood. */
 	limitMode: 'top-k' | 'top-p';
 	/** Top-k cutoff (used when `limitMode === 'top-k'`). */
 	k: number;
@@ -76,35 +85,54 @@ export interface TrajectoryWorkerComputeResultResponse {
 export interface NeighborGraphNode {
 	/** Token id. */
 	id: number;
-	/** Hop distance from the center (0 = center, 1 = neighbor, 2 = 2-hop). */
-	hop: number;
+	/** Role in the graph: `'trajectory'` (on the walked path) or `'neighbor'`. */
+	role: 'trajectory' | 'neighbor';
+	/** Trajectory step index $s$ (0 = origin); -1 for neighbor nodes. */
+	step: number;
 	/** Display string for the token. */
 	label: string;
+	/**
+	 * Number of consecutive steps this trajectory node covers (stay
+	 * events collapse into one node). 1 for neighbor nodes.
+	 */
+	count?: number;
 }
 
-/** A directed edge in the neighborhood graph. */
+/** A directed edge in the inspection graph. */
 export interface NeighborGraphEdge {
-	/** Source token id (closer to center). */
+	/** Source token id. */
 	from: number;
-	/** Target token id (farther from center). */
+	/** Target token id. */
 	to: number;
-	/** Floor-free transition weight in $[0, 1]$ (softmax over $-d/\tau$). */
+	/**
+	 * Edge weight in $[0, 1]$: for trajectory edges the exact transition
+	 * probability $Q_s(x_{s+1} \mid x_s)$; for neighborhood edges the
+	 * floor-free softmax weight over $-d/\tau$.
+	 */
 	weight: number;
-	/** Raw distance between the endpoints. */
+	/** Raw distance between the endpoints (0 for trajectory edges). */
 	dist: number;
+	/** Whether this edge is on the walked trajectory. */
+	trajectory: boolean;
 }
 
-/** The 2-hop neighborhood graph for the tooltip. */
+/** The inspection graph: trajectory chain + 1-hop neighborhood. */
 export interface NeighborGraph {
 	nodes: NeighborGraphNode[];
 	edges: NeighborGraphEdge[];
+	/**
+	 * Whether a neighborhood could be computed. `false` when the strategy
+	 * has no neighborhood support (uniform) or no neighbors were in range
+	 * — the trajectory is still present either way.
+	 */
+	hasNeighborhood: boolean;
 }
 
 export interface TrajectoryWorkerNeighborsResultResponse {
 	kind: 'neighbors';
 	requestId: number;
-	/** The built graph, or null when the strategy has no neighborhood. */
-	graph: NeighborGraph | null;
+	/** The built graph (always non-null; check `hasNeighborhood`). */
+	graph: NeighborGraph;
 }
 
 export interface TrajectoryWorkerComputeErrorResponse {

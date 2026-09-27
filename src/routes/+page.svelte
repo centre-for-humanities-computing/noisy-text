@@ -154,14 +154,11 @@
 
 	// ===== Token inspector (hover tooltip) =====
 
-	/** Strategies with a neighborhood support inspection. */
-	const inspectionSupported = $derived(strategyStore.info?.stationary === 'data-dependent');
-
 	type HoverState = {
 		tokenId: number;
 		x: number;
 		y: number;
-		status: 'loading' | 'ready' | 'unavailable';
+		status: 'loading' | 'ready' | 'error' | 'unavailable';
 		graph: NeighborGraph | null;
 	};
 
@@ -171,14 +168,29 @@
 
 	/**
 	 * Handle token hover from either view: record the anchor, then query
-	 * the worker for the 2-hop neighborhood graph.
+	 * the worker for the inspection graph (trajectory + 1-hop neighborhood).
+	 *
+	 * Works for every strategy: neighborhood strategies (lexical,
+	 * char-overlap) also get the 1-hop neighborhood; others (identity,
+	 * uniform, absorbing) get the trajectory only.
 	 */
-	function handleTokenHover(tokenId: number, rect: DOMRect): void {
-		if (!inspectionSupported) return;
+	function handleTokenHover(tokenId: number, index: number, rect: DOMRect): void {
 		const tok = tokenizerStore.tokenizer;
-		if (!tok) return;
+		const traj = trajectoryStore.trajectory;
+		if (!tok || !traj) return;
 
 		hover = { tokenId, x: rect.left, y: rect.top, status: 'loading', graph: null };
+
+		// Trajectory column for this position: $x_0, \ldots, x_t$. The rows
+		// buffer is flat $(T+1) \times L$, so gather position `index` per step.
+		const t = trajectoryStore.t;
+		const L = traj.length;
+		const column = new Int32Array(t + 1);
+		for (let s = 0; s <= t; s++) column[s] = traj.rows[s * L + index]!;
+		// Schedule $\beta$ values for the steps taken so far.
+		const schedule = scheduleStore.instance;
+		const betas = new Float32Array(t);
+		for (let s = 0; s < t; s++) betas[s] = schedule ? schedule.beta(s) : 0;
 
 		const queryId = ++hoverQueryId;
 		trajectoryStore
@@ -194,7 +206,9 @@
 							? charOverlapStore.params
 							: undefined,
 				) as Record<string, unknown>,
-				token: tokenId,
+				vocabSize: tok.vocabSize,
+				column,
+				betas,
 				limitMode: inspectionStore.limitMode,
 				k: inspectionStore.k,
 				p: inspectionStore.p,
@@ -202,17 +216,11 @@
 			.then((graph) => {
 				// Ignore stale results (mouse moved to another token).
 				if (queryId !== hoverQueryId || !hover || hover.tokenId !== tokenId) return;
-				hover = {
-					tokenId,
-					x: hover.x,
-					y: hover.y,
-					status: graph ? 'ready' : 'unavailable',
-					graph,
-				};
+				hover = { tokenId, x: hover.x, y: hover.y, status: 'ready', graph };
 			})
 			.catch(() => {
 				if (queryId !== hoverQueryId || !hover || hover.tokenId !== tokenId) return;
-				hover = { tokenId, x: hover.x, y: hover.y, status: 'unavailable', graph: null };
+				hover = { tokenId, x: hover.x, y: hover.y, status: 'error', graph: null };
 			});
 	}
 

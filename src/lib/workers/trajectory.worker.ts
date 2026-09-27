@@ -25,11 +25,7 @@ import { EditDistanceModel } from '../strategies/distance-model.js';
 import { CharOverlapModel } from '../strategies/char-overlap-model.js';
 import type { CharOverlapMode } from '../strategies/char-overlap-model.js';
 import { NeighborhoodProvider } from '../strategies/neighborhood.js';
-import type {
-	TrajectoryWorkerRequest,
-	TrajectoryWorkerResponse,
-	NeighborGraph,
-} from './trajectory.protocol.js';
+import type { TrajectoryWorkerRequest, TrajectoryWorkerResponse } from './trajectory.protocol.js';
 import { buildNeighborGraph } from '../strategies/neighbor-graph.js';
 import type { NeighborGraphParams } from '../strategies/neighbor-graph.js';
 
@@ -205,16 +201,30 @@ async function handleCompute(
 }
 
 /**
- * Handle a neighborhood query for the hover tooltip.
+ * Handle an inspection-graph query for the hover tooltip.
  *
- * Reuses the cached provider for the tokenizer/strategy pair. Returns
- * `graph: null` for strategies without a neighborhood (identity, uniform,
- * absorbing) — the UI shows "not available".
+ * Builds the strategy instance (reusing the cached provider for
+ * neighborhood strategies) and evaluates exact transition probabilities
+ * $Q_s(x_{s+1} \mid x_s)$ along the supplied trajectory column. The
+ * graph always contains the trajectory; `hasNeighborhood` is `false` for
+ * strategies without neighborhood support (uniform) or when no neighbors
+ * are in range — the UI distinguishes these from hard errors.
  */
 async function handleNeighbors(
 	msg: Extract<TrajectoryWorkerRequest, { kind: 'neighbors' }>,
 ): Promise<void> {
-	const { requestId, tokenizerId, strategyId, strategyConfig, token, limitMode, k, p } = msg;
+	const {
+		requestId,
+		tokenizerId,
+		strategyId,
+		strategyConfig,
+		vocabSize,
+		column,
+		betas,
+		limitMode,
+		k,
+		p,
+	} = msg;
 
 	try {
 		let provider: NeighborhoodProvider | undefined;
@@ -239,22 +249,14 @@ async function handleNeighbors(
 			};
 		}
 
-		// Unsupported strategy → no graph.
-		if (!provider || !graphParams) {
-			const response: TrajectoryWorkerResponse = {
-				kind: 'neighbors',
-				requestId,
-				graph: null,
-			};
-			self.postMessage(response);
-			return;
-		}
-
+		const strategy = getStrategy(strategyId, strategyConfig, vocabSize, provider);
 		const tok = await loadTokenizer(tokenizerId);
-		const graph: NeighborGraph | null = buildNeighborGraph(
-			provider,
-			token,
+		const graph = buildNeighborGraph(
+			strategy,
+			provider ?? null,
 			graphParams,
+			column,
+			betas,
 			{ limitMode, k, p },
 			(id) => tok.idsToTokens(new Int32Array([id]))[0] ?? `#${id}`,
 		);

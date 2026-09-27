@@ -37,7 +37,7 @@ class TrajectoryStore {
 	/** Monotonic request id for neighbor queries (separate counter). */
 	private _neighborRequestId = 0;
 	/** Pending neighbor-query resolvers keyed by request id. */
-	private _pendingNeighborQueries = new Map<number, (graph: NeighborGraph | null) => void>();
+	private _pendingNeighborQueries = new Map<number, (graph: NeighborGraph) => void>();
 	/** The worker instance, created lazily. */
 	private _worker: Worker | null = null;
 	/** In-memory trajectory cache. */
@@ -109,25 +109,30 @@ class TrajectoryStore {
 	}
 
 	/**
-	 * Query the 2-hop neighborhood graph for a token (hover tooltip).
+	 * Query the inspection graph for a token (hover tooltip): the token's
+	 * trajectory chain plus the 1-hop neighborhood of its current token.
 	 *
 	 * Posts a `neighbors` request to the worker and returns a promise
-	 * resolved with the graph, or `null` when the strategy has no
-	 * neighborhood. Independent of the trajectory compute pipeline.
+	 * resolved with the graph (always non-null; check `hasNeighborhood`).
+	 * Independent of the trajectory compute pipeline.
 	 *
-	 * @param opts - Query parameters (tokenizer, strategy, config, center
-	 *   token, spread limits).
+	 * @param opts - Query parameters (tokenizer, strategy, config, the
+	 *   token's trajectory column, schedule betas, spread limits).
 	 */
 	queryNeighbors(opts: {
 		tokenizerId: string;
 		strategyId: string;
 		strategyConfig: Record<string, unknown>;
-		token: number;
+		vocabSize: number;
+		column: Int32Array;
+		betas: Float32Array;
 		limitMode: 'top-k' | 'top-p';
 		k: number;
 		p: number;
-	}): Promise<NeighborGraph | null> {
-		if (!browser) return Promise.resolve(null);
+	}): Promise<NeighborGraph> {
+		if (!browser) {
+			return Promise.resolve({ nodes: [], edges: [], hasNeighborhood: false });
+		}
 
 		const worker = this._getWorker();
 		const requestId = ++this._neighborRequestId;
@@ -155,7 +160,9 @@ class TrajectoryStore {
 			const resolve = this._pendingNeighborQueries.get(msg.requestId);
 			this._pendingNeighborQueries.delete(msg.requestId);
 			if (resolve) {
-				resolve(msg.kind === 'neighbors' ? msg.graph : null);
+				resolve(
+					msg.kind === 'neighbors' ? msg.graph : { nodes: [], edges: [], hasNeighborhood: false },
+				);
 			}
 			return;
 		}

@@ -3,8 +3,8 @@
 		tokens: readonly string[];
 		ids: Int32Array;
 		recency: Float32Array;
-		/** Called on chip hover with the token id and its bounding rect. */
-		onhover?: (tokenId: number, rect: DOMRect) => void;
+		/** Called on chip hover with the token id, its index, and bounding rect. */
+		onhover?: (tokenId: number, index: number, rect: DOMRect) => void;
 		/** Called when the pointer leaves a chip. */
 		onunhover?: () => void;
 	}
@@ -33,12 +33,12 @@
 			aria-label="token {visibleToken(token)}"
 			onmouseenter={(e) => {
 				const id = ids[i];
-				if (id !== undefined && onhover) onhover(id, e.currentTarget.getBoundingClientRect());
+				if (id !== undefined && onhover) onhover(id, i, e.currentTarget.getBoundingClientRect());
 			}}
 			onmouseleave={() => onunhover?.()}
 			onfocus={(e) => {
 				const id = ids[i];
-				if (id !== undefined && onhover) onhover(id, e.currentTarget.getBoundingClientRect());
+				if (id !== undefined && onhover) onhover(id, i, e.currentTarget.getBoundingClientRect());
 			}}
 			onblur={() => onunhover?.()}
 		>

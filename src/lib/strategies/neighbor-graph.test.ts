@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { buildNeighborGraph } from './neighbor-graph.js';
 import { NeighborhoodProvider } from './neighborhood.js';
+import { getStrategy } from './index.js';
 import type { DistanceModel } from './distance-model.js';
+import type { NoiseStrategy, Rng } from './types.js';
 
 /**
  * A tiny synthetic distance model: token id `i` is the string
@@ -28,159 +30,197 @@ function makeProvider(): NeighborhoodProvider {
 	return new NeighborhoodProvider(new SyntheticModel(), 3);
 }
 
+/**
+ * Deterministic stub strategy: `getLocalDistribution` puts mass $w$ on
+ * `token + 1` (mod K) and the rest uniformly. Lets tests assert exact
+ * trajectory-edge weights.
+ */
+function makeStubStrategy(weight: number): NoiseStrategy<unknown> {
+	const K = 6;
+	return {
+		info: {
+			id: 'stub',
+			label: 'Stub',
+			description: '',
+			stationary: 'unknown',
+			plainName: '',
+			gloss: '',
+			tooltip: { text: '' },
+		},
+		config: {},
+		sampleStep(token: number, _beta: number, _rng: Rng): number {
+			return (token + 1) % K;
+		},
+		getLocalDistribution(token: number, _beta: number): Float32Array {
+			const dist = new Float32Array(K);
+			dist[(token + 1) % K] = weight;
+			const rest = (1 - weight) / (K - 1);
+			for (let j = 0; j < K; j++) if (j !== (token + 1) % K) dist[j] = rest;
+			return dist;
+		},
+	};
+}
+
 const params = { maxDistance: 3, k: 50, tau: 1.0 };
 const labelOf = (id: number) => `t${id}`;
 
+// Trajectory column: $x_0 = 0 \to x_1 = 1 \to x_2 = 2$; betas for 2 steps.
+const column = new Int32Array([0, 1, 2]);
+const betas = new Float32Array([0.5, 0.5]);
+
 describe('buildNeighborGraph', () => {
-	it('returns null when center has no neighbors in range', () => {
-		// maxDistance 0 → no neighbor passes the filter.
+	it('always includes the trajectory chain with exact edge weights', () => {
+		const strategy = makeStubStrategy(0.7);
 		const g = buildNeighborGraph(
+			strategy,
+			null,
+			null,
+			column,
+			betas,
+			{ limitMode: 'top-k', k: 5, p: 0.95 },
+			labelOf,
+		);
+		const trajNodes = g.nodes.filter((n) => n.role === 'trajectory');
+		expect(trajNodes.map((n) => n.id)).toEqual([0, 1, 2]);
+		expect(trajNodes.map((n) => n.step)).toEqual([0, 1, 2]);
+
+		const trajEdges = g.edges.filter((e) => e.trajectory);
+		expect(trajEdges).toHaveLength(2);
+		// Exact $Q_s$ values from the stub: mass 0.7 on token+1 (Float32).
+		expect(trajEdges[0]).toMatchObject({ from: 0, to: 1 });
+		expect(trajEdges[0]!.weight).toBeCloseTo(0.7, 5);
+		expect(trajEdges[1]).toMatchObject({ from: 1, to: 2 });
+		expect(trajEdges[1]!.weight).toBeCloseTo(0.7, 5);
+	});
+
+	it('hasNeighborhood is false without a provider', () => {
+		const g = buildNeighborGraph(
+			makeStubStrategy(0.5),
+			null,
+			null,
+			column,
+			betas,
+			{ limitMode: 'top-k', k: 5, p: 0.95 },
+			labelOf,
+		);
+		expect(g.hasNeighborhood).toBe(false);
+		expect(g.nodes.filter((n) => n.role === 'neighbor')).toHaveLength(0);
+	});
+
+	it('hasNeighborhood is false when no neighbors are in range', () => {
+		const strategy = makeStubStrategy(0.5);
+		const g = buildNeighborGraph(
+			strategy,
 			makeProvider(),
-			0,
 			{ ...params, maxDistance: 0 },
+			column,
+			betas,
 			{ limitMode: 'top-k', k: 5, p: 0.95 },
 			labelOf,
 		);
-		expect(g).toBeNull();
+		expect(g.hasNeighborhood).toBe(false);
+		// Trajectory still present.
+		expect(g.nodes.filter((n) => n.role === 'trajectory')).toHaveLength(3);
 	});
 
-	it('includes center node at hop 0', () => {
+	it('adds 1-hop neighborhood of the current token', () => {
+		const strategy = makeStubStrategy(0.5);
 		const g = buildNeighborGraph(
+			strategy,
 			makeProvider(),
-			0,
 			params,
+			column,
+			betas,
 			{ limitMode: 'top-k', k: 5, p: 0.95 },
 			labelOf,
 		);
-		expect(g).not.toBeNull();
-		const center = g!.nodes.find((n) => n.hop === 0);
-		expect(center).toBeDefined();
-		expect(center!.id).toBe(0);
-		expect(center!.label).toBe('t0');
-	});
-
-	it('produces hop-1 and hop-2 nodes with edges', () => {
-		const g = buildNeighborGraph(
-			makeProvider(),
-			0,
-			params,
-			{ limitMode: 'top-k', k: 5, p: 0.95 },
-			labelOf,
-		);
-		expect(g).not.toBeNull();
-		const hop1 = g!.nodes.filter((n) => n.hop === 1);
-		const hop2 = g!.nodes.filter((n) => n.hop === 2);
-		expect(hop1.length).toBeGreaterThan(0);
-		expect(hop2.length).toBeGreaterThan(0);
-		// Every edge from the center targets a hop-1 node.
-		for (const e of g!.edges.filter((e) => e.from === 0)) {
-			const target = g!.nodes.find((n) => n.id === e.to);
-			expect(target?.hop).toBe(1);
+		expect(g.hasNeighborhood).toBe(true);
+		const neighbors = g.nodes.filter((n) => n.role === 'neighbor');
+		expect(neighbors.length).toBeGreaterThan(0);
+		// All neighborhood edges originate at the current token (2).
+		for (const e of g.edges.filter((e) => !e.trajectory)) {
+			expect(e.from).toBe(2);
 		}
 	});
 
-	it('edge weights are positive and per-node out-sums do not exceed 1', () => {
+	it('neighborhood edges are floor-free softmax weights', () => {
+		const strategy = makeStubStrategy(0.5);
 		const g = buildNeighborGraph(
+			strategy,
 			makeProvider(),
-			0,
 			params,
+			column,
+			betas,
 			{ limitMode: 'top-k', k: 5, p: 0.95 },
 			labelOf,
 		);
-		expect(g).not.toBeNull();
-		const byFrom = new Map<number, number>();
-		for (const e of g!.edges) {
-			expect(e.weight).toBeGreaterThan(0);
-			expect(e.weight).toBeLessThanOrEqual(1);
-			byFrom.set(e.from, (byFrom.get(e.from) ?? 0) + e.weight);
-		}
-		for (const sum of byFrom.values()) {
-			// May be < 1 when the edge back to the center is skipped.
-			expect(sum).toBeLessThanOrEqual(1 + 1e-5);
-		}
+		const neighEdges = g.edges.filter((e) => !e.trajectory);
+		let sum = 0;
+		for (const e of neighEdges) sum += e.weight;
+		// Truncation may drop mass, so only bound it.
+		expect(sum).toBeGreaterThan(0);
+		expect(sum).toBeLessThanOrEqual(1 + 1e-5);
 	});
 
-	it('top-k limits hop-1 spread', () => {
+	it('maxPerHop caps neighborhood size', () => {
+		const strategy = makeStubStrategy(0.5);
 		const g = buildNeighborGraph(
+			strategy,
 			makeProvider(),
-			0,
 			params,
-			{ limitMode: 'top-k', k: 2, p: 0.95 },
-			labelOf,
-		);
-		expect(g).not.toBeNull();
-		const hop1 = g!.nodes.filter((n) => n.hop === 1);
-		expect(hop1.length).toBe(2);
-	});
-
-	it('top-p limits hop-1 spread', () => {
-		const g = buildNeighborGraph(
-			makeProvider(),
-			0,
-			params,
-			{ limitMode: 'top-p', k: 50, p: 0.6 },
-			labelOf,
-		);
-		expect(g).not.toBeNull();
-		const hop1 = g!.nodes.filter((n) => n.hop === 1);
-		expect(hop1.length).toBeLessThan(3);
-		expect(hop1.length).toBeGreaterThanOrEqual(1);
-	});
-
-	it('closer neighbors get thicker (higher-weight) edges', () => {
-		const g = buildNeighborGraph(
-			makeProvider(),
-			0,
-			params,
-			{ limitMode: 'top-k', k: 5, p: 0.95 },
-			labelOf,
-		);
-		expect(g).not.toBeNull();
-		const centerEdges = g!.edges.filter((e) => e.from === 0);
-		// Entries are distance-sorted, so weight should be non-increasing.
-		for (let i = 1; i < centerEdges.length; i++) {
-			expect(centerEdges[i - 1]!.weight).toBeGreaterThanOrEqual(centerEdges[i]!.weight);
-		}
-	});
-
-	it('never re-adds the center as a hop-2 node', () => {
-		const g = buildNeighborGraph(
-			makeProvider(),
-			0,
-			params,
-			{ limitMode: 'top-k', k: 5, p: 0.95 },
-			labelOf,
-		);
-		expect(g).not.toBeNull();
-		const centerNodes = g!.nodes.filter((n) => n.id === 0);
-		expect(centerNodes.length).toBe(1);
-	});
-
-	it('caps nodes per hop for legibility', () => {
-		const g = buildNeighborGraph(
-			makeProvider(),
-			0,
-			params,
+			column,
+			betas,
 			{ limitMode: 'top-k', k: 5, p: 0.95, maxPerHop: 2 },
 			labelOf,
 		);
-		expect(g).not.toBeNull();
-		const hop1 = g!.nodes.filter((n) => n.hop === 1);
-		expect(hop1.length).toBe(2);
-		// The kept nodes should be the heaviest (closest) ones.
-		expect(hop1.map((n) => n.id)).toEqual([1, 2]);
+		// Current token is 2; its neighbors 1 and 0 are already on the
+		// trajectory, so only 1 fresh neighbor node survives the cap.
+		expect(g.nodes.filter((n) => n.role === 'neighbor')).toHaveLength(1);
 	});
 
-	it('deduplicates nodes shared between hops', () => {
-		const g = buildNeighborGraph(
+	it('works with a real lexical strategy end-to-end', () => {
+		const strategy = getStrategy(
+			'lexical',
+			{ maxDistance: 3, k: 50, epsilon: 0, tau: 1.0 },
+			6,
 			makeProvider(),
-			0,
+		);
+		const g = buildNeighborGraph(
+			strategy,
+			makeProvider(),
 			params,
+			column,
+			betas,
 			{ limitMode: 'top-k', k: 5, p: 0.95 },
 			labelOf,
 		);
-		expect(g).not.toBeNull();
-		const ids = g!.nodes.map((n) => n.id);
-		expect(new Set(ids).size).toBe(ids.length);
+		expect(g.hasNeighborhood).toBe(true);
+		const trajEdges = g.edges.filter((e) => e.trajectory);
+		expect(trajEdges).toHaveLength(2);
+		for (const e of trajEdges) {
+			expect(e.weight).toBeGreaterThan(0);
+			expect(e.weight).toBeLessThanOrEqual(1);
+		}
+	});
+
+	it('collapses consecutive stay events into one node with a count', () => {
+		// A token that stayed put: $x_0 = x_1 = 4$.
+		const col = new Int32Array([4, 4, 4]);
+		const strategy = makeStubStrategy(0.5);
+		const g = buildNeighborGraph(
+			strategy,
+			null,
+			null,
+			col,
+			betas,
+			{ limitMode: 'top-k', k: 5, p: 0.95 },
+			labelOf,
+		);
+		// One collapsed node covering all 3 steps.
+		const trajNodes = g.nodes.filter((n) => n.role === 'trajectory');
+		expect(trajNodes).toHaveLength(1);
+		expect(trajNodes[0]!.count).toBe(3);
+		// Stay edges still recorded (2 of them).
+		expect(g.edges.filter((e) => e.trajectory)).toHaveLength(2);
 	});
 });

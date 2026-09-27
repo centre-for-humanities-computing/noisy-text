@@ -1,16 +1,20 @@
 /**
- * Build a 2-hop neighborhood graph for the hover tooltip.
+ * Build the inspection graph for the hover tooltip: the hovered token's
+ * trajectory chain plus the 1-hop neighborhood of its current token.
  *
- * Pure function over a `NeighborhoodProvider`-like source: no worker, no
- * DOM. The ergodicity floor $\varepsilon$ is excluded by construction —
- * only `resolveNeighbors` softmax weights (over $-d/\tau$) are used, never
- * `fillLocalDistribution`.
+ * Pure function over a strategy + optional provider: no worker, no DOM.
  *
- * Structure: center node (hop 0) → its top limited neighbors (hop 1) →
- * each hop-1 node's top limited neighbors (hop 2). Each hop's spread is
- * truncated by `applyLimit` (top-$k$ or top-$p$) and weights are
- * renormalized over the survivors, so edge weights within one hop's
- * out-edges sum to 1.
+ * - **Trajectory edges** carry the exact transition probability
+ *   $Q_s(x_{s+1} \mid x_s)$ from `strategy.getLocalDistribution` (this
+ *   *includes* the ergodicity floor — it is the true probability the
+ *   walk used).
+ * - **Neighborhood edges** carry the floor-free softmax weights from
+ *   `resolveNeighbors` (the ergodicity floor is excluded, per the
+ *   inspection spec).
+ *
+ * The trajectory is always present; the neighborhood is optional
+ * (`hasNeighborhood: false` when the strategy has no provider or no
+ * neighbors are in range).
  */
 
 import type {
@@ -18,6 +22,7 @@ import type {
 	NeighborGraphEdge,
 	NeighborGraphNode,
 } from '../workers/trajectory.protocol.js';
+import type { NoiseStrategy } from './types.js';
 import type { NeighborhoodProvider } from './neighborhood.js';
 import { resolveNeighbors, applyLimit } from './neighbor-softmax.js';
 
@@ -28,7 +33,7 @@ export interface NeighborGraphParams {
 	tau: number;
 }
 
-/** Spread-limit options for the tooltip graph. */
+/** Spread-limit options for the tooltip neighborhood. */
 export interface NeighborGraphLimits {
 	limitMode: 'top-k' | 'top-p';
 	/** Top-k cutoff (used when `limitMode === 'top-k'`). */
@@ -36,76 +41,101 @@ export interface NeighborGraphLimits {
 	/** Cumulative probability cutoff in $[0, 1]$ (used when `limitMode === 'top-p'`). */
 	p: number;
 	/**
-	 * Maximum nodes kept per hop for legibility, applied after the
-	 * top-$k$/$p$ cut (heaviest weights first). Hop 2 keeps half this
-	 * (rounded up). Default 8.
+	 * Maximum neighborhood nodes kept for legibility, applied after the
+	 * top-$k$/$p$ cut (heaviest weights first). Default 8.
 	 */
 	maxPerHop?: number;
 }
 
 /**
- * Build the 2-hop graph centered on `token`.
+ * Build the inspection graph.
  *
- * @param provider - The neighborhood source (raw distances out to $R_{\max}$).
- * @param params - Read-time filter params (`maxDistance`, `k`, `tau`) from
- *   the active strategy config.
- * @param limits - Spread limits for the display (top-$k$ or top-$p$).
+ * @param strategy - The active strategy (for exact $Q_s$ rows).
+ * @param provider - Neighborhood source, or `null` for strategies without
+ *   one (identity, uniform, absorbing).
+ * @param params - Read-time filter params; required when `provider` is set.
+ * @param column - The hovered token's trajectory column $x_0, \ldots, x_t$.
+ * @param betas - Schedule values $\beta_0, \ldots, \beta_{t-1}$.
+ * @param limits - Spread limits for the neighborhood.
  * @param labelOf - Maps a token id to its display string.
- * @returns The graph, or `null` when the center has no neighbors in range.
  */
 export function buildNeighborGraph(
-	provider: NeighborhoodProvider,
-	token: number,
-	params: NeighborGraphParams,
+	strategy: NoiseStrategy,
+	provider: NeighborhoodProvider | null,
+	params: NeighborGraphParams | null,
+	column: Int32Array,
+	betas: Float32Array,
 	limits: NeighborGraphLimits,
 	labelOf: (id: number) => string,
-): NeighborGraph | null {
-	const { maxDistance, k, tau } = params;
-	const maxPerHop = limits.maxPerHop ?? 8;
-	const maxHop2 = Math.ceil(maxPerHop / 2);
-
-	const centerResolved = resolveNeighbors(provider.neighborsOf(token), maxDistance, k, tau);
-	const centerLimited = applyLimit(centerResolved, limits.limitMode, limits.k, limits.p);
-	if (!centerLimited) return null;
-
-	// Truncate to the heaviest `maxPerHop` entries for legibility.
-	const centerEntries = truncateByWeight(centerLimited.entries, centerLimited.weights, maxPerHop);
-	if (!centerEntries) return null;
-
-	const nodes: NeighborGraphNode[] = [{ id: token, hop: 0, label: labelOf(token) }];
+): NeighborGraph {
+	const nodes: NeighborGraphNode[] = [];
 	const edges: NeighborGraphEdge[] = [];
-	const seen = new Set<number>([token]);
+	// Token ids on the trajectory (for neighbor dedup). Trajectory nodes
+	// themselves are emitted per step — repeated ids (stay events) are
+	// kept so the chain shows every step.
+	const seen = new Set<number>();
 
-	for (let i = 0; i < centerEntries.entries.length; i++) {
-		const n = centerEntries.entries[i]!;
-		if (!seen.has(n.id)) {
-			nodes.push({ id: n.id, hop: 1, label: labelOf(n.id) });
-			seen.add(n.id);
+	// ---- Trajectory chain: $x_0 \to x_1 \to \cdots \to x_t$ ----
+	// Consecutive identical tokens (stay events) collapse into one node
+	// carrying a repeat count; each step still contributes its edge so
+	// stay probabilities remain visible.
+	for (let s = 0; s < column.length; s++) {
+		const id = column[s]!;
+		const last = nodes[nodes.length - 1];
+		if (last && last.role === 'trajectory' && last.id === id) {
+			last.count = (last.count ?? 1) + 1;
+		} else {
+			nodes.push({ id, role: 'trajectory', step: s, label: labelOf(id), count: 1 });
 		}
-		edges.push({ from: token, to: n.id, weight: centerEntries.weights[i]!, dist: n.dist });
+		seen.add(id);
+		if (s < column.length - 1) {
+			// Exact transition probability: row $Q_s$ of the strategy at
+			// $\beta_s$, read at the actual next token. Strategies without
+			// `getLocalDistribution` get weight 1 (the walk did happen).
+			const next = column[s + 1]!;
+			const dist = strategy.getLocalDistribution?.(id, betas[s] ?? 0);
+			edges.push({
+				from: id,
+				to: next,
+				weight: dist ? (dist[next] ?? 0) : 1,
+				dist: 0,
+				trajectory: true,
+			});
+		}
 	}
 
-	// Second hop: for each hop-1 node, resolve and limit its own neighbors.
-	for (const n of centerEntries.entries) {
-		const resolved = resolveNeighbors(provider.neighborsOf(n.id), maxDistance, k, tau);
+	// ---- 1-hop neighborhood of the current token ----
+	let hasNeighborhood = false;
+	const current = column[column.length - 1]!;
+
+	if (provider && params) {
+		const { maxDistance, k, tau } = params;
+		const resolved = resolveNeighbors(provider.neighborsOf(current), maxDistance, k, tau);
 		const limited = applyLimit(resolved, limits.limitMode, limits.k, limits.p);
-		if (!limited) continue;
-
-		const hop2 = truncateByWeight(limited.entries, limited.weights, maxHop2);
-		if (!hop2) continue;
-
-		for (let i = 0; i < hop2.entries.length; i++) {
-			const m = hop2.entries[i]!;
-			if (m.id === token) continue; // don't re-add the center as a 2-hop node
-			if (!seen.has(m.id)) {
-				nodes.push({ id: m.id, hop: 2, label: labelOf(m.id) });
-				seen.add(m.id);
+		if (limited) {
+			const maxKeep = limits.maxPerHop ?? 8;
+			const kept = truncateByWeight(limited.entries, limited.weights, maxKeep);
+			if (kept) {
+				hasNeighborhood = true;
+				for (let i = 0; i < kept.entries.length; i++) {
+					const n = kept.entries[i]!;
+					if (!seen.has(n.id)) {
+						nodes.push({ id: n.id, role: 'neighbor', step: -1, label: labelOf(n.id) });
+						seen.add(n.id);
+					}
+					edges.push({
+						from: current,
+						to: n.id,
+						weight: kept.weights[i]!,
+						dist: n.dist,
+						trajectory: false,
+					});
+				}
 			}
-			edges.push({ from: n.id, to: m.id, weight: hop2.weights[i]!, dist: m.dist });
 		}
 	}
 
-	return { nodes, edges };
+	return { nodes, edges, hasNeighborhood };
 }
 
 /**
