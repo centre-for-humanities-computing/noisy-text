@@ -33,7 +33,9 @@ export interface ForceLayoutOptions {
 	width: number;
 	/** Viewport height. */
 	height: number;
-	/** Ideal edge (spring rest) length. Default 60. */
+	/** Ideal edge (spring rest) length for a small graph. Scaled down
+	 *  automatically as $L \cdot \sqrt{n_0 / n}$ for larger graphs so the
+	 *  layout keeps fitting the viewport. Default 60. */
 	idealLength?: number;
 	/** Number of simulation iterations. Default 300. */
 	iterations?: number;
@@ -59,11 +61,10 @@ export function computeForceLayout(
 	const {
 		width,
 		height,
-		idealLength = 60,
 		iterations = 300,
 		repulsion = 3000,
 		spring = 0.05,
-		centering = 0.01,
+		centering = 0.05,
 	} = opts;
 
 	const margin = 24;
@@ -74,8 +75,19 @@ export function computeForceLayout(
 	const pos = new Map<string, { x: number; y: number }>();
 	if (n === 0) return pos;
 
-	// Deterministic init: nodes on a circle of radius ~min(w,h)/3.
-	const r = Math.min(width, height) / 3;
+	// Scale the ideal length with graph size (Fruchterman–Reingold): the
+	// reference density is ~10 nodes; without this, large graphs push
+	// everything to the viewport boundary and pin it there.
+	const n0 = 10;
+	const ideal = (opts.idealLength ?? 60) * Math.sqrt(n0 / n);
+
+	// Deterministic init: nodes on a circle whose radius grows with the
+	// node count so the initial spacing stays near the ideal length.
+	const r = Math.max(
+		Math.min(width, height) / 3,
+		(ideal * n) / (2 * Math.PI),
+		Math.min(width, height) / 2.2,
+	);
 	for (let i = 0; i < n; i++) {
 		const a = (2 * Math.PI * i) / n;
 		pos.set(nodes[i]!.key, { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) });
@@ -83,24 +95,55 @@ export function computeForceLayout(
 
 	// Index edges for the spring pass.
 	const edgeIdx = edges
-		.map((e) => ({ from: pos.get(e.from), to: pos.get(e.to), w: e.weight ?? 0.5 }))
-		.filter((e) => e.from && e.to);
+		.map((e) => ({
+			fromKey: e.from,
+			toKey: e.to,
+			fromPos: pos.get(e.from),
+			toPos: pos.get(e.to),
+			w: e.weight ?? 0.5,
+		}))
+		.filter((e) => e.fromPos && e.toPos);
 
 	const min = margin;
 	const maxX = width - margin;
 	const maxY = height - margin;
 
+	// Per-node displacement cap (applied to the *total* per-iteration
+	// displacement, not per force): prevents the aggregate repulsion from
+	// many neighbors flinging nodes to the viewport edges in a single
+	// iteration (where the clamp then pins them).
+	const maxDisp = ideal;
+
+	// Repulsion scales with the ideal length (Fruchterman–Reingold $k^2$):
+	// constant repulsion across graph sizes over-pushes large graphs to
+	// the boundary.
+	const repulseK = repulsion * ideal * ideal * (1 / 1200);
+
+	// Repulsion cutoff: full strength below `ideal`, linearly decaying to
+	// zero at 2.5× `ideal`. Short-range separation stays strong while
+	// long-range drift (which the boundary force must contain) stays weak.
+	const cutoff = 2.5 * ideal;
+
 	for (let iter = 0; iter < iterations; iter++) {
 		// Damping: strong early movement, gentle settle.
 		const damp = 1 - iter / iterations;
 
-		// Repulsion (all pairs).
+		// Accumulate forces into per-node displacement vectors, then apply
+		// with a total-magnitude cap (Fruchterman–Reingold temperature).
+		const disp = new Map<string, { x: number; y: number }>();
+		for (const node of nodes) disp.set(node.key, { x: 0, y: 0 });
+
+		// Repulsion (all pairs). Force is $f = k / d$ (not $k/d^2$), so
+		// close pairs push apart firmly without the singularity at
+		// $d \to 0$ dominating the whole layout.
 		for (let i = 0; i < n; i++) {
 			for (let j = i + 1; j < n; j++) {
-				const a = pos.get(nodes[i]!.key)!;
-				const b = pos.get(nodes[j]!.key)!;
-				let dx = a.x - b.x;
-				let dy = a.y - b.y;
+				const a = disp.get(nodes[i]!.key)!;
+				const b = disp.get(nodes[j]!.key)!;
+				const pa = pos.get(nodes[i]!.key)!;
+				const pb = pos.get(nodes[j]!.key)!;
+				let dx = pa.x - pb.x;
+				let dy = pa.y - pb.y;
 				let d2 = dx * dx + dy * dy;
 				if (d2 < 1e-6) {
 					// Jitter deterministically to break overlaps.
@@ -108,8 +151,9 @@ export function computeForceLayout(
 					dy = 0.5;
 					d2 = 0.5;
 				}
-				const f = (repulsion * damp) / d2;
 				const d = Math.sqrt(d2);
+				if (d > cutoff) continue;
+				const f = (repulseK * damp) / d;
 				const fx = (f * dx) / d;
 				const fy = (f * dy) / d;
 				a.x += fx;
@@ -121,25 +165,50 @@ export function computeForceLayout(
 
 		// Springs (edges).
 		for (const e of edgeIdx) {
-			const a = e.from!;
-			const b = e.to!;
-			const dx = b.x - a.x;
-			const dy = b.y - a.y;
+			const da = disp.get(e.fromKey)!;
+			const db = disp.get(e.toKey)!;
+			const dx = e.toPos!.x - e.fromPos!.x;
+			const dy = e.toPos!.y - e.fromPos!.y;
 			const d = Math.sqrt(dx * dx + dy * dy) || 1e-6;
-			const f = (spring * e.w * damp * (d - idealLength)) / d;
-			a.x += f * dx;
-			a.y += f * dy;
-			b.x -= f * dx;
-			b.y -= f * dy;
+			const f = (spring * e.w * damp * (d - ideal)) / d;
+			da.x += f * dx;
+			da.y += f * dy;
+			db.x -= f * dx;
+			db.y -= f * dy;
 		}
 
-		// Centering + clamp.
+		// Apply capped displacement.
+		for (const node of nodes) {
+			const p = pos.get(node.key)!;
+			const d = disp.get(node.key)!;
+			const mag = Math.hypot(d.x, d.y);
+			if (mag > maxDisp) {
+				d.x = (d.x / mag) * maxDisp;
+				d.y = (d.y / mag) * maxDisp;
+			}
+			p.x += d.x;
+			p.y += d.y;
+		}
+
+		// Centering pull plus a soft boundary force. The centering keeps
+		// the cluster compact (strong enough to counter aggregate
+		// repulsion); the boundary force is a last-resort containment.
+		const band = ideal / 2; // soft boundary band width
+		const push = 1.0; // boundary spring strength (per unit overshoot)
 		for (const p of pos.values()) {
 			p.x += (cx - p.x) * centering * damp;
 			p.y += (cy - p.y) * centering * damp;
-			p.x = Math.max(min, Math.min(maxX, p.x));
-			p.y = Math.max(min, Math.min(maxY, p.y));
+			if (p.x < min + band) p.x += (min + band - p.x) * push * damp;
+			if (p.x > maxX - band) p.x -= (p.x - (maxX - band)) * push * damp;
+			if (p.y < min + band) p.y += (min + band - p.y) * push * damp;
+			if (p.y > maxY - band) p.y -= (p.y - (maxY - band)) * push * damp;
 		}
+	}
+
+	// Final clamp into the viewport.
+	for (const p of pos.values()) {
+		p.x = Math.max(min, Math.min(maxX, p.x));
+		p.y = Math.max(min, Math.min(maxY, p.y));
 	}
 
 	return pos;

@@ -54,9 +54,14 @@
 		return `rgba(184, 145, 42, ${0.45 + 0.5 * t})`;
 	}
 
-	/** Edge stroke width in $[0.5, 4]$, proportional to weight. */
-	function edgeWidth(w: number): number {
-		return 0.5 + 3.5 * Math.min(1, Math.max(0, w));
+	/**
+	 * Edge stroke width, proportional to weight. Neighborhood edges run
+	 * $[0.5, 4]$; trajectory edges get a higher floor (1.5) so they stand
+	 * out even when the transition probability is small.
+	 */
+	function edgeWidth(w: number, trajectory: boolean): number {
+		const t = 3.5 * Math.min(1, Math.max(0, w));
+		return trajectory ? 1.5 + t : 0.5 + t;
 	}
 
 	/** Truncate long token labels for display. */
@@ -73,12 +78,84 @@
 		const edges = graph.edges.map((e) => ({
 			from: `${e.from}`,
 			to: `${e.to}`,
-			weight: e.trajectory ? 1 : 0.4,
+			// Neighbor springs stronger than the layout default so neighbors
+			// cluster near their anchors instead of spreading across the box.
+			weight: e.trajectory ? 1 : 0.8,
 		}));
-		return computeForceLayout(nodes, edges, { width: WIDTH, height: HEIGHT });
+		return computeForceLayout(nodes, edges, {
+			width: WIDTH,
+			height: HEIGHT,
+			idealLength: 42,
+		});
 	});
 
 	const pos = $derived(positions);
+
+	/** Trajectory edges in render order. */
+	const trajEdges = $derived(graph.edges.filter((e) => e.trajectory));
+
+	/**
+	 * Geometry per trajectory edge: a path (straight, or bowed when the
+	 * edge would overlap another — either the same directed edge
+	 * traversed multiple times, or the reverse edge also present, since
+	 * $A \to B$ and $B \to A$ share the same straight chord) plus a
+	 * collision-avoided label position.
+	 * Labels are placed at the edge midpoint, nudged along a fixed
+	 * deterministic candidate list until they don't cover an earlier
+	 * label — overlapping edges would otherwise stack labels.
+	 */
+	const trajGeom = $derived.by(() => {
+		const placed: { x: number; y: number }[] = [];
+		// Directed edge keys present, to detect reverse-edge overlap.
+		const keys = new Set(trajEdges.map((e) => `${e.from}->${e.to}`));
+		// Candidate label offsets from the midpoint, in preference order.
+		const candidates: [number, number][] = [
+			[0, 0],
+			[0, -9],
+			[0, 9],
+			[-16, 0],
+			[16, 0],
+			[0, -18],
+			[0, 18],
+			[-16, -9],
+			[16, 9],
+			[-16, 9],
+			[16, -9],
+		];
+		return trajEdges.map((e) => {
+			const a = pos.get(`${e.from}`);
+			const b = pos.get(`${e.to}`);
+			if (!a || !b) return null;
+			const dx = b.x - a.x;
+			const dy = b.y - a.y;
+			const len = Math.hypot(dx, dy) || 1;
+			// Unit normal; bow lifts the curve off the straight chord.
+			const nx = -dy / len;
+			const ny = dx / len;
+			// Bow when this edge is traversed more than once, or when the
+			// reverse edge exists (both directions share the same chord).
+			const bow = e.steps.length > 1 || keys.has(`${e.to}->${e.from}`) ? 14 : 0;
+			const mx = (a.x + b.x) / 2;
+			const my = (a.y + b.y) / 2;
+			const pathD = `M ${a.x} ${a.y} Q ${mx + nx * bow * 2} ${my + ny * bow * 2} ${b.x} ${b.y}`;
+			// Quadratic midpoint sits at half the control offset.
+			const baseX = mx + nx * bow;
+			const baseY = my + ny * bow;
+			let lx = baseX;
+			let ly = baseY;
+			for (const [ox, oy] of candidates) {
+				const cx = baseX + ox;
+				const cy = baseY + oy;
+				if (placed.every((p) => Math.hypot(p.x - cx, p.y - cy) >= 15)) {
+					lx = cx;
+					ly = cy;
+					break;
+				}
+			}
+			placed.push({ x: lx, y: ly });
+			return { pathD, lx, ly };
+		});
+	});
 </script>
 
 <svg
@@ -88,6 +165,9 @@
 	aria-label="Token trajectory through its neighborhood"
 >
 	<defs>
+		<!-- Fixed-size arrowhead: markerUnits defaults to strokeWidth, so
+		     scale the marker box up to keep arrowheads legible on thin
+		     edges (they previously shrank with stroke width). -->
 		<marker
 			id="arrow-traj"
 			viewBox="0 0 10 10"
@@ -95,6 +175,7 @@
 			refY="5"
 			markerWidth="6"
 			markerHeight="6"
+			markerUnits="userSpaceOnUse"
 			orient="auto-start-reverse"
 		>
 			<path d="M 0 0 L 10 5 L 0 10 z" fill="context-stroke" />
@@ -112,29 +193,26 @@
 				x2={b.x}
 				y2={b.y}
 				class="edge-nbhd"
-				style="stroke: {edgeColor(false, e.anchorStep)}; stroke-width: {edgeWidth(e.weight)}"
-				marker-end="url(#arrow-traj)"
+				style="stroke: {edgeColor(false, e.anchorStep)}; stroke-width: {edgeWidth(e.weight, false)}"
 			/>
 		{/if}
 	{/each}
 
-	{#each graph.edges.filter((e) => e.trajectory) as e, i (`${e.from}-${e.to}-${i}`)}
-		{@const a = pos.get(`${e.from}`)}
-		{@const b = pos.get(`${e.to}`)}
-		{#if a && b}
+	{#each trajEdges as e, i (`${e.from}-${e.to}-${i}`)}
+		{@const g = trajGeom[i]}
+		{#if g}
 			<g>
-				<line
-					x1={a.x}
-					y1={a.y}
-					x2={b.x}
-					y2={b.y}
+				<path
+					d={g.pathD}
+					fill="none"
 					class="edge-traj"
-					style="stroke: {edgeColor(true, e.anchorStep)}; stroke-width: {edgeWidth(e.weight)}"
+					style="stroke: {edgeColor(true, e.anchorStep)}; stroke-width: {edgeWidth(e.weight, true)}"
 					marker-end="url(#arrow-traj)"
 				/>
-				<!-- Step annotation at the edge midpoint. -->
-				<text x={(a.x + b.x) / 2} y={(a.y + b.y) / 2 - 4} text-anchor="middle" class="step-label"
-					>t={e.steps.join(',')}</text
+				<!-- Step annotation near the edge midpoint: every step at which
+				     this transition was taken, ascending. -->
+				<text x={g.lx} y={g.ly - 4} text-anchor="middle" class="step-label"
+					>t={e.steps.toSorted((x, y) => x - y).join(',')}</text
 				>
 			</g>
 		{/if}

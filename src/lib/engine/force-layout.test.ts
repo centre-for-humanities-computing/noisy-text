@@ -42,14 +42,40 @@ describe('computeForceLayout', () => {
 	});
 
 	it('pulls connected nodes closer than unconnected ones', () => {
-		const nodes = [{ key: 'a' }, { key: 'b' }, { key: 'x' }, { key: 'y' }];
-		const pos = computeForceLayout(nodes, [{ from: 'a', to: 'b', weight: 1 }], opts);
+		// A denser graph so springs (not just clamping) shape the result.
+		const nodes = [
+			{ key: 'a' },
+			{ key: 'b' },
+			{ key: 'c' },
+			{ key: 'x' },
+			{ key: 'y' },
+			{ key: 'z' },
+		];
+		const edges = [
+			{ from: 'a', to: 'b', weight: 1 },
+			{ from: 'a', to: 'c', weight: 1 },
+			{ from: 'b', to: 'c', weight: 1 },
+		];
+		const pos = computeForceLayout(nodes, edges, opts);
 		const d = (k1: string, k2: string) => {
 			const p1 = pos.get(k1)!;
 			const p2 = pos.get(k2)!;
 			return Math.hypot(p1.x - p2.x, p1.y - p2.y);
 		};
-		expect(d('a', 'b')).toBeLessThan(d('x', 'y'));
+		// The {a,b,c} triangle is spring-bound; {x,y,z} is not.
+		const avg = (pairs: Array<[string, string]>) =>
+			pairs.reduce((s, [k1, k2]) => s + d(k1, k2), 0) / pairs.length;
+		const bound = avg([
+			['a', 'b'],
+			['a', 'c'],
+			['b', 'c'],
+		]);
+		const free = avg([
+			['x', 'y'],
+			['x', 'z'],
+			['y', 'z'],
+		]);
+		expect(bound).toBeLessThan(free);
 	});
 
 	it('handles a single node', () => {
