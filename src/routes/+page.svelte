@@ -20,10 +20,13 @@
 	import { STRATEGIES } from '$lib/strategies/index.js';
 	import { strategyConfigFor } from '$lib/strategies/index.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
-	import { recencyAt, tokenCharRanges } from '$lib/engine/diff.js';
+	import { recencyAt, allTokenCharSpans } from '$lib/engine/diff.js';
 	import LexicalParams from '$lib/components/LexicalParams.svelte';
 	import CharOverlapParams from '$lib/components/CharOverlapParams.svelte';
 	import AdvancedPanel from '$lib/components/AdvancedPanel.svelte';
+	import TokenTooltip from '$lib/components/TokenTooltip.svelte';
+	import { inspectionStore } from '$lib/stores/inspection.svelte.js';
+	import type { NeighborGraph } from '$lib/workers/trajectory.protocol.js';
 
 	let text = $state(
 		'Governments of the Industrial World, you weary giants of flesh and steel, I come from Cyberspace, the new home of Mind. On behalf of the future, I ask you of the past to leave us alone. You are not welcome among us. You have no sovereignty where we gather.\n\nWe have no elected government, nor are we likely to have one, so I address you with no greater authority than that with which liberty itself always speaks. I declare the global social space we are building to be naturally independent of the tyrannies you seek to impose on us. You have no moral right to rule us nor do you possess any methods of enforcement we have true reason to fear.\n\nGovernments derive their just powers from the consent of the governed. You have neither solicited nor received ours. We did not invite you. You do not know us, nor do you know our world. Cyberspace does not lie within your borders. Do not think that you can build it, as though it were a public construction project. You cannot. It is an act of nature and it grows itself through our collective actions.',
@@ -124,23 +127,6 @@
 		return tok.decode(filtered);
 	});
 
-	// Character-level changed ranges with recency for prose taper.
-	// Uses token boundaries to constrain character spans: each token's
-	// recency (from recencyAt) is mapped to its character span in the
-	// decoded string by decoding tokens individually.
-	const charRanges = $derived.by(() => {
-		const tok = tokenizerStore.tokenizer;
-		if (!tok || tokenRecency.length === 0) return [];
-		const ids = displayTokens.ids;
-		const maskTokenId = tok.vocabSize;
-		return tokenCharRanges(
-			ids,
-			tokenRecency,
-			(id) => tok.decode(new Int32Array([id])),
-			maskTokenId,
-		);
-	});
-
 	// Per-token recency for chip fade.
 	const tokenRecency = $derived.by(() => {
 		const traj = trajectoryStore.trajectory;
@@ -152,6 +138,96 @@
 		}
 		return recencyAt(traj, t, viewStore.taperWindow, _recencyBuf);
 	});
+
+	// Per-token character spans for the prose view (hover + taper).
+	const tokenSpans = $derived.by(() => {
+		const tok = tokenizerStore.tokenizer;
+		if (!tok || displayTokens.ids.length === 0) return [];
+		const maskTokenId = tok.vocabSize;
+		return allTokenCharSpans(
+			displayTokens.ids,
+			tokenRecency,
+			(id) => tok.decode(new Int32Array([id])),
+			maskTokenId,
+		);
+	});
+
+	// ===== Token inspector (hover tooltip) =====
+
+	type HoverState = {
+		tokenId: number;
+		x: number;
+		y: number;
+		status: 'loading' | 'ready' | 'error' | 'unavailable';
+		graph: NeighborGraph | null;
+	};
+
+	let hover: HoverState | null = $state(null);
+	/** Monotonic id to ignore stale neighbor-query results. */
+	let hoverQueryId = 0;
+
+	/**
+	 * Handle token hover from either view: record the anchor, then query
+	 * the worker for the inspection graph (trajectory + 1-hop neighborhood).
+	 *
+	 * Works for every strategy: neighborhood strategies (lexical,
+	 * char-overlap) also get the 1-hop neighborhood; others (identity,
+	 * uniform, absorbing) get the trajectory only.
+	 */
+	function handleTokenHover(tokenId: number, index: number, rect: DOMRect): void {
+		const tok = tokenizerStore.tokenizer;
+		const traj = trajectoryStore.trajectory;
+		if (!tok || !traj) return;
+
+		hover = { tokenId, x: rect.left, y: rect.top, status: 'loading', graph: null };
+
+		// Trajectory column for this position: $x_0, \ldots, x_t$. The rows
+		// buffer is flat $(T+1) \times L$, so gather position `index` per step.
+		const t = trajectoryStore.t;
+		const L = traj.length;
+		const column = new Int32Array(t + 1);
+		for (let s = 0; s <= t; s++) column[s] = traj.rows[s * L + index]!;
+		// Schedule $\beta$ values for the steps taken so far.
+		const schedule = scheduleStore.instance;
+		const betas = new Float32Array(t);
+		for (let s = 0; s < t; s++) betas[s] = schedule ? schedule.beta(s) : 0;
+
+		const queryId = ++hoverQueryId;
+		trajectoryStore
+			.queryNeighbors({
+				tokenizerId: tokenizerStore.currentId,
+				strategyId: strategyStore.currentId,
+				strategyConfig: strategyConfigFor(
+					strategyStore.currentId,
+					tok.vocabSize,
+					strategyStore.currentId === 'lexical'
+						? lexicalStore.params
+						: strategyStore.currentId === 'char-overlap'
+							? charOverlapStore.params
+							: undefined,
+				) as Record<string, unknown>,
+				vocabSize: tok.vocabSize,
+				column,
+				betas,
+				limitMode: inspectionStore.limitMode,
+				k: inspectionStore.k,
+				p: inspectionStore.p,
+			})
+			.then((graph) => {
+				// Ignore stale results (mouse moved to another token).
+				if (queryId !== hoverQueryId || !hover || hover.tokenId !== tokenId) return;
+				hover = { tokenId, x: hover.x, y: hover.y, status: 'ready', graph };
+			})
+			.catch(() => {
+				if (queryId !== hoverQueryId || !hover || hover.tokenId !== tokenId) return;
+				hover = { tokenId, x: hover.x, y: hover.y, status: 'error', graph: null };
+			});
+	}
+
+	function handleTokenUnhover(): void {
+		hoverQueryId++;
+		hover = null;
+	}
 
 	// Changed count: positions with recency === 1 (changed this step).
 	const changedCount = $derived.by(() => {
@@ -298,11 +374,22 @@
 						tokens={displayTokens.tokens}
 						ids={displayTokens.ids}
 						recency={tokenRecency}
+						onhover={handleTokenHover}
+						onunhover={handleTokenUnhover}
 					/>
 				{:else}
-					<InlineTokens text={decodedText} ranges={charRanges} />
+					<InlineTokens
+						text={decodedText}
+						spans={tokenSpans}
+						onhover={handleTokenHover}
+						onunhover={handleTokenUnhover}
+					/>
 				{/if}
 			</div>
+		{/if}
+
+		{#if hover}
+			<TokenTooltip x={hover.x} y={hover.y} state={hover.status} graph={hover.graph} />
 		{/if}
 
 		<TimeSlider
@@ -397,7 +484,16 @@
 					/>
 				{/if}
 
-				<AdvancedPanel schedule={scheduleStore.instance} strategyInfo={strategyStore.info} />
+				<AdvancedPanel
+					schedule={scheduleStore.instance}
+					strategyInfo={strategyStore.info}
+					limitMode={inspectionStore.limitMode}
+					k={inspectionStore.k}
+					p={inspectionStore.p}
+					onlimitmodechange={(m) => (inspectionStore.limitMode = m)}
+					onkchange={(v) => (inspectionStore.k = v)}
+					onpchange={(v) => (inspectionStore.p = v)}
+				/>
 			</div>
 		{/if}
 	{/if}

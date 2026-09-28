@@ -166,3 +166,63 @@ export function tokenCharRanges(
 
 	return ranges;
 }
+
+/** A per-token character span in the decoded prose string. */
+export interface TokenCharSpan {
+	/** Start index (inclusive) in the decoded string. */
+	start: number;
+	/** End index (exclusive) in the decoded string. */
+	end: number;
+	/** The token id at this position. */
+	tokenId: number;
+	/** Position index in the token sequence. */
+	index: number;
+	/** Recency $r \in [0, 1]$ for the taper highlight. */
+	recency: number;
+}
+
+/**
+ * Map every token to its character span in the decoded prose string.
+ *
+ * Unlike `tokenCharRanges` (which emits only changed spans for taper
+ * rendering), this emits one span per visible token so the prose view can
+ * make each token individually hoverable. Mask sentinel positions are
+ * skipped (invisible in prose mode).
+ *
+ * @param ids - Token IDs for the current step (includes mask sentinels).
+ * @param tokenRecency - Per-position recency from `recencyAt`, length $L$.
+ * @param decodeToken - Function that decodes a single token ID to its
+ *   rendered text (e.g. `tok.decode(new Int32Array([id]))`).
+ * @param maskSentinel - The sentinel ID used for mask tokens; these
+ *   positions are skipped.
+ * @returns One `TokenCharSpan` per visible token, in order.
+ */
+export function allTokenCharSpans(
+	ids: Int32Array,
+	tokenRecency: Float32Array,
+	decodeToken: (id: number) => string,
+	maskSentinel: number,
+): TokenCharSpan[] {
+	const spans: TokenCharSpan[] = [];
+	let charPos = 0;
+
+	for (let i = 0; i < ids.length; i++) {
+		const id = ids[i]!;
+		if (id === maskSentinel) continue;
+
+		const text = decodeToken(id);
+		const len = text.length;
+		if (len > 0) {
+			spans.push({
+				start: charPos,
+				end: charPos + len,
+				tokenId: id,
+				index: i,
+				recency: tokenRecency[i] ?? 0,
+			});
+		}
+		charPos += len;
+	}
+
+	return spans;
+}

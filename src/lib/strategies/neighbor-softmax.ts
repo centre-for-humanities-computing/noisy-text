@@ -52,6 +52,51 @@ export function resolveNeighbors(
 }
 
 /**
+ * Truncate resolved neighbors by top-$k$ or top-$p$ (nucleus) and
+ * renormalize the weights over the survivors.
+ *
+ * For `'top-k'`: keep the first `k` entries (they are already sorted by
+ * distance ascending, which for equal $\tau$ is also descending weight).
+ * For `'top-p'`: keep the smallest prefix whose cumulative weight reaches
+ * `p` (always keeping at least one entry).
+ *
+ * Returns `null` if `resolved` is null or nothing survives.
+ */
+export function applyLimit(
+	resolved: ResolvedNeighbors | null,
+	limitMode: 'top-k' | 'top-p',
+	k: number,
+	p: number,
+): ResolvedNeighbors | null {
+	if (!resolved || resolved.entries.length === 0) return null;
+
+	let count: number;
+	if (limitMode === 'top-k') {
+		count = Math.min(k, resolved.entries.length);
+	} else {
+		// Smallest prefix with cumulative weight $\ge p$; at least 1 entry.
+		count = resolved.entries.length;
+		let cum = 0;
+		for (let i = 0; i < resolved.entries.length; i++) {
+			cum += resolved.weights[i]!;
+			if (cum >= p) {
+				count = i + 1;
+				break;
+			}
+		}
+	}
+	if (count <= 0) return null;
+
+	const entries = resolved.entries.slice(0, count);
+	const weights = new Float32Array(count);
+	let sum = 0;
+	for (let i = 0; i < count; i++) sum += resolved.weights[i]!;
+	for (let i = 0; i < count; i++) weights[i] = resolved.weights[i]! / sum;
+
+	return { entries, weights };
+}
+
+/**
  * Sample a token from resolved neighbors via inverse-CDF, with an
  * ergodicity floor $\varepsilon$.
  *

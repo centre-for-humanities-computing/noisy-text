@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { resolveNeighbors, sampleFromResolved, fillLocalDistribution } from './neighbor-softmax.js';
+import {
+	resolveNeighbors,
+	sampleFromResolved,
+	fillLocalDistribution,
+	applyLimit,
+} from './neighbor-softmax.js';
 
 describe('resolveNeighbors', () => {
 	const neighbors = [
@@ -143,5 +148,73 @@ describe('fillLocalDistribution', () => {
 		const dist = new Float32Array(K);
 		fillLocalDistribution(dist, resolved, 0, K);
 		expect(dist[0]).toBe(0);
+	});
+});
+
+describe('applyLimit', () => {
+	const neighbors = [
+		{ id: 1, dist: 0.2 },
+		{ id: 2, dist: 0.3 },
+		{ id: 3, dist: 0.5 },
+		{ id: 4, dist: 0.8 },
+		{ id: 5, dist: 1.0 },
+	];
+
+	it('returns null for null input', () => {
+		expect(applyLimit(null, 'top-k', 5, 0.95)).toBeNull();
+	});
+
+	it('top-k truncates and renormalizes', () => {
+		const r = resolveNeighbors(neighbors, 1.0, 20, 1.0);
+		const limited = applyLimit(r, 'top-k', 2, 0.95);
+		expect(limited).not.toBeNull();
+		expect(limited!.entries.length).toBe(2);
+		let sum = 0;
+		for (let i = 0; i < limited!.weights.length; i++) sum += limited!.weights[i]!;
+		expect(Math.abs(sum - 1)).toBeLessThan(1e-6);
+	});
+
+	it('top-k larger than list keeps everything', () => {
+		const r = resolveNeighbors(neighbors, 1.0, 20, 1.0);
+		const limited = applyLimit(r, 'top-k', 100, 0.95);
+		expect(limited).not.toBeNull();
+		expect(limited!.entries.length).toBe(5);
+	});
+
+	it('top-p keeps smallest prefix reaching p', () => {
+		const r = resolveNeighbors(neighbors, 1.0, 20, 1.0);
+		// With tau=1 the weights decay; p=0.5 should keep fewer than all 5.
+		const limited = applyLimit(r, 'top-p', 100, 0.5);
+		expect(limited).not.toBeNull();
+		expect(limited!.entries.length).toBeLessThan(5);
+		expect(limited!.entries.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it('top-p always keeps at least one entry', () => {
+		const r = resolveNeighbors(neighbors, 1.0, 20, 1.0);
+		const limited = applyLimit(r, 'top-p', 100, 0.0001);
+		expect(limited).not.toBeNull();
+		expect(limited!.entries.length).toBe(1);
+	});
+
+	it('top-p with p=1 keeps everything', () => {
+		const r = resolveNeighbors(neighbors, 1.0, 20, 1.0);
+		const limited = applyLimit(r, 'top-p', 100, 1.0);
+		expect(limited).not.toBeNull();
+		expect(limited!.entries.length).toBe(5);
+	});
+
+	it('top-p renormalizes weights to sum 1', () => {
+		const r = resolveNeighbors(neighbors, 1.0, 20, 1.0);
+		const limited = applyLimit(r, 'top-p', 100, 0.7);
+		expect(limited).not.toBeNull();
+		let sum = 0;
+		for (let i = 0; i < limited!.weights.length; i++) sum += limited!.weights[i]!;
+		expect(Math.abs(sum - 1)).toBeLessThan(1e-6);
+	});
+
+	it('returns null when resolved is empty', () => {
+		const r = resolveNeighbors([], 1.0, 20, 1.0);
+		expect(applyLimit(r, 'top-k', 5, 0.95)).toBeNull();
 	});
 });

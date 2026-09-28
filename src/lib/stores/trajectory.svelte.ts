@@ -5,6 +5,8 @@ import type { Trajectory, TrajectorySpec } from '$lib/engine/types.js';
 import type {
 	TrajectoryWorkerRequest,
 	TrajectoryWorkerResponse,
+	TrajectoryWorkerNeighborsRequest,
+	NeighborGraph,
 } from '$lib/workers/trajectory.protocol.js';
 
 export type TrajectoryStatus = 'idle' | 'computing' | 'ready' | 'error';
@@ -32,6 +34,10 @@ class TrajectoryStore {
 
 	/** Monotonic request id for staleness detection. */
 	private _requestId = 0;
+	/** Monotonic request id for neighbor queries (separate counter). */
+	private _neighborRequestId = 0;
+	/** Pending neighbor-query resolvers keyed by request id. */
+	private _pendingNeighborQueries = new Map<number, (graph: NeighborGraph) => void>();
 	/** The worker instance, created lazily. */
 	private _worker: Worker | null = null;
 	/** In-memory trajectory cache. */
@@ -103,11 +109,63 @@ class TrajectoryStore {
 	}
 
 	/**
+	 * Query the inspection graph for a token (hover tooltip): the token's
+	 * trajectory chain plus the 1-hop neighborhood of its current token.
+	 *
+	 * Posts a `neighbors` request to the worker and returns a promise
+	 * resolved with the graph (always non-null; check `hasNeighborhood`).
+	 * Independent of the trajectory compute pipeline.
+	 *
+	 * @param opts - Query parameters (tokenizer, strategy, config, the
+	 *   token's trajectory column, schedule betas, spread limits).
+	 */
+	queryNeighbors(opts: {
+		tokenizerId: string;
+		strategyId: string;
+		strategyConfig: Record<string, unknown>;
+		vocabSize: number;
+		column: Int32Array;
+		betas: Float32Array;
+		limitMode: 'top-k' | 'top-p';
+		k: number;
+		p: number;
+	}): Promise<NeighborGraph> {
+		if (!browser) {
+			return Promise.resolve({ nodes: [], edges: [], hasNeighborhood: false });
+		}
+
+		const worker = this._getWorker();
+		const requestId = ++this._neighborRequestId;
+
+		return new Promise((resolve) => {
+			this._pendingNeighborQueries.set(requestId, resolve);
+			const msg: TrajectoryWorkerNeighborsRequest = {
+				kind: 'neighbors',
+				requestId,
+				...opts,
+			};
+			worker.postMessage(msg);
+		});
+	}
+
+	/**
 	 * Handle a message from the worker.
 	 * @internal — called from the worker `onmessage` handler.
 	 */
 	_handleWorkerMessage(event: MessageEvent<TrajectoryWorkerResponse>): void {
 		const msg = event.data;
+
+		// Neighbor-query responses use their own id space.
+		if (msg.kind === 'neighbors' || msg.kind === 'neighbors-error') {
+			const resolve = this._pendingNeighborQueries.get(msg.requestId);
+			this._pendingNeighborQueries.delete(msg.requestId);
+			if (resolve) {
+				resolve(
+					msg.kind === 'neighbors' ? msg.graph : { nodes: [], edges: [], hasNeighborhood: false },
+				);
+			}
+			return;
+		}
 
 		// Ignore stale responses.
 		if (msg.requestId !== this._requestId) return;
