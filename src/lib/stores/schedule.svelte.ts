@@ -10,7 +10,14 @@ import { getSchedule, type Schedule, type ScheduleInfo } from '$lib/schedules/in
 class ScheduleStore {
 	currentId: string = $state('linear');
 	T: number = $state(300);
+	/** Rate multiplier $\lambda$ applied to any schedule's $\beta_t$. */
+	multiplier: number = $state(1);
 	instance: Schedule<unknown> | null = $state(null);
+
+	/** Current schedule config, assembled from the per-schedule knobs. */
+	get config(): Record<string, unknown> {
+		return { multiplier: this.multiplier };
+	}
 
 	/**
 	 * Select and instantiate a schedule.
@@ -19,7 +26,7 @@ class ScheduleStore {
 	 */
 	selectSchedule(id: string): void {
 		this.currentId = id;
-		this.instance = getSchedule(id, {}, this.T);
+		this.instance = getSchedule(id, this.config, this.T);
 	}
 
 	/**
@@ -29,7 +36,17 @@ class ScheduleStore {
 	 */
 	setT(n: number): void {
 		this.T = n;
-		this.instance = getSchedule(this.currentId, {}, this.T);
+		this.instance = getSchedule(this.currentId, this.config, this.T);
+	}
+
+	/**
+	 * Update the rate multiplier $\lambda$ and re-instantiate.
+	 *
+	 * @param lambda - New multiplier ($> 0$; 1 means unscaled).
+	 */
+	setMultiplier(lambda: number): void {
+		this.multiplier = lambda;
+		this.instance = getSchedule(this.currentId, this.config, this.T);
 	}
 
 	/** Current schedule metadata, or null if not instantiated. */

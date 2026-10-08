@@ -68,7 +68,8 @@ Triggered explicitly by the **"Noise it"** button.
 - A compact **status line** (token count, current $t$, changed-this-step
   count) sits near the timeline, de-emphasised.
 - **Tokenizer and Strategy** remain visible in a quiet control strip (see §6).
-- **Schedule, Seed, and T** live in the same quiet strip.
+- **Schedule** lives in the same quiet strip; **T** is editable next to the
+  timeline readout; **Seed** is tucked into the Advanced panel.
 - Technical panels (schedule plot, diagnostics, per-token distribution) are
   **hidden behind an "Advanced" toggle** (see §7).
 
@@ -83,11 +84,11 @@ Triggered explicitly by the **"Noise it"** button.
 │                                                 │
 │                                                 │
 ├───────────────────────────────────────────────┤
-│  ◀  ├────────●────────────────┤  ▶    t = 7/50 │  ← timeline
+│  ◀  ├────────●────────────────┤  ▶  t = 7/[50] │  ← timeline (T editable)
+│  β₇ = 0.004 · ≈ 0.4% eligible (?)               │  ← β readout
 │  120 tokens · 4 changed this step               │  ← quiet status
 ├───────────────────────────────────────────────┤
-│  Tokenizer ▾   Strategy ▾   Schedule ▾  T=50   │  ← quiet controls
-│                              Seed: 42  [⚙ Adv]  │
+│  Tokenizer ▾   Strategy ▾   Schedule ▾   [⚙ Adv] │  ← quiet controls
 └───────────────────────────────────────────────┘
 ```
 
@@ -166,15 +167,14 @@ Strategy-specific parameter panels (`LexicalParams`, `CharOverlapParams`)
 appear inline below the strategy picker only when their strategy is selected,
 styled as a subordinate detail.
 
-### 6.2 Schedule, Seed, T (quiet, always visible in Explore)
+### 6.2 Schedule (quiet, always visible in Explore)
 
-These secondary controls live in the same strip as Tokenizer/Strategy but are
-visually de-emphasised (smaller type, muted colour). They are:
-
-- **Schedule picker** with a short caption: _"How fast the noise increases over
-  time."_
-- **T** (number of timesteps) as a small numeric input next to the schedule.
-- **Seed** as a small numeric input with a "Re-roll" button.
+The schedule picker lives in the same strip as Tokenizer/Strategy, visually
+de-emphasised (smaller type, muted colour). The number of timesteps $T$ is
+edited directly inside the timeline readout (`t = x / [T]`), where it
+directly contextualises the scrub position. The seed and its
+"Re-roll" button live in the Advanced panel (§7) — they are reproducibility
+details, not exploration controls.
 
 ### 6.3 Display toggle (chips vs. prose)
 

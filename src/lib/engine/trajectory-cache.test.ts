@@ -99,6 +99,14 @@ describe('TrajectoryCache', () => {
 		expect(k1).not.toBe(k2);
 	});
 
+	it('key varies with scheduleConfig', () => {
+		const spec1 = makeSpec({ scheduleConfig: { multiplier: 1 } });
+		const spec2 = makeSpec({ scheduleConfig: { multiplier: 2 } });
+		const k1 = TrajectoryCache.key(spec1, hashIds(spec1.inputIds));
+		const k2 = TrajectoryCache.key(spec2, hashIds(spec2.inputIds));
+		expect(k1).not.toBe(k2);
+	});
+
 	it('key varies with T', () => {
 		const spec1 = makeSpec({ T: 100 });
 		const spec2 = makeSpec({ T: 200 });

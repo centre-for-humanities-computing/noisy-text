@@ -51,28 +51,15 @@
 
 <svelte:window onclick={onClickOutside} />
 
-<button
-	bind:this={buttonEl}
-	class="info-btn"
-	aria-label="More information"
-	aria-expanded={open}
-	onclick={toggle}
-	onmouseenter={() => {
-		open = true;
-	}}
-	onmouseleave={() => {
-		open = false;
-	}}
-	onkeydown={onKeydown}
->
-	?
-</button>
-
-{#if open}
-	<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-	<div
-		class="popover"
-		role="tooltip"
+<!-- Relative wrapper: anchors the popover to the button itself, independent
+     of any positioned ancestor at the usage site. -->
+<span class="info-wrap">
+	<button
+		bind:this={buttonEl}
+		class="info-btn"
+		aria-label="More information"
+		aria-expanded={open}
+		onclick={toggle}
 		onmouseenter={() => {
 			open = true;
 		}}
@@ -81,15 +68,37 @@
 		}}
 		onkeydown={onKeydown}
 	>
-		<p class="popover-text">{text}</p>
-		{#if renderedMath}
-			<!-- eslint-disable-next-line svelte/no-at-html-tags -->
-			<div class="popover-math">{@html renderedMath}</div>
-		{/if}
-	</div>
-{/if}
+		?
+	</button>
+
+	{#if open}
+		<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+		<div
+			class="popover"
+			role="tooltip"
+			onmouseenter={() => {
+				open = true;
+			}}
+			onmouseleave={() => {
+				open = false;
+			}}
+			onkeydown={onKeydown}
+		>
+			<p class="popover-text">{text}</p>
+			{#if renderedMath}
+				<!-- eslint-disable-next-line svelte/no-at-html-tags -->
+				<div class="popover-math">{@html renderedMath}</div>
+			{/if}
+		</div>
+	{/if}
+</span>
 
 <style>
+	.info-wrap {
+		position: relative;
+		display: inline-flex;
+		flex-shrink: 0;
+	}
 	.info-btn {
 		display: inline-flex;
 		align-items: center;
@@ -106,7 +115,6 @@
 		line-height: 1;
 		padding: 0;
 		flex-shrink: 0;
-		position: relative;
 	}
 	.info-btn:hover,
 	.info-btn[aria-expanded='true'] {
