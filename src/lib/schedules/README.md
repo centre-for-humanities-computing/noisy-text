@@ -25,9 +25,21 @@
 - $T$ is captured at construction time via the factory.
 - All math in comments uses `$...$` / `$$...$$`.
 
+## Rate multiplier
+
+Every schedule accepts a shared `multiplier` key ($\lambda > 0$, default 1)
+in its config. `getSchedule` strips it before calling the schedule factory,
+then — when $\lambda \ne 1$ — wraps the result so that
+$\beta'_t = \mathrm{clip}(\lambda \beta_t,\ 10^{-12},\ 1)$ and
+$\bar\alpha'_t = \prod_{s \le t} (1 - \beta'_s)$ is recomputed by
+accumulation (closed forms are invalid once $\beta$ is scaled). The knob
+composes with every schedule, including future ones — no per-schedule work
+is needed to support it.
+
 ## Current schedules
 
-| id       | description                                                       |
-| -------- | ----------------------------------------------------------------- |
-| `linear` | Noise rate increases linearly from start to end.                  |
-| `cosine` | Cosine schedule — preserves signal early, collapses near the end. |
+| id         | description                                                       |
+| ---------- | ----------------------------------------------------------------- |
+| `linear`   | Noise rate increases linearly from start to end.                  |
+| `cosine`   | Cosine schedule — preserves signal early, collapses near the end. |
+| `constant` | Noise rate is fixed at a constant value for every step.           |

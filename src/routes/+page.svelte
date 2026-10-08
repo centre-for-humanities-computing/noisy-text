@@ -23,6 +23,8 @@
 	import { recencyAt, allTokenCharSpans } from '$lib/engine/diff.js';
 	import LexicalParams from '$lib/components/LexicalParams.svelte';
 	import CharOverlapParams from '$lib/components/CharOverlapParams.svelte';
+	import ScheduleParams from '$lib/components/ScheduleParams.svelte';
+	import BetaReadout from '$lib/components/BetaReadout.svelte';
 	import AdvancedPanel from '$lib/components/AdvancedPanel.svelte';
 	import TokenTooltip from '$lib/components/TokenTooltip.svelte';
 	import { inspectionStore } from '$lib/stores/inspection.svelte.js';
@@ -114,8 +116,14 @@
 		return { ids, tokens: patched };
 	}
 
-	// Reusable buffer for recencyAt to avoid allocation on every tick.
-	const _recencyBuf = new Float32Array(2048);
+	// Per-token recency for chip fade. No reusable buffer: recencyAt would
+	// return the same Float32Array reference every time, and Svelte's derived
+	// equality check would skip downstream updates (e.g. changedCount).
+	const tokenRecency = $derived.by(() => {
+		const traj = trajectoryStore.trajectory;
+		if (!traj || traj.length === 0) return new Float32Array(0);
+		return recencyAt(traj, trajectoryStore.t, viewStore.taperWindow);
+	});
 
 	// The decoded text for the current step (prose view).
 	const decodedText = $derived.by(() => {
@@ -125,18 +133,6 @@
 		const filtered = new Int32Array(displayTokens.ids.filter((id) => id !== maskTokenId));
 		if (filtered.length === 0) return '';
 		return tok.decode(filtered);
-	});
-
-	// Per-token recency for chip fade.
-	const tokenRecency = $derived.by(() => {
-		const traj = trajectoryStore.trajectory;
-		if (!traj || traj.length === 0) return new Float32Array(0);
-		const t = trajectoryStore.t;
-		const L = traj.length;
-		if (L > _recencyBuf.length) {
-			return recencyAt(traj, t, viewStore.taperWindow);
-		}
-		return recencyAt(traj, t, viewStore.taperWindow, _recencyBuf);
 	});
 
 	// Per-token character spans for the prose view (hover + taper).
@@ -291,7 +287,7 @@
 						: undefined,
 			),
 			scheduleId: scheduleStore.currentId,
-			scheduleConfig: {},
+			scheduleConfig: scheduleStore.config,
 			T: scheduleStore.T,
 			vocabSize: tok.vocabSize,
 			seed: trajectoryStore.seed,
@@ -399,7 +395,10 @@
 			ontchange={(t) => {
 				trajectoryStore.t = t;
 			}}
+			onTchange={(n) => scheduleStore.setT(n)}
 		/>
+
+		<BetaReadout t={trajectoryStore.t} schedule={scheduleStore.instance} />
 
 		<div class="status" class:error={tokenizerStore.status === 'error'}>
 			{#if isComputing}
@@ -426,17 +425,7 @@
 				value={scheduleStore.currentId}
 				options={scheduleOptions}
 				disabled={false}
-				T={scheduleStore.T}
 				onchange={(id) => scheduleStore.selectSchedule(id)}
-				onTchange={(n) => scheduleStore.setT(n)}
-			/>
-			<SeedControl
-				seed={trajectoryStore.seed}
-				disabled={tokenizerStore.status !== 'ready'}
-				onseedchange={(s) => {
-					trajectoryStore.seed = s;
-				}}
-				onreroll={() => trajectoryStore.reroll()}
 			/>
 			<DisplayModeToggle
 				{showChips}
@@ -458,6 +447,19 @@
 
 		{#if viewStore.advancedOpen}
 			<div class="advanced-region">
+				<SeedControl
+					seed={trajectoryStore.seed}
+					disabled={tokenizerStore.status !== 'ready'}
+					onseedchange={(s) => {
+						trajectoryStore.seed = s;
+					}}
+					onreroll={() => trajectoryStore.reroll()}
+				/>
+				<ScheduleParams
+					multiplier={scheduleStore.multiplier}
+					disabled={false}
+					onmultiplierchange={(v) => scheduleStore.setMultiplier(v)}
+				/>
 				{#if strategyStore.currentId === 'lexical'}
 					<LexicalParams
 						maxDistance={lexicalStore.maxDistance}

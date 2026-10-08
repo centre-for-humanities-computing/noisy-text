@@ -68,7 +68,7 @@ any schedule.
 - Multiple selectable tokenizers.
 - Strategies: mask (absorbing), uniform ✅, lexical (edit distance on decoded
   token strings, top-$k$). Semantic noise is future work.
-- Schedules: linear, cosine, mutual-information-based.
+- Schedules: linear, cosine, constant. Mutual-information-based is future work.
 - Time slider that scrubs smoothly through $[0, T]$.
 - Token inspector on hover showing the local transition distribution.
 - Diagnostics panel showing connectivity and stationary-distribution info.
