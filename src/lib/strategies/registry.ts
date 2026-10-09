@@ -19,6 +19,7 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 			text: 'The identity strategy applies no noise at all. Every token remains unchanged at every step. This is useful as a baseline: scrub the timeline and confirm that nothing moves.',
 			math: 'Q_t = I \\quad \\text{for all } t',
 		},
+		hidden: true,
 	},
 	uniform: {
 		id: 'uniform',
@@ -117,7 +118,7 @@ export function strategyConfigFor(
 		return {
 			maxDistance: _extra?.maxDistance ?? 2,
 			k: _extra?.k ?? 50,
-			epsilon: _extra?.epsilon ?? 0.01,
+			epsilon: _extra?.epsilon ?? 0,
 			tau: _extra?.tau ?? 1.0,
 		};
 	}
@@ -125,7 +126,7 @@ export function strategyConfigFor(
 		return {
 			maxDistance: _extra?.maxDistance ?? 0.5,
 			k: _extra?.k ?? 50,
-			epsilon: _extra?.epsilon ?? 0.01,
+			epsilon: _extra?.epsilon ?? 0,
 			tau: _extra?.tau ?? 1.0,
 			mode: _extra?.mode ?? 'set',
 		};
