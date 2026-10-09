@@ -9,13 +9,25 @@
 		limitMode: 'top-k' | 'top-p';
 		k: number;
 		p: number;
+		debug: boolean;
+		ondebugchange: (v: boolean) => void;
 		onlimitmodechange: (mode: 'top-k' | 'top-p') => void;
 		onkchange: (k: number) => void;
 		onpchange: (p: number) => void;
 	}
 
-	let { schedule, strategyInfo, limitMode, k, p, onlimitmodechange, onkchange, onpchange }: Props =
-		$props();
+	let {
+		schedule,
+		strategyInfo,
+		limitMode,
+		k,
+		p,
+		debug,
+		ondebugchange,
+		onlimitmodechange,
+		onkchange,
+		onpchange,
+	}: Props = $props();
 
 	const stationaryLabel = $derived.by(() => {
 		if (!strategyInfo) return null;
@@ -53,6 +65,18 @@
 			</dl>
 		</section>
 	{/if}
+
+	<section class="panel-section">
+		<h4 class="section-heading">Debug</h4>
+		<label class="control">
+			<span class="control-label">Show identity strategy</span>
+			<input
+				type="checkbox"
+				checked={debug}
+				onchange={(e) => ondebugchange((e.currentTarget as HTMLInputElement).checked)}
+			/>
+		</label>
+	</section>
 
 	<section class="panel-section">
 		<h4 class="section-heading">Token inspector</h4>

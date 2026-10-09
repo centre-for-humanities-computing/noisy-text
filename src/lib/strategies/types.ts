@@ -54,6 +54,8 @@ export interface StrategyInfo {
 		/** KaTeX maths string in $...$ notation (second paragraph). */
 		math?: string;
 	};
+	/** When true, the picker hides this strategy unless debug mode is on. */
+	hidden?: boolean;
 }
 
 /**

@@ -19,7 +19,7 @@ class CharOverlapStore {
 	/** Maximum neighbors per token. */
 	k: number = $state(50);
 	/** Ergodicity floor $\varepsilon$. */
-	epsilon: number = $state(0.01);
+	epsilon: number = $state(0);
 	/** Softmax temperature $\tau$. */
 	tau: number = $state(1.0);
 	/** Distance mode: `'set'` (distinct chars) or `'multiset'` (count-aware). */

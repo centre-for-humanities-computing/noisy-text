@@ -37,7 +37,10 @@
 	const showChips = $derived(viewStore.display === 'chips');
 
 	const tokenizerOptions = $derived(Object.values(TOKENIZERS));
-	const strategyOptions = $derived(Object.values(STRATEGIES));
+	// Hidden strategies (e.g. identity) only appear when debug mode is on.
+	const strategyOptions = $derived(
+		Object.values(STRATEGIES).filter((s) => viewStore.debug || !s.hidden),
+	);
 	const scheduleOptions = $derived(Object.values(SCHEDULES));
 
 	// Captions for the Tokenizer and Strategy pickers, sourced from registry info.
@@ -492,6 +495,16 @@
 					limitMode={inspectionStore.limitMode}
 					k={inspectionStore.k}
 					p={inspectionStore.p}
+					debug={viewStore.debug}
+					ondebugchange={(v) => {
+						viewStore.debug = v;
+						// If debug is turned off while a hidden strategy is active,
+						// fall back to uniform so the picker never shows a value
+						// with no visible card.
+						if (!v && strategyStore.info?.hidden) {
+							strategyStore.selectStrategy('uniform', tokenizerStore.tokenizer?.vocabSize ?? 0);
+						}
+					}}
 					onlimitmodechange={(m) => (inspectionStore.limitMode = m)}
 					onkchange={(v) => (inspectionStore.k = v)}
 					onpchange={(v) => (inspectionStore.p = v)}

@@ -6,7 +6,7 @@ import {
 } from '$lib/strategies/index.js';
 
 class StrategyStore {
-	currentId: string = $state('identity');
+	currentId: string = $state('uniform');
 	instance: NoiseStrategy<unknown> | null = $state(null);
 
 	/**

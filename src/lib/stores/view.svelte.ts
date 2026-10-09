@@ -16,6 +16,8 @@ class ViewStore {
 	display: DisplayStyle = $state('prose');
 	/** Whether the advanced technical panel is open. */
 	advancedOpen: boolean = $state(false);
+	/** Whether debug-only strategies (e.g. identity) are shown in pickers. */
+	debug: boolean = $state(false);
 	/** Whether the "How this works" about panel is open. */
 	aboutOpen: boolean = $state(false);
 	/** Number of steps over which change highlights fade (default 4). */

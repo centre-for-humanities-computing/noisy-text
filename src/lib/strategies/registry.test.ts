@@ -13,6 +13,16 @@ describe('strategy registry', () => {
 		expect(STRATEGIES.identity).toBeDefined();
 	});
 
+	it('marks the identity strategy as hidden', () => {
+		expect(STRATEGIES.identity!.hidden).toBe(true);
+	});
+
+	it('marks no other strategy as hidden', () => {
+		for (const [id, info] of Object.entries(STRATEGIES)) {
+			if (id !== 'identity') expect(info.hidden).toBeFalsy();
+		}
+	});
+
 	it('contains the absorbing strategy', () => {
 		const info = STRATEGIES['absorbing'];
 		expect(info).toBeDefined();
@@ -78,6 +88,16 @@ describe('strategyConfigFor', () => {
 
 	it('returns maskTokenId config for absorbing', () => {
 		expect(strategyConfigFor('absorbing', 100)).toEqual({ maskTokenId: 100 });
+	});
+
+	it('defaults epsilon to 0 for lexical', () => {
+		const config = strategyConfigFor('lexical', 100) as { epsilon: number };
+		expect(config.epsilon).toBe(0);
+	});
+
+	it('defaults epsilon to 0 for char-overlap', () => {
+		const config = strategyConfigFor('char-overlap', 100) as { epsilon: number };
+		expect(config.epsilon).toBe(0);
 	});
 });
 
