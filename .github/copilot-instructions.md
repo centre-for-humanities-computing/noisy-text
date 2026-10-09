@@ -82,6 +82,7 @@ processes over text. See `AGENT_CONTEXT.md` for what it does and
 - One issue per session. Don't batch.
 - Only modify files explicitly in scope. If a fix elsewhere seems needed,
   call it out separately — don't silently include it.
+- After implementing an issue, make sure to update the version in `package.json`.
 
 ## House style
 
