@@ -59,12 +59,17 @@ export type TrajectoryWorkerRequest =
 
 // ---- Responses (worker → main) ----
 
+/** Computation phase a progress message refers to. */
+export type TrajectoryWorkerPhase = 'preparing' | 'walking';
+
 export interface TrajectoryWorkerProgressResponse {
 	kind: 'progress';
 	requestId: number;
-	/** Current step (0-based, $0 \le \text{step} < T$). */
+	/** Which phase the progress refers to. */
+	phase: TrajectoryWorkerPhase;
+	/** Units completed in the current phase. */
 	step: number;
-	/** Total number of steps $T$. */
+	/** Total units in the current phase. */
 	total: number;
 }
 

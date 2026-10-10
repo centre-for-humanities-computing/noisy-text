@@ -6,6 +6,7 @@ import type {
 	TrajectoryWorkerRequest,
 	TrajectoryWorkerResponse,
 	TrajectoryWorkerNeighborsRequest,
+	TrajectoryWorkerPhase,
 	NeighborGraph,
 } from '$lib/workers/trajectory.protocol.js';
 
@@ -29,8 +30,15 @@ class TrajectoryStore {
 	error: string | null = $state(null);
 	/** The computed trajectory, or null. */
 	trajectory: Trajectory | null = $state(null);
-	/** Progress fraction in $[0, 1]$, for progress bar. */
+	/**
+	 * Progress fraction in $[0, 1]$ for the current phase, for progress bar.
+	 * Only meaningful while computing.
+	 */
 	progress: number = $state(0);
+	/** Current computation phase while status is `'computing'`; null otherwise. */
+	phase: TrajectoryWorkerPhase | null = $state(null);
+	/** Elapsed seconds of the in-flight computation, ticked while computing. */
+	elapsed: number = $state(0);
 
 	/** Monotonic request id for staleness detection. */
 	private _requestId = 0;
@@ -48,6 +56,10 @@ class TrajectoryStore {
 	private _pendingSpec: TrajectorySpec | null = null;
 	/** Queued spec: stored when a request arrives while already computing. */
 	private _queuedSpec: TrajectorySpec | null = null;
+	/** performance.now() timestamp when the current computation started. */
+	private _startedAt = 0;
+	/** Interval handle ticking `elapsed` while computing. */
+	private _elapsedTimer: ReturnType<typeof setInterval> | null = null;
 
 	/**
 	 * Request a trajectory computation.
@@ -70,6 +82,8 @@ class TrajectoryStore {
 			this.status = 'ready';
 			this.error = null;
 			this.progress = 1;
+			this.phase = null;
+			if (!this._computing) this._stopElapsed();
 			this._clampT(spec.T);
 			return;
 		}
@@ -86,6 +100,8 @@ class TrajectoryStore {
 		this.status = 'computing';
 		this.error = null;
 		this.progress = 0;
+		this.phase = null;
+		this._startElapsed();
 		this._clampT(spec.T);
 
 		const requestId = ++this._requestId;
@@ -173,6 +189,7 @@ class TrajectoryStore {
 		switch (msg.kind) {
 			case 'progress':
 				this.progress = msg.total > 0 ? msg.step / msg.total : 1;
+				this.phase = msg.phase;
 				break;
 
 			case 'result': {
@@ -189,6 +206,8 @@ class TrajectoryStore {
 				this.status = 'ready';
 				this.error = null;
 				this.progress = 1;
+				this.phase = null;
+				this._stopElapsed();
 				this._computing = false;
 
 				// Cache the result under the spec that triggered it.
@@ -207,12 +226,32 @@ class TrajectoryStore {
 				this.status = 'error';
 				this.error = msg.message;
 				this.progress = 0;
+				this.phase = null;
+				this._stopElapsed();
 				this._computing = false;
 				this._pendingSpec = null;
 
 				// Process any queued request.
 				this._drainQueue();
 				break;
+		}
+	}
+
+	/** Start the elapsed-time ticker for a fresh computation. */
+	private _startElapsed(): void {
+		this._stopElapsed();
+		this._startedAt = performance.now();
+		this.elapsed = 0;
+		this._elapsedTimer = setInterval(() => {
+			this.elapsed = (performance.now() - this._startedAt) / 1000;
+		}, 250);
+	}
+
+	/** Stop the elapsed-time ticker. */
+	private _stopElapsed(): void {
+		if (this._elapsedTimer !== null) {
+			clearInterval(this._elapsedTimer);
+			this._elapsedTimer = null;
 		}
 	}
 
