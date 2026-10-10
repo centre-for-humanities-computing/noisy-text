@@ -46,8 +46,8 @@ export function computeTrajectory(
 	// Row 0 is $x_0$.
 	rows.set(inputIds);
 
-	// Progress throttling: report at most every 5% of T.
-	const progressInterval = Math.max(1, Math.floor(T / 20));
+	// Total cells in the walk (row 0 is a copy, not computed).
+	const cellsTotal = T * L;
 
 	for (let t = 0; t < T; t++) {
 		const beta = schedule.beta(t);
@@ -59,14 +59,10 @@ export function computeTrajectory(
 			rows[dstRow + i] = strategy.sampleStep(rows[srcRow + i]!, beta, rng);
 		}
 
-		if (onProgress && t % progressInterval === 0) {
-			onProgress({ step: t + 1, total: T });
+		// One report per completed row; throttling is the caller's job.
+		if (onProgress) {
+			onProgress({ step: t + 1, total: T, cellsDone: dstRow, cellsTotal });
 		}
-	}
-
-	// Final progress report.
-	if (onProgress) {
-		onProgress({ step: T, total: T });
 	}
 
 	return {

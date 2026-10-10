@@ -12,8 +12,10 @@
  * computing neighborhoods on-demand during the walk). The model/provider
  * pair is cached in the worker for the lifetime of the tokenizer.
  *
- * Progress is posted for runs where $(T+1) \times L > 10\,000$ cells,
- * throttled to at most every 5% of $T$.
+ * Progress is posted in two phases: `'preparing'` while decoding the
+ * vocabulary (chunked and yielding, so messages go out immediately) and
+ * `'walking'` for the noise walk itself. Posts are throttled to at most
+ * one per ~100 ms so fast runs send few or none.
  */
 
 import { computeTrajectory } from '../engine/trajectory.js';
@@ -25,11 +27,17 @@ import { EditDistanceModel } from '../strategies/distance-model.js';
 import { CharOverlapModel } from '../strategies/char-overlap-model.js';
 import type { CharOverlapMode } from '../strategies/char-overlap-model.js';
 import { NeighborhoodProvider } from '../strategies/neighborhood.js';
-import type { TrajectoryWorkerRequest, TrajectoryWorkerResponse } from './trajectory.protocol.js';
+import type { Tokenizer } from '../tokenizers/types.js';
+import type {
+	TrajectoryWorkerRequest,
+	TrajectoryWorkerResponse,
+	TrajectoryWorkerPhase,
+} from './trajectory.protocol.js';
 import { buildNeighborGraph } from '../strategies/neighbor-graph.js';
 import type { NeighborGraphParams } from '../strategies/neighbor-graph.js';
 
-const PROGRESS_THRESHOLD = 10_000;
+/** Minimum interval between progress posts (ms). */
+const PROGRESS_INTERVAL_MS = 100;
 
 /**
  * Fixed radius ceiling for the lexical neighborhood provider.
@@ -65,19 +73,15 @@ const _charOverlapCache = new Map<
 	{ model: CharOverlapModel; provider: NeighborhoodProvider }
 >();
 
+/** Callback reporting decoded-token count and vocabulary size. */
+type VocabProgress = (done: number, total: number) => void;
+
 /**
- * Ensure the EditDistanceModel + NeighborhoodProvider are ready for a
- * tokenizer. Decodes all $K$ token strings (one-time cost per tokenizer
- * lifetime), builds the model, and wraps it in a provider.
+ * Decode all $K$ token strings, in chunks of 4096, yielding to the event
+ * loop between chunks so progress messages can be delivered.
  */
-async function ensureLexicalProvider(tokenizerId: string): Promise<NeighborhoodProvider> {
-	const cached = _lexicalCache.get(tokenizerId);
-	if (cached) return cached.provider;
-
-	const tok = await loadTokenizer(tokenizerId);
+async function decodeVocab(tok: Tokenizer, onProgress?: VocabProgress): Promise<string[]> {
 	const K = tok.vocabSize;
-
-	// Decode all token ids to strings.
 	const strings: string[] = [];
 	const CHUNK = 4096;
 	for (let offset = 0; offset < K; offset += CHUNK) {
@@ -88,9 +92,27 @@ async function ensureLexicalProvider(tokenizerId: string): Promise<NeighborhoodP
 		for (const r of raw) {
 			strings.push(r);
 		}
+		onProgress?.(end, K);
 		// Yield to the event loop.
 		await new Promise((r) => setTimeout(r, 0));
 	}
+	return strings;
+}
+
+/**
+ * Ensure the EditDistanceModel + NeighborhoodProvider are ready for a
+ * tokenizer. Decodes all $K$ token strings (one-time cost per tokenizer
+ * lifetime), builds the model, and wraps it in a provider.
+ */
+async function ensureLexicalProvider(
+	tokenizerId: string,
+	onProgress?: VocabProgress,
+): Promise<NeighborhoodProvider> {
+	const cached = _lexicalCache.get(tokenizerId);
+	if (cached) return cached.provider;
+
+	const tok = await loadTokenizer(tokenizerId);
+	const strings = await decodeVocab(tok, onProgress);
 
 	const model = new EditDistanceModel(strings);
 	const provider = new NeighborhoodProvider(model, R_MAX);
@@ -106,28 +128,14 @@ async function ensureLexicalProvider(tokenizerId: string): Promise<NeighborhoodP
 async function ensureCharOverlapProvider(
 	tokenizerId: string,
 	mode: CharOverlapMode,
+	onProgress?: VocabProgress,
 ): Promise<NeighborhoodProvider> {
 	const cacheKey = `${tokenizerId}:${mode}`;
 	const cached = _charOverlapCache.get(cacheKey);
 	if (cached) return cached.provider;
 
 	const tok = await loadTokenizer(tokenizerId);
-	const K = tok.vocabSize;
-
-	// Decode all token ids to strings.
-	const strings: string[] = [];
-	const CHUNK = 4096;
-	for (let offset = 0; offset < K; offset += CHUNK) {
-		const end = Math.min(offset + CHUNK, K);
-		const ids = new Int32Array(end - offset);
-		for (let i = offset; i < end; i++) ids[i - offset] = i;
-		const raw = tok.idsToTokens(ids);
-		for (const r of raw) {
-			strings.push(r);
-		}
-		// Yield to the event loop.
-		await new Promise((r) => setTimeout(r, 0));
-	}
+	const strings = await decodeVocab(tok, onProgress);
 
 	const model = new CharOverlapModel(strings, mode);
 	const provider = new NeighborhoodProvider(model, R_MAX_CHAR);
@@ -150,34 +158,46 @@ async function handleCompute(
 ): Promise<void> {
 	const { requestId, spec } = msg;
 
+	// Time-throttled progress posting: at most one message per
+	// PROGRESS_INTERVAL_MS, so fast runs post few or none. The final
+	// report is always forced through so the bar completes.
+	let lastPost = performance.now();
+	const postProgress = (
+		phase: TrajectoryWorkerPhase,
+		step: number,
+		total: number,
+		force = false,
+	): void => {
+		const now = performance.now();
+		if (!force && now - lastPost < PROGRESS_INTERVAL_MS) return;
+		lastPost = now;
+		const response: TrajectoryWorkerResponse = { kind: 'progress', requestId, phase, step, total };
+		self.postMessage(response);
+	};
+
 	try {
 		// For lexical: build (or reuse) the neighborhood provider.
 		let provider: NeighborhoodProvider | undefined;
 		if (spec.strategyId === 'lexical') {
-			provider = await ensureLexicalProvider(spec.tokenizerId);
+			provider = await ensureLexicalProvider(spec.tokenizerId, (done, total) =>
+				postProgress('preparing', done, total),
+			);
 		} else if (spec.strategyId === 'char-overlap') {
 			const mode = (spec.strategyConfig as { mode?: CharOverlapMode }).mode ?? 'set';
-			provider = await ensureCharOverlapProvider(spec.tokenizerId, mode);
+			provider = await ensureCharOverlapProvider(spec.tokenizerId, mode, (done, total) =>
+				postProgress('preparing', done, total),
+			);
 		}
 
 		const strategy = getStrategy(spec.strategyId, spec.strategyConfig, spec.vocabSize, provider);
 		const schedule = getSchedule(spec.scheduleId, spec.scheduleConfig, spec.T);
 		const rng = createRng(spec.seed);
 
-		const totalCells = (spec.T + 1) * spec.inputIds.length;
-		const shouldReportProgress = totalCells > PROGRESS_THRESHOLD;
-
 		const traj = computeTrajectory(spec.inputIds, { strategy, schedule, rng }, (progress) => {
-			if (shouldReportProgress) {
-				const response: TrajectoryWorkerResponse = {
-					kind: 'progress',
-					requestId,
-					step: progress.step,
-					total: progress.total,
-				};
-				self.postMessage(response);
-			}
+			postProgress('walking', progress.cellsDone, progress.cellsTotal);
 		});
+
+		postProgress('walking', spec.T * spec.inputIds.length, spec.T * spec.inputIds.length, true);
 
 		const response: TrajectoryWorkerResponse = {
 			kind: 'result',

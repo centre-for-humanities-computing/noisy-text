@@ -239,6 +239,21 @@
 		return n;
 	});
 
+	// Trajectory computation status suffix for the status line:
+	// phase label + percentage once a phase is known (+ elapsed seconds
+	// after the first second).
+	const trajStatus = $derived.by(() => {
+		if (trajectoryStore.status !== 'computing') return '';
+		const phase = trajectoryStore.phase;
+		const label = phase === 'preparing' ? 'Preparing vocabulary' : 'Computing trajectory';
+		const pctPart = phase !== null ? ` ${Math.round(trajectoryStore.progress * 100)}%` : '';
+		const elapsedPart =
+			trajectoryStore.elapsed >= 1 ? ` (${trajectoryStore.elapsed.toFixed(1)}s)` : '';
+		return ` · ${label}…${pctPart}${elapsedPart}`;
+	});
+
+	const progressPct = $derived(Math.round(trajectoryStore.progress * 100));
+
 	const statusText = $derived.by(() => {
 		const s = tokenizerStore.status;
 		if (s === 'loading') return 'Loading tokenizer…';
@@ -247,7 +262,6 @@
 			const t = tokenizerStore.tokenizer;
 			const info = strategyStore.info;
 			const strategyLabel = info ? ` · Strategy: ${info.label}` : '';
-			const trajStatus = trajectoryStore.status === 'computing' ? ' · Computing trajectory…' : '';
 			const changedPart = changedCount !== null ? ` · ${changedCount} changed this step` : '';
 			return `${t.info.label} · Vocab: ${t.vocabSize.toLocaleString()} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}${changedPart}`;
 		}
@@ -367,23 +381,41 @@
 		/>
 
 		{#if displayTokens.tokens.length > 0}
-			<div class="tokens-area" class:computing={isComputing}>
-				{#if showChips}
-					<TokenChips
-						tokens={displayTokens.tokens}
-						ids={displayTokens.ids}
-						recency={tokenRecency}
-						onhover={handleTokenHover}
-						onunhover={handleTokenUnhover}
-					/>
-				{:else}
-					<InlineTokens
-						text={decodedText}
-						spans={tokenSpans}
-						onhover={handleTokenHover}
-						onunhover={handleTokenUnhover}
-					/>
+			<div class="tokens-wrap">
+				{#if isComputing}
+					<div
+						class="traj-progress"
+						role="progressbar"
+						aria-label="Computing trajectory"
+						aria-valuemin="0"
+						aria-valuemax="100"
+						aria-valuenow={trajectoryStore.phase === 'walking' ? progressPct : undefined}
+					>
+						<div
+							class="traj-progress-fill"
+							class:indeterminate={trajectoryStore.phase !== 'walking'}
+							style:transform={`scaleX(${trajectoryStore.progress})`}
+						></div>
+					</div>
 				{/if}
+				<div class="tokens-area" class:computing={isComputing}>
+					{#if showChips}
+						<TokenChips
+							tokens={displayTokens.tokens}
+							ids={displayTokens.ids}
+							recency={tokenRecency}
+							onhover={handleTokenHover}
+							onunhover={handleTokenUnhover}
+						/>
+					{:else}
+						<InlineTokens
+							text={decodedText}
+							spans={tokenSpans}
+							onhover={handleTokenHover}
+							onunhover={handleTokenUnhover}
+						/>
+					{/if}
+				</div>
 			</div>
 		{/if}
 
@@ -635,10 +667,52 @@
 		margin-bottom: 0.5rem;
 		resize: vertical;
 	}
+	.tokens-wrap {
+		position: relative;
+	}
 	.tokens-area {
 		transition: opacity 0.15s;
 	}
 	.tokens-area.computing {
 		opacity: 0.5;
+	}
+	/* Thin bar floating in the gap above the tokens area. Determinate while
+	   walking; a shimmer while preparing (or before the first progress
+	   message). Fades in after 250ms so quick or cached runs never flash it. */
+	.traj-progress {
+		position: absolute;
+		top: -0.75rem;
+		left: 0;
+		right: 0;
+		height: 3px;
+		border-radius: 2px;
+		background: #e5e7eb;
+		overflow: hidden;
+		animation: progress-in 0.2s ease 0.25s backwards;
+	}
+	.traj-progress-fill {
+		height: 100%;
+		background: #2563eb;
+		transform-origin: 0 50%;
+		transition: transform 0.15s linear;
+	}
+	/* Indeterminate phase: the running animation overrides the inline
+	   scaleX transform (animations outrank inline styles in the cascade). */
+	.traj-progress-fill.indeterminate {
+		width: 33%;
+		animation: progress-shimmer 1.2s ease-in-out infinite;
+	}
+	@keyframes progress-in {
+		from {
+			opacity: 0;
+		}
+	}
+	@keyframes progress-shimmer {
+		from {
+			transform: translateX(-100%);
+		}
+		to {
+			transform: translateX(400%);
+		}
 	}
 </style>

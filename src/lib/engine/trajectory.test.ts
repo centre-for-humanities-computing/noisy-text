@@ -3,7 +3,7 @@ import { computeTrajectory } from './trajectory.js';
 import { createRng } from './rng.js';
 import { getStrategy } from '../strategies/index.js';
 import { getSchedule } from '../schedules/index.js';
-import type { TrajectoryDeps } from './types.js';
+import type { TrajectoryDeps, TrajectoryProgress } from './types.js';
 import { MAX_CELLS } from './types.js';
 
 /**
@@ -132,17 +132,37 @@ describe('computeTrajectory', () => {
 		expect(() => computeTrajectory(input, deps)).toThrow('MAX_CELLS');
 	});
 
-	it('reports progress', () => {
+	it('reports progress once per step', () => {
 		const input = new Int32Array([1, 2, 3]);
 		const deps = makeDeps(10, 50, 42);
-		const progressSteps: number[] = [];
-		computeTrajectory(input, deps, (p) => progressSteps.push(p.step));
-		expect(progressSteps.length).toBeGreaterThan(0);
-		// Last progress should be T.
-		expect(progressSteps[progressSteps.length - 1]).toBe(50);
-		// Steps should be monotonically increasing.
-		for (let i = 1; i < progressSteps.length; i++) {
-			expect(progressSteps[i]!).toBeGreaterThan(progressSteps[i - 1]!);
+		const reports: TrajectoryProgress[] = [];
+		computeTrajectory(input, deps, (p) => reports.push(p));
+		expect(reports.length).toBe(50);
+		// Steps strictly increasing.
+		for (let i = 1; i < reports.length; i++) {
+			expect(reports[i]!.step).toBeGreaterThan(reports[i - 1]!.step);
 		}
+		// Last report is the final step.
+		const last = reports[reports.length - 1]!;
+		expect(last.step).toBe(50);
+		expect(last.total).toBe(50);
+		// Cell counts: one row of L cells per step.
+		expect(reports[0]).toEqual({ step: 1, total: 50, cellsDone: 3, cellsTotal: 150 });
+		expect(last.cellsDone).toBe(150);
+		expect(last.cellsTotal).toBe(150);
+	});
+
+	it('progress callback does not perturb the RNG draw order', () => {
+		// A strategy that actually draws from the RNG, so the comparison is
+		// meaningful (identity ignores it).
+		const input = new Int32Array([1, 2, 3, 4, 5]);
+		const deps = (): TrajectoryDeps => ({
+			strategy: getStrategy('uniform', {}, 100),
+			schedule: getSchedule('linear', {}, 20),
+			rng: createRng(777),
+		});
+		const withProgress = computeTrajectory(input, deps(), () => {});
+		const withoutProgress = computeTrajectory(input, deps());
+		expect(withProgress.rows).toEqual(withoutProgress.rows);
 	});
 });

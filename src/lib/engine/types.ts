@@ -65,12 +65,17 @@ export interface Trajectory {
 
 /**
  * Progress callback for long-running trajectory computations.
+ * Reported once per completed step (row of the trajectory).
  */
 export interface TrajectoryProgress {
-	/** Current step (0-based, $0 \le \text{step} < T$). */
+	/** Completed steps, 1-based: $1 \le \text{step} \le T$. */
 	step: number;
 	/** Total number of steps $T$. */
 	total: number;
+	/** Cells computed so far: $\text{step} \times L$. */
+	cellsDone: number;
+	/** Total cells to compute in the walk: $T \times L$. */
+	cellsTotal: number;
 }
 
 /**
