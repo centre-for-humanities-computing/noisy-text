@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { EditDistanceModel } from './distance-model.js';
 import { NeighborhoodProvider } from './neighborhood.js';
+import { resolveNeighbors } from './neighbor-softmax.js';
 
 describe('NeighborhoodProvider', () => {
 	const vocab = ['cat', 'cats', 'car', 'cart', 'dog', 'dogs', 'frog', 'log'];
@@ -61,5 +62,31 @@ describe('NeighborhoodProvider', () => {
 		const neighbors = provider.neighborsOf(1);
 		expect(neighbors.length).toBeGreaterThan(0);
 		expect(neighbors.map((n) => n.id)).toContain(0); // 'cat' is a neighbor of 'cats'
+	});
+});
+
+describe('NeighborhoodProvider memory bounds', () => {
+	const vocab = ['cat', 'cats', 'car', 'cart', 'dog', 'dogs', 'frog', 'log'];
+	const model = new EditDistanceModel(vocab);
+
+	it('maxStored keeps only the nearest neighbors, in the same order', () => {
+		const full = new NeighborhoodProvider(model, 2).neighborsOf(0);
+		const capped = new NeighborhoodProvider(model, 2, { maxStored: 2 }).neighborsOf(0);
+		expect(capped).toEqual(full.slice(0, 2));
+	});
+
+	it('read-time results are unchanged for any k <= maxStored', () => {
+		const full = new NeighborhoodProvider(model, 2).neighborsOf(0);
+		const capped = new NeighborhoodProvider(model, 2, { maxStored: 3 }).neighborsOf(0);
+		for (const k of [1, 2, 3]) {
+			expect(resolveNeighbors(capped, 2, k, 1.0)).toEqual(resolveNeighbors(full, 2, k, 1.0));
+		}
+	});
+
+	it('pair cache stops at maxPairs, and distances stay exact', () => {
+		const exact = new NeighborhoodProvider(model, 2).neighborsOf(0);
+		const bounded = new NeighborhoodProvider(model, 2, { maxPairs: 0 });
+		expect(bounded.neighborsOf(0)).toEqual(exact);
+		expect((bounded as unknown as { _pairCache: Map<number, number> })._pairCache.size).toBe(0);
 	});
 });

@@ -128,6 +128,18 @@ on discrete boxes it's straightforward (fade the box background).
 Rendered prose is the default; chips are opt-in. The toggle is a small button
 or checkbox in the control strip, labelled "Show tokens" or similar.
 
+### 4.2a Tertiary: full token graph
+
+A third view ("Graph") shows **all positions' trajectories in one
+token-space graph**: the union of the per-token inspection graphs. The
+layout is computed once over the full union (all steps $0..T$), so node
+positions are stable while the slider scrubs; elements _fade in_ at the
+step they were first reached. Nodes the current text occupies are
+highlighted and sized by how many positions hold them. The view supports
+pan/zoom (wheel, drag, keyboard, buttons) since the union grows to
+thousands of nodes. A three-way **Prose | Tokens | Graph**
+segmented control above the tokens area switches between the views.
+
 ### 4.3 Taper model (shared)
 
 Both views consume a per-position "recency" value in $[0, 1]$ derived from _how
@@ -176,10 +188,10 @@ directly contextualises the scrub position. The seed and its
 "Re-roll" button live in the Advanced panel (§7) — they are reproducibility
 details, not exploration controls.
 
-### 6.3 Display toggle (chips vs. prose)
+### 6.3 Display toggle (prose vs. tokens vs. graph)
 
-A small toggle in the control strip, labelled "Show tokens" or a chips/prose
-icon. Defaults to prose.
+A three-way segmented control (**Prose | Tokens | Graph**) sits just above
+the tokens area, right-aligned. Defaults to prose.
 
 ## 7. Progressive disclosure of technical elements
 
@@ -245,8 +257,8 @@ Grounded in the current codebase (`src/routes/+page.svelte`, `src/lib/**`).
 
 - Introduce an app-mode store, e.g. `src/lib/stores/view.svelte.ts`, holding:
   - `mode: 'edit' | 'explore'`
-  - `display: 'prose' | 'chips'` (replaces the local `showChips` boolean in
-    `+page.svelte`; `DisplayModeToggle` rewires to this)
+  - `display: 'prose' | 'chips' | 'graph'` (replaced the old `showChips`
+    boolean; `ViewToggle` — the segmented control — drives it)
   - `advancedOpen: boolean`
   - `taperWindow: number` (default 4)
 - `+page.svelte` shrinks: it currently owns `text`, `showChips`, and much

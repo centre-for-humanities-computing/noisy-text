@@ -202,8 +202,9 @@ export function buildNeighborGraph(
 /**
  * Truncate entries to the `max` heaviest weights (descending), keeping
  * the original relative order. Returns `null` if nothing survives.
+ * Also used by the all-trajectories union graph builder.
  */
-function truncateByWeight(
+export function truncateByWeight(
 	entries: { id: number; dist: number }[],
 	weights: Float32Array,
 	max: number,
