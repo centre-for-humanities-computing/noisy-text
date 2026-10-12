@@ -7,6 +7,7 @@ import type {
 	TrajectoryWorkerResponse,
 	TrajectoryWorkerNeighborsRequest,
 	TrajectoryWorkerPhase,
+	TrajectoryWorkerUnionGraphRequest,
 	NeighborGraph,
 } from '$lib/workers/trajectory.protocol.js';
 
@@ -28,8 +29,11 @@ class TrajectoryStore {
 	status: TrajectoryStatus = $state('idle');
 	/** Error message when status is `'error'`. */
 	error: string | null = $state(null);
-	/** The computed trajectory, or null. */
-	trajectory: Trajectory | null = $state(null);
+	/**
+	 * The computed trajectory, or null. Raw state: it is immutable, and a
+	 * cache hit re-assigns the same object, which must not look like a new one.
+	 */
+	trajectory: Trajectory | null = $state.raw(null);
 	/**
 	 * Progress fraction in $[0, 1]$ for the current phase, for progress bar.
 	 * Only meaningful while computing.
@@ -46,6 +50,8 @@ class TrajectoryStore {
 	private _neighborRequestId = 0;
 	/** Pending neighbor-query resolvers keyed by request id. */
 	private _pendingNeighborQueries = new Map<number, (graph: NeighborGraph) => void>();
+	/** Listeners for union-graph responses (owned by the graph store). */
+	private _unionListeners = new Set<(msg: TrajectoryWorkerResponse) => void>();
 	/** The worker instance, created lazily. */
 	private _worker: Worker | null = null;
 	/** In-memory trajectory cache. */
@@ -165,11 +171,44 @@ class TrajectoryStore {
 	}
 
 	/**
+	 * Post a union-graph build request to the worker (transferring the
+	 * rows buffer). Responses arrive via the union listeners registered
+	 * with `onUnionMessage`.
+	 */
+	postUnionGraph(msg: TrajectoryWorkerUnionGraphRequest): void {
+		if (!browser) return;
+		const worker = this._getWorker();
+		worker.postMessage(msg, {
+			transfer: [msg.rows.buffer as unknown as ArrayBuffer],
+		});
+	}
+
+	/**
+	 * Register a listener for union-graph responses (progress, result,
+	 * error). The graph store owns the request lifecycle; the trajectory
+	 * store only owns the worker. Returns an unregister function.
+	 */
+	onUnionMessage(handler: (msg: TrajectoryWorkerResponse) => void): () => void {
+		this._unionListeners.add(handler);
+		return () => this._unionListeners.delete(handler);
+	}
+
+	/**
 	 * Handle a message from the worker.
 	 * @internal — called from the worker `onmessage` handler.
 	 */
 	_handleWorkerMessage(event: MessageEvent<TrajectoryWorkerResponse>): void {
 		const msg = event.data;
+
+		// Union-graph responses dispatch to registered listeners.
+		if (
+			msg.kind === 'union-graph' ||
+			msg.kind === 'union-graph-progress' ||
+			msg.kind === 'union-graph-error'
+		) {
+			for (const h of this._unionListeners) h(msg);
+			return;
+		}
 
 		// Neighbor-query responses use their own id space.
 		if (msg.kind === 'neighbors' || msg.kind === 'neighbors-error') {

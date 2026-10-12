@@ -30,8 +30,11 @@ structure, not a spec to follow slavishly.
 - **Tokenizers**: `@huggingface/transformers` (transformers.js) or equivalent
   WASM tokenizers. Multiple tokenizers should be user-selectable.
 - **No heavy math libraries.** Use `Float32Array` / `Int32Array` directly.
-- **No graph framework for now.** If a graph view is added later,
-  Cytoscape.js is preferred.
+- **No graph framework.** The full-graph view uses a hand-written Canvas 2D
+  renderer (pan/zoom camera math in `engine/camera.ts`, progressive reveal,
+  occupancy in `components/FullGraph.svelte`) with a
+  grid-accelerated force layout in a worker; the hover tooltip keeps its
+  plain-SVG graph. Cytoscape.js was considered and not needed.
 - **RNG**: `seedrandom` (Alea algorithm) for reproducible seeded randomness.
 
 ## Core mathematical model

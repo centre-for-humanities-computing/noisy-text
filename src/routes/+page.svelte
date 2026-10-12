@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
+	import { onMount, untrack } from 'svelte';
 	import TokenChips from '$lib/components/TokenChips.svelte';
 	import InlineTokens from '$lib/components/InlineTokens.svelte';
 	import InputBar from '$lib/components/InputBar.svelte';
@@ -8,11 +8,13 @@
 	import SchedulePicker from '$lib/components/SchedulePicker.svelte';
 	import SeedControl from '$lib/components/SeedControl.svelte';
 	import TimeSlider from '$lib/components/TimeSlider.svelte';
-	import DisplayModeToggle from '$lib/components/DisplayModeToggle.svelte';
+	import ViewToggle from '$lib/components/ViewToggle.svelte';
+	import FullGraph from '$lib/components/FullGraph.svelte';
 	import { tokenizerStore } from '$lib/stores/tokenizer.svelte.js';
 	import { strategyStore } from '$lib/stores/strategy.svelte.js';
 	import { scheduleStore } from '$lib/stores/schedule.svelte.js';
 	import { trajectoryStore } from '$lib/stores/trajectory.svelte.js';
+	import { graphStore } from '$lib/stores/graph.svelte.js';
 	import { lexicalStore } from '$lib/stores/lexical.svelte.js';
 	import { charOverlapStore } from '$lib/stores/charOverlap.svelte.js';
 	import { viewStore } from '$lib/stores/view.svelte.js';
@@ -28,13 +30,76 @@
 	import AdvancedPanel from '$lib/components/AdvancedPanel.svelte';
 	import TokenTooltip from '$lib/components/TokenTooltip.svelte';
 	import { inspectionStore } from '$lib/stores/inspection.svelte.js';
+	import { hashIds } from '$lib/engine/trajectory-cache.js';
 	import type { NeighborGraph } from '$lib/workers/trajectory.protocol.js';
 
 	let text = $state(
 		'Governments of the Industrial World, you weary giants of flesh and steel, I come from Cyberspace, the new home of Mind. On behalf of the future, I ask you of the past to leave us alone. You are not welcome among us. You have no sovereignty where we gather.\n\nWe have no elected government, nor are we likely to have one, so I address you with no greater authority than that with which liberty itself always speaks. I declare the global social space we are building to be naturally independent of the tyrannies you seek to impose on us. You have no moral right to rule us nor do you possess any methods of enforcement we have true reason to fear.\n\nGovernments derive their just powers from the consent of the governed. You have neither solicited nor received ours. We did not invite you. You do not know us, nor do you know our world. Cyberspace does not lie within your borders. Do not think that you can build it, as though it were a public construction project. You cannot. It is an act of nature and it grows itself through our collective actions.',
 	);
 
-	const showChips = $derived(viewStore.display === 'chips');
+	/**
+	 * Strategy config for the active strategy, with the tokenizer's vocab
+	 * size. Shared by the trajectory, union-graph, and inspection requests.
+	 */
+	function activeStrategyConfig(vocabSize: number): Record<string, unknown> {
+		const id = strategyStore.currentId;
+		return strategyConfigFor(
+			id,
+			vocabSize,
+			id === 'lexical'
+				? lexicalStore.params
+				: id === 'char-overlap'
+					? charOverlapStore.params
+					: undefined,
+		) as Record<string, unknown>;
+	}
+
+	/**
+	 * Cache key for the union-graph build. Hashing the rows *content*
+	 * (not the spec) keeps the cache correct even while a new trajectory
+	 * is being computed after an edit.
+	 */
+	const unionKey = $derived.by(() => {
+		const traj = trajectoryStore.trajectory;
+		if (!traj) return '';
+		const tok = tokenizerStore.tokenizer;
+		if (!tok) return '';
+		const config = activeStrategyConfig(tok.vocabSize);
+		return [
+			tokenizerStore.currentId,
+			strategyStore.currentId,
+			JSON.stringify(config),
+			hashIds(traj.rows),
+			inspectionStore.limitMode,
+			inspectionStore.k,
+			inspectionStore.p,
+		].join('|');
+	});
+
+	// Lazily build the union graph when the graph view is active. The store
+	// call is untracked: its reads of store state must not re-run this effect.
+	$effect(() => {
+		if (viewStore.display !== 'graph') return;
+		if (trajectoryStore.status !== 'ready') return;
+		const tok = tokenizerStore.tokenizer;
+		const traj = trajectoryStore.trajectory;
+		const key = unionKey;
+		if (!tok || !traj || !key) return;
+		const req = {
+			tokenizerId: tokenizerStore.currentId,
+			strategyId: strategyStore.currentId,
+			strategyConfig: activeStrategyConfig(tok.vocabSize),
+			vocabSize: tok.vocabSize,
+			rows: traj.rows,
+			T: traj.T,
+			L: traj.length,
+			limitMode: inspectionStore.limitMode,
+			k: inspectionStore.k,
+			p: inspectionStore.p,
+			key,
+		};
+		untrack(() => graphStore.request(req));
+	});
 
 	const tokenizerOptions = $derived(Object.values(TOKENIZERS));
 	// Hidden strategies (e.g. identity) only appear when debug mode is on.
@@ -196,15 +261,7 @@
 			.queryNeighbors({
 				tokenizerId: tokenizerStore.currentId,
 				strategyId: strategyStore.currentId,
-				strategyConfig: strategyConfigFor(
-					strategyStore.currentId,
-					tok.vocabSize,
-					strategyStore.currentId === 'lexical'
-						? lexicalStore.params
-						: strategyStore.currentId === 'char-overlap'
-							? charOverlapStore.params
-							: undefined,
-				) as Record<string, unknown>,
+				strategyConfig: activeStrategyConfig(tok.vocabSize),
 				vocabSize: tok.vocabSize,
 				column,
 				betas,
@@ -285,31 +342,26 @@
 		scheduleStore.selectSchedule(scheduleStore.currentId);
 	});
 
-	// Request trajectory computation whenever inputs change.
+	// Request trajectory computation whenever inputs change. The store call is
+	// untracked: a cache hit clamps `t`, and that read must not re-run this
+	// effect on every slider move.
 	$effect(() => {
 		const ids = encoded.ids;
 		const tok = tokenizerStore.tokenizer;
 		if (!tok || ids.length === 0) return;
 
-		trajectoryStore.request({
+		const spec = {
 			inputIds: ids,
 			strategyId: strategyStore.currentId,
-			strategyConfig: strategyConfigFor(
-				strategyStore.currentId,
-				tok.vocabSize,
-				strategyStore.currentId === 'lexical'
-					? lexicalStore.params
-					: strategyStore.currentId === 'char-overlap'
-						? charOverlapStore.params
-						: undefined,
-			),
+			strategyConfig: activeStrategyConfig(tok.vocabSize),
 			scheduleId: scheduleStore.currentId,
 			scheduleConfig: scheduleStore.config,
 			T: scheduleStore.T,
 			vocabSize: tok.vocabSize,
 			seed: trajectoryStore.seed,
 			tokenizerId: tokenizerStore.currentId,
-		});
+		};
+		untrack(() => trajectoryStore.request(spec));
 	});
 
 	onMount(() => {
@@ -382,6 +434,15 @@
 
 		{#if displayTokens.tokens.length > 0}
 			<div class="tokens-wrap">
+				<div class="view-bar">
+					<ViewToggle
+						value={viewStore.display}
+						disabled={trajectoryStore.status !== 'ready'}
+						onchange={(v) => {
+							viewStore.display = v;
+						}}
+					/>
+				</div>
 				{#if isComputing}
 					<div
 						class="traj-progress"
@@ -399,13 +460,24 @@
 					</div>
 				{/if}
 				<div class="tokens-area" class:computing={isComputing}>
-					{#if showChips}
+					{#if viewStore.display === 'chips'}
 						<TokenChips
 							tokens={displayTokens.tokens}
 							ids={displayTokens.ids}
 							recency={tokenRecency}
 							onhover={handleTokenHover}
 							onunhover={handleTokenUnhover}
+						/>
+					{:else if viewStore.display === 'graph'}
+						<FullGraph
+							graph={graphStore.graph}
+							status={graphStore.status}
+							progress={graphStore.progress}
+							phase={graphStore.phase}
+							error={graphStore.error}
+							traj={trajectoryStore.trajectory}
+							t={trajectoryStore.t}
+							taperWindow={viewStore.taperWindow}
 						/>
 					{:else}
 						<InlineTokens
@@ -461,13 +533,6 @@
 				options={scheduleOptions}
 				disabled={false}
 				onchange={(id) => scheduleStore.selectSchedule(id)}
-			/>
-			<DisplayModeToggle
-				{showChips}
-				disabled={trajectoryStore.status !== 'ready'}
-				onchange={(v) => {
-					viewStore.display = v ? 'chips' : 'prose';
-				}}
 			/>
 			<button
 				class="advanced-toggle"
@@ -669,6 +734,13 @@
 	}
 	.tokens-wrap {
 		position: relative;
+	}
+	/* Bar above the tokens area: the three-way Prose | Chips | Graph
+	   toggle, right-aligned so it reads as a lens over the output. */
+	.view-bar {
+		display: flex;
+		justify-content: flex-end;
+		margin-bottom: 0.4rem;
 	}
 	.tokens-area {
 		transition: opacity 0.15s;

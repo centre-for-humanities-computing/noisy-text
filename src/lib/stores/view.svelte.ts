@@ -7,7 +7,8 @@
  */
 
 export type AppMode = 'edit' | 'explore';
-export type DisplayStyle = 'prose' | 'chips';
+/** Display style: decaying text, token chips, or the full graph. */
+export type DisplayStyle = 'prose' | 'chips' | 'graph';
 
 class ViewStore {
 	/** Current app mode: editing input or exploring noise. */

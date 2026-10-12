@@ -53,14 +53,56 @@ export interface TrajectoryWorkerNeighborsRequest {
 	p: number;
 }
 
+/**
+ * Build the **union graph** for the full-graph view: one token-space
+ * graph merging the trajectories of *all* positions over all steps
+ * $0..T$, plus the 1-hop neighborhood of every trajectory node (when
+ * the strategy supports one), laid out with the large force layout.
+ *
+ * The full rows buffer is copied by the main thread and transferred;
+ * the worker builds the graph and layout in chunks, posting progress
+ * (`union-graph-progress`) and aborting early when a newer request
+ * supersedes this one.
+ */
+export interface TrajectoryWorkerUnionGraphRequest {
+	kind: 'union-graph';
+	/**
+	 * Monotonic request id from the graph store's own counter. The worker
+	 * honors only the newest union-graph request id; older builds abort.
+	 */
+	requestId: number;
+	tokenizerId: string;
+	strategyId: string;
+	/** Strategy config (maxDistance, k, tau, mode, …) for read-time filtering. */
+	strategyConfig: Record<string, unknown>;
+	/** Vocabulary size $K$; the mask sentinel id is also $K$. */
+	vocabSize: number;
+	/** Full trajectory rows, row-major $(T+1) \times L$ (transferred). */
+	rows: Int32Array;
+	/** Number of noise steps $T$. */
+	T: number;
+	/** Sequence length $L$. */
+	L: number;
+	/** Spread limit mode for the neighborhood. */
+	limitMode: 'top-k' | 'top-p';
+	/** Top-k cutoff (used when `limitMode === 'top-k'`). */
+	k: number;
+	/** Cumulative probability cutoff in $[0, 1]$ (used when `limitMode === 'top-p'`). */
+	p: number;
+}
+
 export type TrajectoryWorkerRequest =
 	| TrajectoryWorkerComputeRequest
-	| TrajectoryWorkerNeighborsRequest;
+	| TrajectoryWorkerNeighborsRequest
+	| TrajectoryWorkerUnionGraphRequest;
 
 // ---- Responses (worker → main) ----
 
 /** Computation phase a progress message refers to. */
 export type TrajectoryWorkerPhase = 'preparing' | 'walking';
+
+/** Phases of the union-graph build: neighborhood pass, then layout. */
+export type UnionGraphPhase = 'neighbors' | 'layout';
 
 export interface TrajectoryWorkerProgressResponse {
 	kind: 'progress';
@@ -163,15 +205,71 @@ export interface TrajectoryWorkerNeighborsErrorResponse {
 	message: string;
 }
 
+/** The built union graph with its layout, in compact typed-array form. */
+export interface UnionGraph {
+	/** Number of nodes; all per-node arrays have this length. */
+	nodeCount: number;
+	/** Number of noise steps the graph was built over. */
+	T: number;
+	/** Token id per node (the mask sentinel is the vocab size). */
+	ids: Int32Array;
+	/** First step any position held this token; $-1$ for neighbor-only nodes. */
+	trajStep: Int32Array;
+	/** Step at which the node becomes visible ($t \ge$ `revealStep`). */
+	revealStep: Int32Array;
+	/** Display string per node. */
+	labels: string[];
+	/** Edge endpoints as node indices. */
+	edgeSrc: Int32Array;
+	edgeDst: Int32Array;
+	/** Step at which the edge becomes visible ($t \ge$ `firstStep`). */
+	edgeFirstStep: Int32Array;
+	/** How many times any position took a trajectory edge (1 for neighbor edges). */
+	edgeCount: Int32Array;
+	/** 1 for trajectory edges, 0 for neighborhood edges. */
+	edgeTraj: Uint8Array;
+	hasNeighborhood: boolean;
+	/** True when the size guards shrank or skipped the neighborhood. */
+	truncated: boolean;
+	/** Layout positions (world units). */
+	layoutX: Float32Array;
+	layoutY: Float32Array;
+}
+
+export interface TrajectoryWorkerUnionGraphProgressResponse {
+	kind: 'union-graph-progress';
+	requestId: number;
+	phase: UnionGraphPhase;
+	/** Units completed in the current phase. */
+	step: number;
+	/** Total units in the current phase. */
+	total: number;
+}
+
+export interface TrajectoryWorkerUnionGraphResultResponse {
+	kind: 'union-graph';
+	requestId: number;
+	graph: UnionGraph;
+}
+
+export interface TrajectoryWorkerUnionGraphErrorResponse {
+	kind: 'union-graph-error';
+	requestId: number;
+	message: string;
+}
+
 export type TrajectoryWorkerResultResponse =
 	| TrajectoryWorkerComputeResultResponse
-	| TrajectoryWorkerNeighborsResultResponse;
+	| TrajectoryWorkerNeighborsResultResponse
+	| TrajectoryWorkerUnionGraphResultResponse;
 
 export type TrajectoryWorkerErrorResponse =
 	| TrajectoryWorkerComputeErrorResponse
-	| TrajectoryWorkerNeighborsErrorResponse;
+	| TrajectoryWorkerNeighborsErrorResponse
+	| TrajectoryWorkerUnionGraphErrorResponse;
 
 export type TrajectoryWorkerResponse =
 	| TrajectoryWorkerProgressResponse
 	| TrajectoryWorkerResultResponse
-	| TrajectoryWorkerErrorResponse;
+	| TrajectoryWorkerErrorResponse
+	| TrajectoryWorkerUnionGraphProgressResponse;
