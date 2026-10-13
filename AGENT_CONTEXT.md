@@ -68,15 +68,18 @@ any schedule.
 
 ## Features the user cares about
 
-- Multiple selectable tokenizers.
-- Strategies: mask (absorbing), uniform ✅, lexical (edit distance on decoded
-  token strings, top-$k$). Semantic noise is future work.
+- Multiple selectable tokenizers (GPT-2 BPE, BERT WordPiece).
+- Strategies: uniform, absorbing (mask), lexical (edit distance), char-overlap
+  (Jaccard), plus identity behind a debug toggle. Semantic noise is future work.
 - Schedules: linear, cosine, constant. Mutual-information-based is future work.
 - Time slider that scrubs smoothly through $[0, T]$.
-- Token inspector on hover showing the local transition distribution.
-- Diagnostics panel showing connectivity and stationary-distribution info.
-- Token-dropping toggle (independent of substitution strategy).
-- Side-by-side comparison of two strategies.
+- Prose, token-chip, and full token-graph display modes.
+- Token inspector on hover showing the local transition distribution and a
+  neighbour graph.
+- Diagnostics panel showing connectivity and stationary-distribution info
+  (future work).
+- Token-dropping toggle (independent of substitution strategy) (future work).
+- Side-by-side comparison of two strategies (future work).
 
 ## Constraints and conventions
 
@@ -98,10 +101,9 @@ any schedule.
 - ELBO / NLL / perplexity computation.
 - Latent-space diffusion (may be considered later but is out of scope for the
   current milestones).
-- Visually-impressive design. Functionality and clarity come first.
-  **Revised by `DESIGN.md` §9:** visual and UX quality is now a first-class
-  goal given the broadened audience. See `DESIGN.md` for the current design
-  direction.
+- Visually-impressive design **for its own sake**: visual and UX quality is a
+  first-class goal (see `DESIGN.md`), but functionality and clarity still come
+  first.
 
 ## Reference
 

@@ -1,5 +1,8 @@
 # DESIGN.md — Visual & Interaction Design
 
+> Agent workflow and `.ai/` handoffs live in `AGENTS.md` / `.ai/README.md`.
+> For implementation work, §10 is the relevant section.
+
 Status: proposal / grounding document for further development.
 Supersedes the "minimal, functional, not flashy" framing in `AGENT_CONTEXT.md`
 where the two conflict. See §9 for the reconciliation.
@@ -246,8 +249,7 @@ What still holds unchanged from `AGENT_CONTEXT.md`:
 - Maths in `$...$` / `$$...$$` everywhere.
 - All heavy compute stays in Web Workers; numeric arrays stay typed.
 
-Action item: once accepted, update `AGENT_CONTEXT.md`'s "Audience and deployment"
-and "Non-goals" sections to point here.
+Done: `AGENT_CONTEXT.md`'s audience and non-goals sections now point here.
 
 ## 10. Implementation implications (for developers)
 

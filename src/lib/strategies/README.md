@@ -31,8 +31,14 @@
 
 ## Current strategies
 
-| id          | description                                                                 | stationary   |
-| ----------- | --------------------------------------------------------------------------- | ------------ |
-| `absorbing` | Each non-mask token becomes [MASK] with prob βₜ; once masked, stays masked. | `point-mass` |
-| `identity`  | No noise; every token stays as itself.                                      | `point-mass` |
-| `uniform`   | Each token independently samples uniformly from the vocab with prob βₜ.     | `uniform`    |
+| id             | description                                                                      | stationary       |
+| -------------- | -------------------------------------------------------------------------------- | ---------------- |
+| `absorbing`    | Each non-mask token becomes [MASK] with prob βₜ; once masked, stays masked.      | `point-mass`     |
+| `char-overlap` | Tokens jump to tokens with similar character sets (Jaccard), plus uniform floor. | `data-dependent` |
+| `identity`     | No noise; every token stays as itself. Hidden behind the debug toggle.           | `point-mass`     |
+| `lexical`      | Tokens jump to spelling-similar tokens (edit distance), plus uniform floor.      | `data-dependent` |
+| `uniform`      | Each token independently samples uniformly from the vocab with prob βₜ.          | `uniform`        |
+
+`neighbor-softmax.ts` holds the shared softmax + ergodicity-floor pipeline for
+neighbourhood-based strategies. `registry.ts` is the source of truth for ids
+and metadata.
