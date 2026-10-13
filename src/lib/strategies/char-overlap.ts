@@ -1,7 +1,11 @@
-import type { NoiseStrategy, Rng, StrategyFactory } from './types.js';
+import type { NoiseStrategy, StrategyFactory } from './types.js';
 import type { NeighborhoodProvider } from './neighborhood.js';
 import type { CharOverlapMode } from './char-overlap-model.js';
-import { fillLocalDistribution, resolveNeighbors, sampleFromResolved } from './neighbor-softmax.js';
+import { ModelDistanceSource } from './distance-source.js';
+import { createTokenKernel } from './token-kernel.js';
+import { createKernelStrategy } from './kernel-strategy.js';
+import { getWeightFamily } from './weight-family.js';
+import type { WeightFamilyId } from './weight-family.js';
 
 /**
  * Configuration for the character-overlap strategy.
@@ -11,26 +15,29 @@ import { fillLocalDistribution, resolveNeighbors, sampleFromResolved } from './n
  *
  * $$P(y \mid x) = (1 - \varepsilon) \cdot \mathrm{overlap}(y \mid x) + \varepsilon / K$$
  *
- * where $\mathrm{overlap}(y \mid x)$ is a softmax over negative Jaccard
- * distances to $x$'s neighbor list $N(x)$ (all neighbors within
- * $R_{\max}$, filtered to $\le$ `maxDistance` and truncated to top-$k$):
+ * where $\mathrm{overlap}(y \mid x)$ is a softmax over a weight family
+ * applied to Jaccard distances to $x$'s neighbor list $N(x)$ (all
+ * neighbors within $R_{\max}$, filtered to $\le$ `maxDistance` and
+ * truncated to top-$k$):
  *
  * $$\mathrm{overlap}(y \mid x) \propto \begin{cases}
- *   \exp(-d(x, y) / \tau) & y \in N(x),\ d(x,y) \le \text{maxDistance} \\
+ *   w_\tau(d(x, y)) & y \in N(x),\ d(x,y) \le \text{maxDistance} \\
  *   0 & \text{otherwise}
  * \end{cases}$$
  *
  * where $d(x,y) = 1 - J(C(x), C(y))$ is the Jaccard distance over the
- * character sets (code points) of the raw subword strings.
+ * character sets (code points) of the raw subword strings. The weight
+ * family $w_\tau$ is selectable (`family`); the default `exponential`
+ * family $w_\tau(d) = \exp(-d/\tau)$ reproduces the original softmax.
  *
  * If $N(x) = \varnothing$ the overlap term vanishes and $P(y \mid x) = 1/K$
  * (pure uniform). The ergodicity floor $\varepsilon$ guarantees irreducibility
  * regardless of the neighbor table quality.
  *
- * All parameters ($k$, `maxDistance`, $\tau$, $\varepsilon$) are applied at
- * **read time** from `config`. The `NeighborhoodProvider` stores only raw
- * distances out to a fixed ceiling $R_{\max}$, so changing any of these
- * four parameters never triggers a recompute.
+ * The `NeighborhoodProvider` stores only raw distances out to a fixed
+ * ceiling $R_{\max}$, so changing $k$, `maxDistance`, $\tau$, $\varepsilon$
+ * or `family` never triggers a neighbor recompute — a new kernel is built
+ * over the same tables.
  */
 export interface CharOverlapConfig {
 	/** Maximum Jaccard distance for neighbor inclusion (radius, in $[0,1]$). */
@@ -43,6 +50,8 @@ export interface CharOverlapConfig {
 	tau: number;
 	/** Distance mode: `'set'` (distinct chars) or `'multiset'` (count-aware). */
 	mode: CharOverlapMode;
+	/** Weight family for $w_\tau$; defaults to `'exponential'`. */
+	family?: WeightFamilyId;
 }
 
 const CHAR_OVERLAP_INFO = {
@@ -63,6 +72,11 @@ const CHAR_OVERLAP_INFO = {
 /**
  * Create a character-overlap strategy.
  *
+ * The jump distribution is a `TokenKernel` over the provider's neighbor
+ * tables and the selected weight family; the strategy body (the
+ * $\beta_t$ coin, the no-table uniform fallback, and the dense
+ * `getLocalDistribution` row) is shared `createKernelStrategy`.
+ *
  * `sampleStep` draws exactly 2 rng values per call so the RNG stream is
  * path-independent — this is documented in `engine/README.md`.
  *
@@ -70,7 +84,8 @@ const CHAR_OVERLAP_INFO = {
  * `vocabSize`. Each call overwrites it; callers must not retain the
  * returned reference.
  *
- * @param config - Char-overlap params ($k$, $\varepsilon$, $\tau$, `maxDistance`).
+ * @param config - Char-overlap params ($k$, $\varepsilon$, $\tau$,
+ *   `maxDistance`, `family`).
  * @param vocabSize - Vocabulary size $K$.
  * @param provider - Lazy neighborhood provider. When absent, the strategy
  *   degenerates to pure uniform (usable during initialization).
@@ -80,63 +95,25 @@ export const createCharOverlap: StrategyFactory<CharOverlapConfig> = (
 	vocabSize: number,
 	provider?: NeighborhoodProvider,
 ): NoiseStrategy<CharOverlapConfig> => {
-	// Pre-allocated buffer for getLocalDistribution.
-	const _dist = new Float32Array(vocabSize);
+	const family = getWeightFamily(config.family ?? 'exponential');
 
-	// Cached uniform weight: $1 / K$.
-	const _uniformWeight = 1 / vocabSize;
+	// Kernel over the provider's raw distance tables; `null` → uniform
+	// jumps (no table available yet).
+	const kernel = provider
+		? createTokenKernel(new ModelDistanceSource(provider.model, provider), family, {
+				k: config.k,
+				maxDistance: config.maxDistance,
+				tau: config.tau,
+				epsilon: config.epsilon,
+				vocabSize,
+			})
+		: null;
 
-	// Cache the provider pointer so closure captures it.
-	const _provider = provider ?? null;
-
-	return {
+	return createKernelStrategy<CharOverlapConfig>({
 		info: CHAR_OVERLAP_INFO,
 		config,
-
-		sampleStep(token: number, beta: number, rng: Rng): number {
-			// Draw exactly 2 values to keep the RNG stream path-independent.
-			const coin = rng(); // whether to jump
-			const draw = rng(); // compound: floor-vs-overlap + token index
-
-			if (coin >= beta) return token;
-
-			// Jump. If no provider → pure uniform.
-			if (!_provider) {
-				return Math.min(Math.floor(draw * vocabSize), vocabSize - 1);
-			}
-
-			const { maxDistance, k, epsilon, tau } = config;
-			const resolved = resolveNeighbors(_provider.neighborsOf(token), maxDistance, k, tau);
-
-			// Empty effective list → pure uniform.
-			if (!resolved) {
-				return Math.min(Math.floor(draw * vocabSize), vocabSize - 1);
-			}
-
-			return sampleFromResolved(resolved, draw, epsilon, vocabSize);
-		},
-
-		getLocalDistribution(token: number, _beta: number): Float32Array {
-			_dist.fill(0);
-
-			if (_provider) {
-				const { maxDistance, k, epsilon, tau } = config;
-				const resolved = resolveNeighbors(_provider.neighborsOf(token), maxDistance, k, tau);
-
-				if (resolved) {
-					fillLocalDistribution(_dist, resolved, epsilon, vocabSize);
-				} else {
-					// No neighbors → pure uniform.
-					const floorPerToken = _uniformWeight * epsilon;
-					for (let i = 0; i < vocabSize; i++) {
-						_dist[i] = floorPerToken;
-					}
-				}
-			} else {
-				_dist.fill(_uniformWeight);
-			}
-
-			return _dist;
-		},
-	};
+		vocabSize,
+		kernel,
+		epsilon: config.epsilon,
+	});
 };

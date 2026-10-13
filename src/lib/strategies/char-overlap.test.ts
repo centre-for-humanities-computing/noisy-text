@@ -189,4 +189,25 @@ describe('createCharOverlap (with provider)', () => {
 			expect(visited.size).toBeGreaterThan(1);
 		}
 	});
+
+	it('family: gaussian reweights the same neighbor table', () => {
+		// From 'car' (id 2): 'cart' d=0.25, 'cat' d=0.5.
+		// Exponential tau=1: p(cart) = e^-0.25 / (e^-0.25 + e^-0.5) ≈ 0.5622.
+		// Gaussian tau=1: p(cart) = e^-0.03125 / (e^-0.03125 + e^-0.125) ≈ 0.5236.
+		const gConfig: CharOverlapConfig = { ...config, family: 'gaussian' };
+		const gs = createCharOverlap(gConfig, vocab.length, provider);
+		const gdist = gs.getLocalDistribution!(2, 0.5);
+		expect(gdist[3]!).toBeCloseTo(0.5236, 3);
+		expect(gdist[0]!).toBeCloseTo(0.4764, 3);
+		expect(gdist[1]!).toBe(0);
+		expect(gdist[2]!).toBe(0);
+
+		const es = createCharOverlap({ ...config, family: 'exponential' }, vocab.length, provider);
+		const edist = es.getLocalDistribution!(2, 0.5);
+		expect(edist[3]!).toBeCloseTo(0.5622, 3);
+		// Explicit default equals omitted family.
+		const ds = createCharOverlap(config, vocab.length, provider);
+		const ddist = ds.getLocalDistribution!(2, 0.5);
+		expect(Array.from(edist)).toEqual(Array.from(ddist));
+	});
 });

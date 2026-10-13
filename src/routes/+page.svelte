@@ -565,10 +565,14 @@
 						maxDistance={lexicalStore.maxDistance}
 						k={lexicalStore.k}
 						epsilon={lexicalStore.epsilon}
+						tau={lexicalStore.tau}
+						family={lexicalStore.family}
 						disabled={tokenizerStore.status !== 'ready'}
 						onmaxdistancechange={(v) => (lexicalStore.maxDistance = v)}
 						onkchange={(v) => (lexicalStore.k = v)}
 						onepsilonchange={(v) => (lexicalStore.epsilon = v)}
+						ontauchange={(v) => (lexicalStore.tau = v)}
+						onfamilychange={(v) => (lexicalStore.family = v)}
 					/>
 				{/if}
 
@@ -577,11 +581,15 @@
 						minSimilarity={charOverlapStore.minSimilarity}
 						k={charOverlapStore.k}
 						epsilon={charOverlapStore.epsilon}
+						tau={charOverlapStore.tau}
+						family={charOverlapStore.family}
 						mode={charOverlapStore.mode}
 						disabled={tokenizerStore.status !== 'ready'}
 						onminsimilaritychange={(v) => (charOverlapStore.minSimilarity = v)}
 						onkchange={(v) => (charOverlapStore.k = v)}
 						onepsilonchange={(v) => (charOverlapStore.epsilon = v)}
+						ontauchange={(v) => (charOverlapStore.tau = v)}
+						onfamilychange={(v) => (charOverlapStore.family = v)}
 						onmodechange={(v) => (charOverlapStore.mode = v)}
 					/>
 				{/if}

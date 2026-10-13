@@ -18,3 +18,17 @@ export type { DistanceModel } from './distance-model.js';
 export { EditDistanceModel, levenshtein } from './distance-model.js';
 export type { NeighborEntry } from './neighborhood.js';
 export { NeighborhoodProvider } from './neighborhood.js';
+export type { WeightFamily, WeightFamilyId } from './weight-family.js';
+export { WEIGHT_FAMILIES, getWeightFamily, isWeightFamilyId } from './weight-family.js';
+export type { DistanceSource, NeighborTable } from './distance-source.js';
+export { ModelDistanceSource } from './distance-source.js';
+export type { KernelParams, KernelRow, TokenKernel } from './token-kernel.js';
+export { createTokenKernel, createUniformKernel, kernelRowToDense } from './token-kernel.js';
+export type { KernelStrategyOptions } from './kernel-strategy.js';
+export { createKernelStrategy } from './kernel-strategy.js';
+export type { DistanceFn, StringDistanceKernel, StringFn } from './string-distance-kernel.js';
+export {
+	STRING_DISTANCE_KERNELS,
+	getStringDistanceKernel,
+	stringDistanceKernelFor,
+} from './string-distance-kernel.js';

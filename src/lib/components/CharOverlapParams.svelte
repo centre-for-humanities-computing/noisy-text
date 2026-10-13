@@ -3,11 +3,15 @@
 		minSimilarity: number;
 		k: number;
 		epsilon: number;
+		tau: number;
+		family: 'exponential' | 'power-law' | 'gaussian';
 		mode: 'set' | 'multiset';
 		disabled: boolean;
 		onminsimilaritychange: (v: number) => void;
 		onkchange: (v: number) => void;
 		onepsilonchange: (v: number) => void;
+		ontauchange: (v: number) => void;
+		onfamilychange: (v: 'exponential' | 'power-law' | 'gaussian') => void;
 		onmodechange: (v: 'set' | 'multiset') => void;
 	}
 
@@ -15,11 +19,15 @@
 		minSimilarity,
 		k,
 		epsilon,
+		tau,
+		family,
 		mode,
 		disabled,
 		onminsimilaritychange,
 		onkchange,
 		onepsilonchange,
+		ontauchange,
+		onfamilychange,
 		onmodechange,
 	}: Props = $props();
 </script>
@@ -76,6 +84,33 @@
 				{disabled}
 				onchange={(e) => onmodechange(e.currentTarget.checked ? 'multiset' : 'set')}
 			/>
+		</label>
+
+		<label>
+			<span>τ</span>
+			<input
+				type="range"
+				min={0.05}
+				max={5}
+				step={0.05}
+				value={tau}
+				{disabled}
+				oninput={(e) => ontauchange(Number(e.currentTarget.value))}
+			/>
+			<span class="param-value">{tau.toFixed(2)}</span>
+		</label>
+
+		<label>
+			<span>Family</span>
+			<select
+				{disabled}
+				value={family}
+				onchange={(e) => onfamilychange(e.currentTarget.value as Props['family'])}
+			>
+				<option value="exponential">Exponential</option>
+				<option value="power-law">Power law</option>
+				<option value="gaussian">Gaussian</option>
+			</select>
 		</label>
 	</div>
 </div>

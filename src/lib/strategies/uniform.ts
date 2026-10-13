@@ -1,4 +1,5 @@
 import type { NoiseStrategy, Rng, StrategyFactory } from './types.js';
+import { createUniformKernel } from './token-kernel.js';
 
 /**
  * Configuration for the uniform strategy (no knobs).
@@ -31,6 +32,9 @@ const UNIFORM_INFO = {
 /**
  * Create a uniform strategy.
  *
+ * The jump is the shared `createUniformKernel` (same draw/index math);
+ * the strategy adds the $\beta_t$ coin.
+ *
  * `sampleStep` draws exactly 2 rng values per call so the RNG stream is
  * path-independent — this is documented in `engine/README.md`.
  *
@@ -45,6 +49,10 @@ export const createUniform: StrategyFactory<UniformConfig> = (
 	// Callers must not retain the returned reference.
 	const _dist = new Float32Array(vocabSize);
 
+	// Uniform kernel over the whole vocab; no ergodicity floor (the
+	// $\beta_t$ coin already supplies the noise level).
+	const _kernel = createUniformKernel(vocabSize, 0);
+
 	return {
 		info: UNIFORM_INFO,
 		config: {},
@@ -56,8 +64,7 @@ export const createUniform: StrategyFactory<UniformConfig> = (
 
 			if (coin < beta) {
 				// Resample uniformly over the vocab (may land back on `token`).
-				const idx = Math.min(Math.floor(draw * vocabSize), vocabSize - 1);
-				return idx;
+				return _kernel.sampleStep(token, (): number => draw);
 			}
 			return token;
 		},

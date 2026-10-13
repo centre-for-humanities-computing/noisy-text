@@ -59,7 +59,7 @@ export class NeighborhoodProvider {
 	readonly R_MAX: number;
 	readonly K: number;
 
-	private _model: DistanceModel;
+	readonly model: DistanceModel;
 	private readonly _maxStored: number;
 	private readonly _maxPairs: number;
 
@@ -73,7 +73,7 @@ export class NeighborhoodProvider {
 	private _pairCache: Map<number, number> = new Map();
 
 	constructor(model: DistanceModel, R_MAX: number, opts: NeighborhoodProviderOptions = {}) {
-		this._model = model;
+		this.model = model;
 		this.R_MAX = R_MAX;
 		this.K = model.K;
 		this._neighbors = new Array(model.K);
@@ -92,7 +92,7 @@ export class NeighborhoodProvider {
 
 		const entries: NeighborEntry[] = [];
 
-		for (const j of this._model.candidates(token, this.R_MAX)) {
+		for (const j of this.model.candidates(token, this.R_MAX)) {
 			const d = this._pairDistance(token, j);
 			if (d <= this.R_MAX) {
 				entries.push({ id: j, dist: d });
@@ -114,7 +114,7 @@ export class NeighborhoodProvider {
 		const cached = this._pairCache.get(key);
 		if (cached !== undefined) return cached;
 
-		const d = this._model.distance(a, b, this.R_MAX);
+		const d = this.model.distance(a, b, this.R_MAX);
 		if (this._pairCache.size < this._maxPairs) this._pairCache.set(key, d);
 		return d;
 	}
