@@ -27,6 +27,7 @@ directory. Read them before adding files.
 
 - `strict: true` in `tsconfig.json`. No exceptions.
 - No `any`. Use `unknown` and narrow, or define the type.
+- `console` only via `warn`/`error`; no `console.log` in committed code.
 - Interfaces over type aliases for object shapes.
 - Discriminated unions for variant data (e.g., strategy configs).
 - Exported functions and types get explicit return types. Internal ones
@@ -43,8 +44,8 @@ directory. Read them before adding files.
 ## Strategies
 
 A `NoiseStrategy` lives in `src/lib/strategies/<name>.ts` and is
-registered in `src/lib/strategies/index.ts`. The canonical example is
-`identity.ts` — follow its shape.
+registered in `src/lib/strategies/registry.ts` (`index.ts` only re-exports).
+The canonical example is `identity.ts` — follow its shape.
 
 Every strategy must:
 
@@ -125,3 +126,15 @@ Current pins worth knowing:
 - Conventional commits: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`.
 - Reference issue numbers: `feat(#7): implement mask strategy`.
 - One logical change per commit.
+
+## Versioning
+
+`package.json` follows SemVer and is bumped once per issue, in the same commit
+as the change:
+
+- breaking change (`feat!` / `BREAKING CHANGE:`) → major
+- `feat` → minor
+- `fix`, `perf`, `refactor`, `docs`, `test`, `chore` → patch
+
+The bump must match the commit type; when an issue mixes types, use the highest.
+History is inconsistent — follow this table, not precedent.

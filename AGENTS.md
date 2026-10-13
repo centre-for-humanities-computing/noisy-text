@@ -29,7 +29,7 @@ npm run lint             # eslint
 npx prettier --check .   # CI enforces; npm run format fixes
 npm run test             # vitest, node environment (no jsdom)
 npx vitest run src/lib/engine/trajectory.test.ts   # single file
-npx vitest run -t "cache key"                      # single test by name
+npx vitest run -t "is deterministic for the same seed"  # single test by name
 ```
 
 CI (Node 22, push/PR to `main`) runs `lint` → `prettier --check` → `build` →
@@ -65,16 +65,20 @@ These are load-bearing; breaking them silently breaks the math.
   comment saying why. `console` only via `warn`/`error`.
 - Tests live beside code as `foo.test.ts`; no snapshot tests for math.
 - Conventional commits with issue number (`feat(#7): ...`); bump
-  `package.json` version after each issue; one issue per session.
+  `package.json` after each issue per SemVer (breaking → major, `feat` → minor,
+  otherwise patch — `CONVENTIONS.md`); one issue per session.
 
 ## Workflow and handoffs
 
-`draft → refine → plan → implement → review → merge`. Humans confirm every
-handoff; every task starts in a fresh session. Use the slash commands
+`draft → refine → plan → implement → review → merge`. Humans confirm plans
+before `/implement` and decide the merge; `/implement` commits and opens the
+PR itself. Every task starts in a fresh session. Use the slash commands
 `/refine`, `/plan`, `/implement`, `/review`; artifacts live in
 `.ai/<issue-number>-<slug>/`. `/plan` creates or checks out the issue branch;
-`/implement` refuses to run on a different branch. Refined issues live on
-GitHub, not in `.ai/`. See `.ai/README.md` and `.opencode/command/`.
+`/implement` refuses to run on a different branch. `/plan` and `/review` run on
+the read-only `plan` agent; the `plan-writer` and `reviewer` subagents perform
+the only writes (the `.ai/` artifacts). Refined issues live on GitHub, not in
+`.ai/`. See `.ai/README.md` and `.opencode/command/`.
 
 ## Context discipline
 

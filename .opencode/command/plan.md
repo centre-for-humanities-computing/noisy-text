@@ -19,15 +19,20 @@ any further exploration.
    helpers, registries, tests, per-directory `README.md` instructions. Require
    `file:line` evidence. Explore before writing anything.
 4. Read `CONVENTIONS.md` and the relevant per-directory READMEs.
-5. Write `.ai/<issue-number>-<slug>/plan.md` (create the folder if needed; slug
-   must match the branch name). Required sections:
+5. Compose the complete plan markdown in chat, following the artifact style in
+   `.ai/README.md` (headings and bullets; no tables). Required sections:
    - Goal and acceptance criteria (from the issue).
    - Files to create/modify: exact path, exported signatures/types, data shapes.
    - Ordered step-by-step implementation steps.
    - Tests to add (path + cases) and exact verification commands in order:
      `npm run check` → `npm run lint` → `npm run format` → `npm run test`.
    - Edge cases, risks, out-of-scope items, open blocking questions.
-6. Do not edit anything outside `.ai/`. Do not implement.
+6. This agent runs under plan mode and cannot edit files. Delegate the write
+   to the `plan-writer` subagent (Task tool): pass the exact markdown and the
+   target `.ai/<issue-number>-<slug>/plan.md` (slug must match the branch
+   name). Then Read the file back; on any drift from what you composed,
+   re-delegate.
+7. Do not implement.
 
 End with a short handoff summary and ask the human to confirm before
 `/implement`.
