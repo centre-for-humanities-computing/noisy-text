@@ -13,3 +13,8 @@ npm run lint       # Run ESLint
 npm run format     # Run Prettier
 npm run test       # Run Vitest
 ```
+
+## Agent workflow
+
+See `AGENTS.md` for how agents work in this repo and `.ai/README.md` for the
+handoff-file conventions.

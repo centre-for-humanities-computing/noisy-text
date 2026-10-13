@@ -5,3 +5,7 @@ dist/
 .env
 .env.*
 !.env.example
+
+# /review staging file — the real review lives as a marked PR comment
+.ai/*/round-*/review.md
+*.swp

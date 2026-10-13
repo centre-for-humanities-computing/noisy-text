@@ -1,7 +1,8 @@
 # Conventions
 
 Concrete rules for this repo. If a rule is missing here and you had to
-guess, propose adding it.
+guess, propose adding it. `AGENTS.md` is the entry point for agents; this
+file holds the detailed code rules.
 
 ## File layout
 
@@ -26,6 +27,7 @@ directory. Read them before adding files.
 
 - `strict: true` in `tsconfig.json`. No exceptions.
 - No `any`. Use `unknown` and narrow, or define the type.
+- `console` only via `warn`/`error`; no `console.log` in committed code.
 - Interfaces over type aliases for object shapes.
 - Discriminated unions for variant data (e.g., strategy configs).
 - Exported functions and types get explicit return types. Internal ones
@@ -42,8 +44,8 @@ directory. Read them before adding files.
 ## Strategies
 
 A `NoiseStrategy` lives in `src/lib/strategies/<name>.ts` and is
-registered in `src/lib/strategies/index.ts`. The canonical example is
-`identity.ts` — follow its shape.
+registered in `src/lib/strategies/registry.ts` (`index.ts` only re-exports).
+The canonical example is `identity.ts` — follow its shape.
 
 Every strategy must:
 
@@ -83,6 +85,8 @@ Schedules are independent of strategies. Any pairing must work.
 ## Tests
 
 - `vitest`. Tests next to the code.
+- Run with `npm run test` (node environment; no jsdom). Single file:
+  `npx vitest run src/lib/engine/trajectory.test.ts`.
 - Property tests for math: every strategy gets a test verifying its
   stationary-distribution claim empirically over a small vocab.
 - Snapshot tests are banned for anything math-related (they hide drift).
@@ -104,8 +108,10 @@ re-hallucinate it next session.
 
 Current pins worth knowing:
 
-- `@huggingface/transformers`: tokenizer-only usage, no inference.
-  (Add the actual version pin and a one-line API note here once chosen.)
+- `@huggingface/transformers` ^3.8.1: tokenizer-only usage, no inference.
+  API notes in `docs/libraries.md`.
+- `seedrandom` ^3.0.5: seeded PRNG; Alea algorithm, `'\0'`-terminated seeds.
+- `katex` ^0.18.7: math rendering in tooltips and panels.
 
 ## Naming
 
@@ -120,3 +126,16 @@ Current pins worth knowing:
 - Conventional commits: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`.
 - Reference issue numbers: `feat(#7): implement mask strategy`.
 - One logical change per commit.
+
+## Versioning
+
+`package.json` follows SemVer and is bumped once per issue, in the round-1
+commit (see `.ai/README.md` for the round layout):
+
+- breaking change (`feat!` / `BREAKING CHANGE:`) → major
+- `feat` → minor
+- `fix`, `perf`, `refactor`, `docs`, `test`, `chore` → patch
+
+The bump must match the commit type; when an issue mixes types, use the highest.
+Later review-round commits on the same issue do not bump again. History is
+inconsistent — follow this table, not precedent.
