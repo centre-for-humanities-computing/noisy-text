@@ -24,3 +24,7 @@ Steps:
    commands for the human to run after review. Do not run them.
 
 This phase produces Git issues, not `.ai/` files.
+
+Escape hatch: when a review shows the issue scope itself is wrong, use
+`/refine` — refine the GitHub issue, then start a fresh `/plan`. Do not loop
+on a mis-scoped plan.

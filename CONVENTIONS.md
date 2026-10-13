@@ -129,12 +129,13 @@ Current pins worth knowing:
 
 ## Versioning
 
-`package.json` follows SemVer and is bumped once per issue, in the same commit
-as the change:
+`package.json` follows SemVer and is bumped once per issue, in the round-1
+commit (see `.ai/README.md` for the round layout):
 
 - breaking change (`feat!` / `BREAKING CHANGE:`) → major
 - `feat` → minor
 - `fix`, `perf`, `refactor`, `docs`, `test`, `chore` → patch
 
 The bump must match the commit type; when an issue mixes types, use the highest.
-History is inconsistent — follow this table, not precedent.
+Later review-round commits on the same issue do not bump again. History is
+inconsistent — follow this table, not precedent.

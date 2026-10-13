@@ -65,8 +65,9 @@ These are load-bearing; breaking them silently breaks the math.
   comment saying why. `console` only via `warn`/`error`.
 - Tests live beside code as `foo.test.ts`; no snapshot tests for math.
 - Conventional commits with issue number (`feat(#7): ...`); bump
-  `package.json` after each issue per SemVer (breaking → major, `feat` → minor,
-  otherwise patch — `CONVENTIONS.md`); one issue per session.
+  `package.json` once per issue (round-1 commit) per SemVer
+  (breaking → major, `feat` → minor, otherwise patch — `CONVENTIONS.md`);
+  one issue per session.
 
 ## Workflow and handoffs
 
@@ -74,11 +75,15 @@ These are load-bearing; breaking them silently breaks the math.
 before `/implement` and decide the merge; `/implement` commits and opens the
 PR itself. Every task starts in a fresh session. Use the slash commands
 `/refine`, `/plan`, `/implement`, `/review`; artifacts live in
-`.ai/<issue-number>-<slug>/`. `/plan` creates or checks out the issue branch;
+`.ai/<issue-number>-<slug>/round-N/`. Repeated plan → implement → review
+rounds run on the same branch and PR: a non-approve review verdict leads to a
+revision plan for the next round, with no round cap; `package.json` is bumped
+once per issue. `/plan` creates or checks out the issue branch;
 `/implement` refuses to run on a different branch. `/plan` and `/review` run on
 the read-only `plan` agent; the `plan-writer` and `reviewer` subagents perform
 the only writes (the `.ai/` artifacts). Refined issues live on GitHub, not in
-`.ai/`. See `.ai/README.md` and `.opencode/command/`.
+`.ai/`; `/refine` is the escape hatch when a review shows the issue scope
+itself is wrong. See `.ai/README.md` and `.opencode/command/`.
 
 ## Context discipline
 
