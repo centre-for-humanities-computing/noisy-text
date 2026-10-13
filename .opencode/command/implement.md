@@ -1,7 +1,7 @@
 ---
 description: Implement a confirmed plan, open PR, write diff report
 agent: build
-model: openrouter/anthropic/claude-haiku-5.5
+model: openrouter/z-ai/glm-5.3-flash
 ---
 
 Issue: $ARGUMENTS (number). Work only from `.ai/<issue-number>-<slug>/plan.md`.

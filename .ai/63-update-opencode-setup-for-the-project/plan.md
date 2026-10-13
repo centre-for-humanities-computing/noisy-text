@@ -25,9 +25,9 @@ as part of prep, `/implement` verifies it.
   patch).
 - **Artifact style.** `.ai/` is Prettier-ignored; artifacts follow the style
   in `.ai/README.md` (headings and bullets, no tables, ~80 columns).
-- **Models.** `/refine` sonnet-5.5 · `/plan` deepseek-v4.1-flash ·
-  `/implement` haiku-5.5 · `/review` deepseek-v4.1-flash · `explore` and
-  `plan-writer` haiku-5.5.
+- **Models.** `/refine` deepseek-v4.1-flash · `/plan` deepseek-v4.1-flash ·
+  `/implement` glm-5.3-flash · `/review` deepseek-v4.1-flash · `explore` and
+  `plan-writer` glm-5.3-flash · `small_model` glm-5.3-flash.
 - **`.ai/` layout.**
   `.ai/<issue-number>-<slug>/{plan.md,diff-report.md,review.md}`.
 
@@ -58,14 +58,15 @@ as part of prep, `/implement` verifies it.
 			}
 		},
 		"explore": {
-			"model": "openrouter/anthropic/claude-haiku-5.5"
+			"model": "openrouter/z-ai/glm-5.3-flash"
 		}
 	}
 }
 ```
 
 `CONVENTIONS.md` is deliberately not in `instructions` — always-loaded context
-costs tokens; `AGENTS.md` references it instead. `small_model` left unset.
+costs tokens; `AGENTS.md` references it instead. `small_model` set to
+`openrouter/z-ai/glm-5.3-flash`.
 
 ### `.opencode/agent/reviewer.md`
 
@@ -79,13 +80,13 @@ blockers, `### N<n>` non-blocking concerns, gaps, open questions — no tables.
 
 ### `.opencode/agent/plan-writer.md`
 
-Transcription-only subagent (haiku-5.5) used by `/plan`: receives the
+Transcription-only subagent (glm-5.3-flash) used by `/plan`: receives the
 finalized plan markdown plus an `.ai/` target path and writes it verbatim.
 Edit allowed only under `.ai/**`; bash denied.
 
 ### `.opencode/command/refine.md`
 
-`agent: plan`, `model: openrouter/anthropic/claude-sonnet-5.5`. Input: draft
+`agent: plan`, `model: openrouter/deepseek/deepseek-v4.1-flash`. Input: draft
 or issue number. Explores via `explore` subagent, reads relevant doc sections,
 outputs refined issue text in chat (splitting oversized issues), ends with
 suggested `gh issue create/edit` commands for the human. Produces Git issues —
@@ -110,7 +111,7 @@ human to confirm before `/implement`.
 
 ### `.opencode/command/implement.md`
 
-`agent: build`, `model: openrouter/anthropic/claude-haiku-5.5`.
+`agent: build`, `model: openrouter/z-ai/glm-5.3-flash`.
 
 Branch check: current branch must be `<issue-number>-<slug>`; otherwise stop
 and ask. Read `plan.md` + `CONVENTIONS.md`; stop if the plan is

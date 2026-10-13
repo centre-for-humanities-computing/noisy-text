@@ -1,7 +1,7 @@
 ---
 description: Transcribes finalized plan markdown to a given .ai/ path, verbatim. Use from /plan.
 mode: subagent
-model: openrouter/anthropic/claude-haiku-5.5
+model: openrouter/z-ai/glm-5.3-flash
 permission:
   edit:
     '*': deny

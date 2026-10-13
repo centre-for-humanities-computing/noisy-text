@@ -15,15 +15,15 @@ build).
   `.github/copilot-instructions.md` as the agent entry point.
 - `opencode.json` — project config. Overrides the built-in `plan` agent:
   `edit` denied except `.ai/**` (also `**/.ai/**` fallback). Sets `explore`
-  subagent model to claude-haiku-5.5.
+  subagent model to glm-5.3-flash.
 - `.opencode/agent/reviewer.md` — read-only adversarial reviewer subagent
   (deepseek-v4.1-flash).
-- `.opencode/command/refine.md` — `/refine` (sonnet-5.5): draft → refined
+- `.opencode/command/refine.md` — `/refine` (deepseek-v4.1-flash): draft → refined
   GitHub issue text (may split); prints suggested `gh` commands; no `.ai/`
   files.
 - `.opencode/command/plan.md` — `/plan` (deepseek): branch prep, explore via
   subagent, plan artifact.
-- `.opencode/command/implement.md` — `/implement` (haiku): implements the plan
+- `.opencode/command/implement.md` — `/implement` (glm-5.3-flash): implements the plan
   exactly, version bump, `check → lint → format → test`, diff report.
 - `.opencode/command/review.md` — `/review` (deepseek): delegates to the
   `reviewer` subagent.
