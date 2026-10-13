@@ -60,4 +60,4 @@ Issue: $ARGUMENTS (number). Work only from
    Never merge.
 
 End with a handoff summary: round number, PR URL, what to check, what comes
-next (`/review`).
+next (`/review`, which posts its report as a marked comment on this PR).

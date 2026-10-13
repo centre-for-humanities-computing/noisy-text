@@ -75,3 +75,22 @@
 5. Agent configs unchanged this issue (models were set by #63), so
    `opencode debug agent` checks were not repeated; the human should restart
    opencode so the edited commands/agents load.
+
+## Follow-up (fix commit, addressing round-1 review)
+
+- Review transport reworked (N2): the review report is now a PR comment
+  marked `<!-- noisy-text-review: round=N -->`; `round-N/review.md` is a
+  gitignored staging file (`--body-file`), never read by commands. The
+  reviewer gained `gh pr comment` and posts the marked comment; `/review`
+  verifies the comment by re-fetching it.
+- N1: `/plan <issue> next` — an explicit override that forces round N+1
+  after an `approve with nits` verdict; the one sanctioned exception to
+  "commands never take a round argument".
+- N4: the reviewer now judges scope creep only against files the plan names;
+  cumulative `gh pr diff` content from stacked branches is not reported.
+- N5: STOP messages distinguish "planned but not implemented" (no
+  diff-report) from "implemented but not reviewed" (no review comment on the
+  PR); approve-with-nits guidance points at `/plan <issue> next`.
+- N3 (documentation only): `.ai/README.md` notes the branch → artifact-dir
+  invariant and the manual-locate rule for stacking deviations.
+- Also: `.gitignore` now ignores the staging file and `*.swp`.

@@ -75,10 +75,12 @@ These are load-bearing; breaking them silently breaks the math.
 before `/implement` and decide the merge; `/implement` commits and opens the
 PR itself. Every task starts in a fresh session. Use the slash commands
 `/refine`, `/plan`, `/implement`, `/review`; artifacts live in
-`.ai/<issue-number>-<slug>/round-N/`. Repeated plan → implement → review
-rounds run on the same branch and PR: a non-approve review verdict leads to a
-revision plan for the next round, with no round cap; `package.json` is bumped
-once per issue. `/plan` creates or checks out the issue branch;
+`.ai/<issue-number>-<slug>/round-N/`. Review reports are PR comments marked
+`<!-- noisy-text-review: round=N -->` (the `round-N/review.md` staging file is
+gitignored). Repeated plan → implement → review rounds run on the same branch
+and PR: a non-approve review verdict leads to a revision plan for the next
+round, with no round cap; after `approve with nits`, `/plan <issue> next`
+starts an explicit revision round. `package.json` is bumped once per issue. `/plan` creates or checks out the issue branch;
 `/implement` refuses to run on a different branch. `/plan` and `/review` run on
 the read-only `plan` agent; the `plan-writer` and `reviewer` subagents perform
 the only writes (the `.ai/` artifacts). Refined issues live on GitHub, not in

@@ -24,20 +24,36 @@ any further exploration.
    ```
 
    No output → round 1. Otherwise N is the number in `round-N/`. Commands
-   never take a round argument.
+   never take a round argument, with one exception: the explicit override
+   `$ARGUMENTS` ending in `next` (e.g. `/plan 66 next`) forces round N+1 —
+   used only after an `approve with nits` verdict (N1). If the artifact
+   directory does not match the branch-derived name (deliberate stacking
+   deviation), locate it manually; do not create a new one.
+
+   Reviews live as marked PR comments, not files: fetch the latest review for
+   round N (and, when composing a revision plan, for round N as the prior
+   round) from the open PR for the branch:
+
+   ```bash
+   PR=$(gh pr list --head <branch> --state open --json number --jq '.[0].number')
+   gh pr view "$PR" --json comments --jq "[.comments[].body | select(startswith(\"<!-- noisy-text-review: round=$N -->\"))] | last"
+   ```
 
 4. Round rules:
    - No rounds yet → compose the normal round-1 plan; target
      `round-1/plan.md`.
-   - `round-N/review.md` missing → STOP: report "round N is not reviewed yet;
-     run `/review`".
-   - Latest verdict `approve with nits` → STOP: report the verdict; the human
-     decides merge or explicitly requests another round.
+   - `round-N/diff-report.md` missing → STOP: report "round N is planned but
+     not implemented; run `/implement`".
+   - `diff-report.md` present but no round-N review comment on the PR →
+     STOP: report "round N is implemented but not reviewed; run `/review`".
+   - Latest verdict `approve with nits` → STOP and report the verdict: the
+     human decides merge or explicitly requests another round. Compose a
+     revision plan only under the `next` override.
    - Latest verdict `block` or `fix-and-recheck` → compose a revision plan at
      `round-(N+1)/plan.md`, scoped to the finding IDs on that review's
      `- Open findings:` line; no unrelated changes.
-   - The `- Verdict:` header bullet of `review.md` is the verdict contract;
-     read its first occurrence.
+   - The `- Verdict:` header bullet of the review comment is the verdict
+     contract; read its first occurrence.
 5. Delegate reconnaissance to the `explore` subagent: exact files, existing
    helpers, registries, tests, per-directory `README.md` instructions. Require
    `file:line` evidence. Explore before writing anything.
