@@ -170,7 +170,7 @@ The comment body is the marker line
 as the first line, a blank line, then the report (the header block through the
 last section, everything above except the marker). Write that full body
 (marker + report) to the `review.md` staging path given in your task once, with
-no later edits (create the parent directory if needed), then post it:
+no later edits, then post it:
 
 ```bash
 gh pr comment <pr> --body-file <staging path>
