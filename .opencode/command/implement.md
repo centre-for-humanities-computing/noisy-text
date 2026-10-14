@@ -61,7 +61,7 @@ Issue: $ARGUMENTS (number). Work only from
    Non-empty → `git push`, then post the change summary as a comment on the
    existing PR so the thread tracks every round:
    `gh pr comment <number> --body "<round <N> change summary: one paragraph on
-   what changed and why, plus verification results>"`.
+what changed and why, plus verification results>"`.
    Empty → `git push -u origin <issue-number>-<slug>` then
    `gh pr create --base main --head <issue-number>-<slug> --title "<type>(#<issue-number>): <summary>" --body "<change summary, `Closes #<issue-number>`, verification results>"`.
    Never merge.
