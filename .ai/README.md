@@ -43,6 +43,16 @@ These files are read rendered, raw, and in diffs. Write for all three:
   with `gh pr comment --body-file`; it is gitignored and never read back by
   any command.
 
+## Diff report
+
+- `round-N/diff-report.md` is the human's entry point into the round's diff.
+  It carries a summary, a reading order (highest-risk first), per-file
+  rationale with mechanical-vs-behavioral labels, known limitations, and
+  verification results.
+- The reviewer checks the diff report against the actual diff, so it cannot
+  drift from the code; the review comment's orientation sections are the
+  human's secondary overview.
+
 ## Rounds
 
 - One `round-N/` directory per plan → implement → review pass. Round 1 is the
@@ -53,8 +63,9 @@ These files are read rendered, raw, and in diffs. Write for all three:
   verdict.
 - Loop policy: a `block` or `fix-and-recheck` verdict loops to a new `/plan`
   (revision round). `approve with nits` ends the loop — the human decides
-  merge or explicitly requests another round via `/plan <issue> next`. There
-  is no round cap.
+  merge or explicitly requests another round via `/plan <issue> next`; nits
+  the human accepts are filed as a follow-up issue rather than re-reviewed.
+  There is no round cap.
 - Reviews are read from the PR by marker, not from `review.md` files; the
   `- Verdict:` bullet of the comment is the verdict contract.
 - Commands surface the round number and repeated findings; each round runs in

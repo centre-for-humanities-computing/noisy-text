@@ -23,9 +23,13 @@ import { createRng } from '../engine/rng.js';
 import { getStrategy } from '../strategies/index.js';
 import { getSchedule } from '../schedules/index.js';
 import { loadTokenizer } from '../tokenizers/index.js';
-import { EditDistanceModel } from '../strategies/distance-model.js';
-import { CharOverlapModel } from '../strategies/char-overlap-model.js';
+import {
+	getStringDistanceKernel,
+	stringDistanceKernelFor,
+} from '../strategies/string-distance-kernel.js';
 import type { CharOverlapMode } from '../strategies/char-overlap-model.js';
+import type { DistanceModel } from '../strategies/distance-model.js';
+import type { WeightFamilyId } from '../strategies/weight-family.js';
 import { NeighborhoodProvider } from '../strategies/neighborhood.js';
 import type { Tokenizer } from '../tokenizers/types.js';
 import type {
@@ -55,7 +59,7 @@ const UNION_LAYOUT_ITERATIONS = 300;
 const PROGRESS_INTERVAL_MS = 100;
 
 /**
- * Fixed radius ceiling for the lexical neighborhood provider.
+ * Fixed radius ceiling for the edit-distance neighborhood provider.
  * All neighbors within this edit distance are cached; $k$ and
  * `maxDistance` (≤ R_MAX) are applied at read time in the strategy.
  */
@@ -68,31 +72,26 @@ const R_MAX = 3;
  */
 const R_MAX_CHAR = 1.0;
 
+/** Radius ceiling per string-distance kernel id. */
+const R_MAX_BY_KERNEL: Record<string, number> = {
+	'edit-distance': R_MAX,
+	'char-overlap-set': R_MAX_CHAR,
+	'char-overlap-multiset': R_MAX_CHAR,
+};
+
 /**
- * Nearest neighbors kept per token by both providers. Reads take at most
+ * Nearest neighbors kept per token by all providers. Reads take at most
  * the top $k$ within `maxDistance`, and the UI caps $k$ at 200, so this
  * bound leaves every read unchanged while keeping per-token memory fixed.
  */
 const NEIGHBOR_STORE_LIMIT = 200;
 
 /**
- * Cached model/provider pair per tokenizer id.
+ * Cached model/provider pair per string-distance kernel + tokenizer id.
  * The model decodes all $K$ strings once; the provider memoizes
  * per-token neighborhoods computed on first visit during the walk.
  */
-const _lexicalCache = new Map<
-	string,
-	{ model: EditDistanceModel; provider: NeighborhoodProvider }
->();
-
-/**
- * Cached model/provider pair per tokenizer id for char-overlap.
- * Keyed by `${tokenizerId}:${mode}` so set and multiset don't collide.
- */
-const _charOverlapCache = new Map<
-	string,
-	{ model: CharOverlapModel; provider: NeighborhoodProvider }
->();
+const _providerCache = new Map<string, { model: DistanceModel; provider: NeighborhoodProvider }>();
 
 /** Callback reporting decoded-token count and vocabulary size. */
 type VocabProgress = (done: number, total: number) => void;
@@ -121,46 +120,35 @@ async function decodeVocab(tok: Tokenizer, onProgress?: VocabProgress): Promise<
 }
 
 /**
- * Ensure the EditDistanceModel + NeighborhoodProvider are ready for a
- * tokenizer. Decodes all $K$ token strings (one-time cost per tokenizer
- * lifetime), builds the model, and wraps it in a provider.
+ * Ensure the `DistanceModel` + `NeighborhoodProvider` for a string-distance
+ * kernel are ready for a tokenizer. Decodes all $K$ token strings (one-time
+ * cost per kernel+tokenizer lifetime), builds the model via the kernel's
+ * `makeModel`, and wraps it in a provider.
+ *
+ * The cache key includes the kernel id, so set and multiset char-overlap
+ * (and future kernels) don't collide. The radius ceiling comes from
+ * `R_MAX_BY_KERNEL`.
  */
-async function ensureLexicalProvider(
+async function ensureDistanceSourceProvider(
+	kernelId: string,
 	tokenizerId: string,
 	onProgress?: VocabProgress,
 ): Promise<NeighborhoodProvider> {
-	const cached = _lexicalCache.get(tokenizerId);
+	const cacheKey = `${kernelId}:${tokenizerId}`;
+	const cached = _providerCache.get(cacheKey);
 	if (cached) return cached.provider;
 
 	const tok = await loadTokenizer(tokenizerId);
 	const strings = await decodeVocab(tok, onProgress);
 
-	const model = new EditDistanceModel(strings);
-	const provider = new NeighborhoodProvider(model, R_MAX, { maxStored: NEIGHBOR_STORE_LIMIT });
-	_lexicalCache.set(tokenizerId, { model, provider });
-	return provider;
-}
-
-/**
- * Ensure the CharOverlapModel + NeighborhoodProvider are ready for a
- * tokenizer. Decodes all $K$ token strings (one-time cost per tokenizer
- * lifetime), builds the model, and wraps it in a provider.
- */
-async function ensureCharOverlapProvider(
-	tokenizerId: string,
-	mode: CharOverlapMode,
-	onProgress?: VocabProgress,
-): Promise<NeighborhoodProvider> {
-	const cacheKey = `${tokenizerId}:${mode}`;
-	const cached = _charOverlapCache.get(cacheKey);
-	if (cached) return cached.provider;
-
-	const tok = await loadTokenizer(tokenizerId);
-	const strings = await decodeVocab(tok, onProgress);
-
-	const model = new CharOverlapModel(strings, mode);
-	const provider = new NeighborhoodProvider(model, R_MAX_CHAR, { maxStored: NEIGHBOR_STORE_LIMIT });
-	_charOverlapCache.set(cacheKey, { model, provider });
+	const model = getStringDistanceKernel(kernelId).makeModel(strings);
+	// Own-property check: inherited keys like 'toString' must fall back to
+	// the default radius instead of crashing with a TypeError.
+	const rMax = Object.hasOwn(R_MAX_BY_KERNEL, kernelId) ? R_MAX_BY_KERNEL[kernelId]! : R_MAX;
+	const provider = new NeighborhoodProvider(model, rMax, {
+		maxStored: NEIGHBOR_STORE_LIMIT,
+	});
+	_providerCache.set(cacheKey, { model, provider });
 	return provider;
 }
 
@@ -199,16 +187,21 @@ async function handleCompute(
 	};
 
 	try {
-		// For lexical: build (or reuse) the neighborhood provider.
+		// For distance-based strategies: build (or reuse) the provider for
+		// the strategy's string-distance kernel.
 		let provider: NeighborhoodProvider | undefined;
 		if (spec.strategyId === 'lexical') {
-			provider = await ensureLexicalProvider(spec.tokenizerId, (done, total) =>
-				postProgress('preparing', done, total),
+			provider = await ensureDistanceSourceProvider(
+				'edit-distance',
+				spec.tokenizerId,
+				(done, total) => postProgress('preparing', done, total),
 			);
 		} else if (spec.strategyId === 'char-overlap') {
 			const mode = (spec.strategyConfig as { mode?: CharOverlapMode }).mode ?? 'set';
-			provider = await ensureCharOverlapProvider(spec.tokenizerId, mode, (done, total) =>
-				postProgress('preparing', done, total),
+			provider = await ensureDistanceSourceProvider(
+				stringDistanceKernelFor(mode).id,
+				spec.tokenizerId,
+				(done, total) => postProgress('preparing', done, total),
 			);
 		}
 
@@ -274,21 +267,33 @@ async function handleNeighbors(
 		let graphParams: NeighborGraphParams | null = null;
 
 		if (strategyId === 'lexical') {
-			provider = await ensureLexicalProvider(tokenizerId);
-			const cfg = strategyConfig as { maxDistance?: number; k?: number; tau?: number };
+			provider = await ensureDistanceSourceProvider('edit-distance', tokenizerId);
+			const cfg = strategyConfig as {
+				maxDistance?: number;
+				k?: number;
+				tau?: number;
+				family?: WeightFamilyId;
+			};
 			graphParams = {
 				maxDistance: cfg.maxDistance ?? 2,
 				k: cfg.k ?? 50,
 				tau: cfg.tau ?? 1.0,
+				family: cfg.family ?? 'exponential',
 			};
 		} else if (strategyId === 'char-overlap') {
 			const mode = (strategyConfig as { mode?: 'set' | 'multiset' }).mode ?? 'set';
-			provider = await ensureCharOverlapProvider(tokenizerId, mode);
-			const cfg = strategyConfig as { maxDistance?: number; k?: number; tau?: number };
+			provider = await ensureDistanceSourceProvider(stringDistanceKernelFor(mode).id, tokenizerId);
+			const cfg = strategyConfig as {
+				maxDistance?: number;
+				k?: number;
+				tau?: number;
+				family?: WeightFamilyId;
+			};
 			graphParams = {
 				maxDistance: cfg.maxDistance ?? 0.5,
 				k: cfg.k ?? 50,
 				tau: cfg.tau ?? 1.0,
+				family: cfg.family ?? 'exponential',
 			};
 		}
 
@@ -358,21 +363,33 @@ async function handleUnionGraph(msg: TrajectoryWorkerUnionGraphRequest): Promise
 		let graphParams: NeighborGraphParams | null = null;
 
 		if (strategyId === 'lexical') {
-			provider = await ensureLexicalProvider(tokenizerId);
-			const cfg = strategyConfig as { maxDistance?: number; k?: number; tau?: number };
+			provider = await ensureDistanceSourceProvider('edit-distance', tokenizerId);
+			const cfg = strategyConfig as {
+				maxDistance?: number;
+				k?: number;
+				tau?: number;
+				family?: WeightFamilyId;
+			};
 			graphParams = {
 				maxDistance: cfg.maxDistance ?? 2,
 				k: cfg.k ?? 50,
 				tau: cfg.tau ?? 1.0,
+				family: cfg.family ?? 'exponential',
 			};
 		} else if (strategyId === 'char-overlap') {
 			const mode = (strategyConfig as { mode?: CharOverlapMode }).mode ?? 'set';
-			provider = await ensureCharOverlapProvider(tokenizerId, mode);
-			const cfg = strategyConfig as { maxDistance?: number; k?: number; tau?: number };
+			provider = await ensureDistanceSourceProvider(stringDistanceKernelFor(mode).id, tokenizerId);
+			const cfg = strategyConfig as {
+				maxDistance?: number;
+				k?: number;
+				tau?: number;
+				family?: WeightFamilyId;
+			};
 			graphParams = {
 				maxDistance: cfg.maxDistance ?? 0.5,
 				k: cfg.k ?? 50,
 				tau: cfg.tau ?? 1.0,
+				family: cfg.family ?? 'exponential',
 			};
 		}
 		if (isStale()) return;

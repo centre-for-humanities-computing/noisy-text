@@ -1,5 +1,6 @@
 import { browser } from '$app/environment';
 import type { CharOverlapMode } from '$lib/strategies/char-overlap-model.js';
+import type { WeightFamilyId } from '$lib/strategies/weight-family.js';
 
 export type CharOverlapStatus = 'idle' | 'ready';
 
@@ -24,6 +25,8 @@ class CharOverlapStore {
 	tau: number = $state(1.0);
 	/** Distance mode: `'set'` (distinct chars) or `'multiset'` (count-aware). */
 	mode: CharOverlapMode = $state('multiset');
+	/** Weight family for the kernel. */
+	family: WeightFamilyId = $state('exponential');
 
 	/** Status: `'idle'` until first use, then `'ready'`. */
 	status: CharOverlapStatus = $state('idle');
@@ -36,6 +39,7 @@ class CharOverlapStore {
 			epsilon: this.epsilon,
 			tau: this.tau,
 			mode: this.mode,
+			family: this.family,
 		};
 	}
 

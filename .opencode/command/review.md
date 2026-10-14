@@ -27,41 +27,48 @@ that no command reads back.
    `round-N/diff-report.md` is missing ("round N is planned but not
    implemented; run `/implement`").
 
-2. Find the open PR for the branch and check for an existing review comment:
+2. Find the open PR for the branch and read its review comments once; select
+   the round-N comment (the STOP guard) and the round N-1 comment (prior
+   findings) from the same fetch:
 
    ```bash
    PR=$(gh pr list --head <branch> --state open --json number --jq '.[0].number')
-   gh pr view "$PR" --json comments --jq "[.comments[].body | select(startswith(\"<!-- noisy-text-review: round=$N -->\"))] | last"
+   gh pr view "$PR" --json comments --jq '[.comments[].body]'
    ```
 
    No open PR → STOP ("round N is implemented but not on a PR; run
-   `/implement`"). Non-empty output → STOP ("round N already reviewed; run
-   `/plan` for a revision round — pass `next` if the verdict was
-   `approve with nits` — or merge").
+   `/implement`"). If any comment starts with the round-N marker → STOP ("round
+   N already reviewed; run `/plan` for a revision round — pass `next` if the
+   verdict was `approve with nits` — or merge").
 
-3. Prior findings: for N > 1 fetch the previous round's review comment from
-   the PR (same `gh pr view` read with `round=$((N-1))`) and pass it plus its
-   `- Open findings:` list to the reviewer; if it is missing, STOP ("round
-   N-1 has no review comment on the PR"). For N == 1, pass "none".
+3. Prior findings: for N > 1 take the comment starting with the round N-1
+   marker from that fetch and pass it plus its `- Open findings:` list to the
+   reviewer; if it is missing, STOP ("round N-1 has no review comment on the
+   PR"). For N == 1, pass "none". Also read CI status with `gh pr checks "$PR"`
+   and pass it to the reviewer.
 4. Reviewed commit: `git rev-parse --short HEAD`. Delta diff for N > 1:
-   `git diff <previous review's Reviewed commit>..HEAD`. Cumulative diff:
-   `gh pr diff <pr>`.
+   `git diff <previous review's Reviewed commit>..HEAD` (read this in full).
+   Cumulative diff: `gh pr diff <pr>` for N == 1; for N > 1 pass
+   `git diff origin/main...HEAD --stat` plus targeted files instead, so the
+   reviewer does not read the whole stacked patch.
 5. Delegate the review to the `reviewer` subagent (Task tool,
    subagent_type `reviewer`). Give it the issue number, the PR number, the
    branch, the round number N, artifact paths (`round-N/plan.md`,
-   `round-N/diff-report.md`, the prior review text when N > 1), the staging
-   path `round-N/review.md`, the reviewed commit, and the diff commands; it
-   reads everything itself. The reviewer follows the artifact style in
-   `.ai/README.md`, writes the report to the staging path, and posts it as
-   the marked PR comment — this agent runs under plan mode and must not edit
-   any other file.
-6. Wait for its report. Do not soften, rewrite, or re-format it. Verify the
-   staging file with Read, and verify the comment landed by re-fetching it
-   (the round-N marker read above); if the write or the comment post failed,
-   report that instead of writing or posting anything yourself.
+   `round-N/diff-report.md`, the prior review text when N > 1), the CI status,
+   the staging path `round-N/review.md`, the reviewed commit, and the diff
+   commands; it reads everything itself. For N > 1, tell it to lead its
+   orientation sections with the delta since round N-1. The reviewer follows
+   the artifact style in `.ai/README.md`, writes the report to the staging
+   path, and posts it as the marked PR comment — this agent runs under plan
+   mode and must not edit any other file.
+6. Wait for its report (comment URL, header block, blockers). Do not soften,
+   rewrite, or re-format it. Trust the returned comment URL; if the reviewer
+   reports the write or the post failed, report that instead of writing or
+   posting anything yourself.
 7. Do not fix anything. End with a handoff summary: comment URL (from the
    `gh pr comment` output the reviewer reports back), staging
    path, round number, verdict, `Open findings`, blockers. A non-approve
    verdict (`block` or `fix-and-recheck`) → run `/plan` for the next round
    in a fresh session. `approve with nits` → the human decides merge or an
-   explicit new round (`/plan <issue> next`).
+   explicit new round (`/plan <issue> next`); nits the human accepts should be
+   filed as a follow-up issue rather than re-reviewed.

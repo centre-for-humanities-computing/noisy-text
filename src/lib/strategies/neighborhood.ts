@@ -48,8 +48,8 @@ export interface NeighborhoodProviderOptions {
  *
  * Given a `DistanceModel` and a fixed radius ceiling $R_{\max}$, provides
  * `neighborsOf(token)` returning the neighbors within $R_{\max}$, sorted
- * by distance ascending (nearest first, truncated to `maxStored`).
- * Results are memoized per token.
+ * by distance ascending (nearest first, truncated to the public
+ * `maxStored` cap). Results are memoized per token.
  *
  * The pair-cache exploits symmetry: when $d(a,b)$ is computed during
  * $a$'s neighborhood scan, it is stored under both $(a,b)$ and $(b,a)$
@@ -59,8 +59,10 @@ export class NeighborhoodProvider {
 	readonly R_MAX: number;
 	readonly K: number;
 
-	private _model: DistanceModel;
-	private readonly _maxStored: number;
+	readonly model: DistanceModel;
+	/** Store cap per token (`Infinity` when unbounded); public so callers
+	 * can record it in cache-key params. */
+	readonly maxStored: number;
 	private readonly _maxPairs: number;
 
 	/** Per-token memo: `token → NeighborEntry[]` (sorted by dist). */
@@ -73,11 +75,11 @@ export class NeighborhoodProvider {
 	private _pairCache: Map<number, number> = new Map();
 
 	constructor(model: DistanceModel, R_MAX: number, opts: NeighborhoodProviderOptions = {}) {
-		this._model = model;
+		this.model = model;
 		this.R_MAX = R_MAX;
 		this.K = model.K;
 		this._neighbors = new Array(model.K);
-		this._maxStored = opts.maxStored ?? Infinity;
+		this.maxStored = opts.maxStored ?? Infinity;
 		this._maxPairs = opts.maxPairs ?? DEFAULT_MAX_PAIRS;
 	}
 
@@ -92,7 +94,7 @@ export class NeighborhoodProvider {
 
 		const entries: NeighborEntry[] = [];
 
-		for (const j of this._model.candidates(token, this.R_MAX)) {
+		for (const j of this.model.candidates(token, this.R_MAX)) {
 			const d = this._pairDistance(token, j);
 			if (d <= this.R_MAX) {
 				entries.push({ id: j, dist: d });
@@ -100,7 +102,7 @@ export class NeighborhoodProvider {
 		}
 
 		entries.sort((a, b) => a.dist - b.dist);
-		if (entries.length > this._maxStored) entries.length = this._maxStored;
+		if (entries.length > this.maxStored) entries.length = this.maxStored;
 		this._neighbors[token] = entries;
 		return entries;
 	}
@@ -114,7 +116,7 @@ export class NeighborhoodProvider {
 		const cached = this._pairCache.get(key);
 		if (cached !== undefined) return cached;
 
-		const d = this._model.distance(a, b, this.R_MAX);
+		const d = this.model.distance(a, b, this.R_MAX);
 		if (this._pairCache.size < this._maxPairs) this._pairCache.set(key, d);
 		return d;
 	}

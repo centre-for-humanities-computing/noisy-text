@@ -99,6 +99,30 @@ describe('strategyConfigFor', () => {
 		const config = strategyConfigFor('char-overlap', 100) as { epsilon: number };
 		expect(config.epsilon).toBe(0);
 	});
+
+	it('defaults family to exponential for lexical', () => {
+		const config = strategyConfigFor('lexical', 100) as { family: string };
+		expect(config.family).toBe('exponential');
+	});
+
+	it('defaults family to exponential for char-overlap', () => {
+		const config = strategyConfigFor('char-overlap', 100) as { family: string };
+		expect(config.family).toBe('exponential');
+	});
+
+	it('honors _extra.family for lexical', () => {
+		const config = strategyConfigFor('lexical', 100, { family: 'gaussian' }) as {
+			family: string;
+		};
+		expect(config.family).toBe('gaussian');
+	});
+
+	it('honors _extra.family for char-overlap', () => {
+		const config = strategyConfigFor('char-overlap', 100, { family: 'power-law' }) as {
+			family: string;
+		};
+		expect(config.family).toBe('power-law');
+	});
 });
 
 describe('identity strategy behavior', () => {

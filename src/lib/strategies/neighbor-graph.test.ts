@@ -256,6 +256,56 @@ describe('buildNeighborGraph', () => {
 			expect(e.weight).toBeLessThanOrEqual(1);
 		}
 	});
+
+	it('family changes neighborhood edge weights, not trajectory edges', () => {
+		const column = new Int32Array([0, 1, 2]);
+		const gDefault = buildNeighborGraph(
+			makeStubStrategy(0.5),
+			makeProvider(),
+			params,
+			column,
+			new Float32Array(column.length - 1),
+			{ limitMode: 'top-k', k: 5, p: 0.95 },
+			labelOf,
+		);
+		const gGaussian = buildNeighborGraph(
+			makeStubStrategy(0.5),
+			makeProvider(),
+			{ ...params, family: 'gaussian' },
+			column,
+			new Float32Array(column.length - 1),
+			{ limitMode: 'top-k', k: 5, p: 0.95 },
+			labelOf,
+		);
+		expect(gGaussian.hasNeighborhood).toBe(true);
+		// Trajectory edges (exact $Q_s$ rows) are unaffected.
+		const trajWeights = (g: typeof gDefault) => {
+			const m = new Map<string, number>();
+			for (const e of g.edges.filter((e) => e.trajectory)) m.set(`${e.from}->${e.to}`, e.weight);
+			return m;
+		};
+		expect(trajWeights(gGaussian)).toEqual(trajWeights(gDefault));
+		// At least one neighborhood edge weight changes.
+		const nbhdDefault = gDefault.edges.filter((e) => !e.trajectory);
+		const nbhdGaussian = gGaussian.edges.filter((e) => !e.trajectory);
+		let changed = false;
+		for (const e of nbhdGaussian) {
+			const d = nbhdDefault.find((x) => x.from === e.from && x.to === e.to);
+			if (d && d.weight !== e.weight) changed = true;
+		}
+		expect(changed).toBe(true);
+		// The default run is unchanged: family omitted === explicit exponential.
+		const gExplicit = buildNeighborGraph(
+			makeStubStrategy(0.5),
+			makeProvider(),
+			{ ...params, family: 'exponential' },
+			column,
+			new Float32Array(column.length - 1),
+			{ limitMode: 'top-k', k: 5, p: 0.95 },
+			labelOf,
+		);
+		expect(gExplicit.edges).toEqual(gDefault.edges);
+	});
 });
 
 describe('GraphAccumulator', () => {

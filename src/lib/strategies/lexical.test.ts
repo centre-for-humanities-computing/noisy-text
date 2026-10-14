@@ -147,6 +147,27 @@ describe('createLexical (with provider)', () => {
 		expect(s.sampleStep(2, 0.5, rng)).toBe(2);
 	});
 
+	it('family: gaussian reweights the same neighbor table', () => {
+		// From 'car' (id 2): 'cat' d=1, 'cart' d=1, 'cats' d=2.
+		// Exponential tau=1: p(cats) = e^-2 / (2e^-1 + e^-2) ≈ 0.1553.
+		// Gaussian tau=1: p(cats) = e^-2 / (2e^-0.5 + e^-2) ≈ 0.1004.
+		const gConfig: LexicalConfig = { ...config, family: 'gaussian' };
+		const gs = createLexical(gConfig, vocab.length, provider);
+		const gdist = gs.getLocalDistribution!(2, 0.5);
+		expect(gdist[1]!).toBeCloseTo(0.1004, 3);
+		expect(gdist[0]!).toBeCloseTo(0.4498, 3);
+		expect(gdist[3]!).toBeCloseTo(0.4498, 3);
+		expect(gdist[2]!).toBe(0);
+
+		const es = createLexical({ ...config, family: 'exponential' }, vocab.length, provider);
+		const edist = es.getLocalDistribution!(2, 0.5);
+		expect(edist[1]!).toBeCloseTo(0.1553, 3);
+		// Explicit default equals omitted family.
+		const ds = createLexical(config, vocab.length, provider);
+		const ddist = ds.getLocalDistribution!(2, 0.5);
+		expect(Array.from(edist)).toEqual(Array.from(ddist));
+	});
+
 	it('empirical irreducibility: chain visits diverse tokens', () => {
 		// With epsilon=0.1, the ergodicity floor should prevent getting
 		// stuck. Run many steps from each starting token and verify we

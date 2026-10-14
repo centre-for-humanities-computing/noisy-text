@@ -120,6 +120,7 @@ export function strategyConfigFor(
 			k: _extra?.k ?? 50,
 			epsilon: _extra?.epsilon ?? 0,
 			tau: _extra?.tau ?? 1.0,
+			family: _extra?.family ?? 'exponential',
 		};
 	}
 	if (id === 'char-overlap') {
@@ -129,6 +130,7 @@ export function strategyConfigFor(
 			epsilon: _extra?.epsilon ?? 0,
 			tau: _extra?.tau ?? 1.0,
 			mode: _extra?.mode ?? 'set',
+			family: _extra?.family ?? 'exponential',
 		};
 	}
 	return {};

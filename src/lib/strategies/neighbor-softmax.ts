@@ -4,9 +4,12 @@
  *
  * Strategies that use a `NeighborhoodProvider` share the same read-time
  * pipeline: filter neighbors to `maxDistance` / top-$k$, compute softmax
- * weights over $-d/\tau$, then sample via inverse-CDF with an ergodicity
- * floor $\varepsilon$.
+ * weights over the selected weight family, then sample via inverse-CDF
+ * with an ergodicity floor $\varepsilon$.
  */
+
+import { clampTau, getWeightFamily } from './weight-family.js';
+import type { WeightFamily } from './weight-family.js';
 
 /** A resolved neighbor entry with its softmax weight. */
 export interface ResolvedNeighbors {
@@ -19,7 +22,11 @@ export interface ResolvedNeighbors {
  *
  * Given the raw neighbor list (all within $R_{\max}$, sorted by distance),
  * filter to $d \le$ `maxDistance` and truncate to top-$k$, then compute
- * softmax weights $w_m = \exp(-d_m / \tau) / \sum \exp(-d_m / \tau)$.
+ * softmax weights $w_m = w_\tau(d_m) / \sum w_\tau(d_m)$ via the weight
+ * family (default: exponential, so $w_\tau(d) = \exp(-d/\tau)$ — the
+ * legacy softmax, bit-identical). `tau` is clamped to the strictly
+ * positive domain, so the $\tau \to 0$ limit is the nearest-neighbor
+ * collapse and never `NaN`.
  *
  * Returns `null` if the effective list is empty.
  */
@@ -28,6 +35,7 @@ export function resolveNeighbors(
 	maxDistance: number,
 	k: number,
 	tau: number,
+	family: WeightFamily = getWeightFamily('exponential'),
 ): ResolvedNeighbors | null {
 	const entries: { id: number; dist: number }[] = [];
 	for (let i = 0; i < allNeighbors.length && entries.length < k; i++) {
@@ -38,8 +46,9 @@ export function resolveNeighbors(
 	}
 	if (entries.length === 0) return null;
 
-	// Softmax: $w_m = \exp(-d_m / \tau)$, normalized.
-	const logits = entries.map((n) => -n.dist / tau);
+	// Family weights, log-space with max subtraction: $w_\tau(d_m)$.
+	const safeTau = clampTau(tau);
+	const logits = entries.map((n) => family.logWeight(n.dist, safeTau));
 	const maxLogit = Math.max(...logits);
 	let sumExp = 0;
 	for (const l of logits) sumExp += Math.exp(l - maxLogit);

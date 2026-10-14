@@ -1,13 +1,20 @@
 <script lang="ts">
+	import InfoTooltip from './InfoTooltip.svelte';
+	import { KERNEL_CAPTION, KERNEL_TOOLTIP, TAU_TOOLTIP, FAMILY_TOOLTIP } from './kernel-help.js';
+
 	interface Props {
 		minSimilarity: number;
 		k: number;
 		epsilon: number;
+		tau: number;
+		family: 'exponential' | 'power-law' | 'gaussian';
 		mode: 'set' | 'multiset';
 		disabled: boolean;
 		onminsimilaritychange: (v: number) => void;
 		onkchange: (v: number) => void;
 		onepsilonchange: (v: number) => void;
+		ontauchange: (v: number) => void;
+		onfamilychange: (v: 'exponential' | 'power-law' | 'gaussian') => void;
 		onmodechange: (v: 'set' | 'multiset') => void;
 	}
 
@@ -15,11 +22,15 @@
 		minSimilarity,
 		k,
 		epsilon,
+		tau,
+		family,
 		mode,
 		disabled,
 		onminsimilaritychange,
 		onkchange,
 		onepsilonchange,
+		ontauchange,
+		onfamilychange,
 		onmodechange,
 	}: Props = $props();
 </script>
@@ -77,7 +88,39 @@
 				onchange={(e) => onmodechange(e.currentTarget.checked ? 'multiset' : 'set')}
 			/>
 		</label>
+
+		<label>
+			<span>τ <InfoTooltip text={TAU_TOOLTIP.text} math={TAU_TOOLTIP.math} /></span>
+			<input
+				type="range"
+				min={0.05}
+				max={5}
+				step={0.05}
+				value={tau}
+				{disabled}
+				oninput={(e) => ontauchange(Number(e.currentTarget.value))}
+			/>
+			<span class="param-value">{tau.toFixed(2)}</span>
+		</label>
+
+		<label>
+			<span>Family <InfoTooltip text={FAMILY_TOOLTIP.text} math={FAMILY_TOOLTIP.math} /></span>
+			<select
+				{disabled}
+				value={family}
+				onchange={(e) => onfamilychange(e.currentTarget.value as Props['family'])}
+			>
+				<option value="exponential">Exponential</option>
+				<option value="power-law">Power law</option>
+				<option value="gaussian">Gaussian</option>
+			</select>
+		</label>
 	</div>
+
+	<p class="kernel-caption">
+		{KERNEL_CAPTION}
+		<InfoTooltip text={KERNEL_TOOLTIP.text} math={KERNEL_TOOLTIP.math} />
+	</p>
 </div>
 
 <style>
@@ -112,5 +155,11 @@
 		gap: 0.3rem;
 		font-size: 0.8rem;
 		cursor: pointer;
+	}
+
+	.kernel-caption {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-quiet);
+		margin: 0;
 	}
 </style>

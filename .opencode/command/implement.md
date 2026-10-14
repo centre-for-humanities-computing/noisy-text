@@ -30,11 +30,15 @@ Issue: $ARGUMENTS (number). Work only from
    revision rounds leave the version untouched (one bump per issue).
 6. Run the verification sequence in order: `npm run check`, `npm run lint`,
    `npm run format`, `npm run test`. Fix only what you broke.
-7. Write `.ai/<issue-number>-<slug>/round-N/diff-report.md`: per changed file,
-   what changed, why, and how it maps to the plan; plus verification results.
-   Follow the artifact style in `.ai/README.md` (headings and bullets, no
-   tables); write for a human reader, not a diff dump. Begin the report with
-   the header:
+7. Write `.ai/<issue-number>-<slug>/round-N/diff-report.md`; it is the human's
+   entry point into the diff. Include, in order: a one-paragraph summary and a
+   reading order (highest-risk file first); per changed file what changed, why,
+   how it maps to the plan, and whether the hunks are behavioral or mechanical
+   (moves, renames, reindentation); known limitations and residual risk; and
+   verification results. The reviewer checks this report against the actual
+   diff, so keep it honest and current. Follow the artifact style in
+   `.ai/README.md` (headings and bullets, no tables); write for a human reader,
+   not a diff dump. Begin the report with the header:
 
    ```
    - Round: <N>
@@ -54,8 +58,11 @@ Issue: $ARGUMENTS (number). Work only from
    gh pr list --head <issue-number>-<slug> --state open --json number,url
    ```
 
-   Non-empty → `git push` and report the existing URL. Empty →
-   `git push -u origin <issue-number>-<slug>` then
+   Non-empty → `git push`, then post the change summary as a comment on the
+   existing PR so the thread tracks every round:
+   `gh pr comment <number> --body "<round <N> change summary: one paragraph on
+what changed and why, plus verification results>"`.
+   Empty → `git push -u origin <issue-number>-<slug>` then
    `gh pr create --base main --head <issue-number>-<slug> --title "<type>(#<issue-number>): <summary>" --body "<change summary, `Closes #<issue-number>`, verification results>"`.
    Never merge.
 

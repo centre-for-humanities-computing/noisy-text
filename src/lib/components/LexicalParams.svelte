@@ -1,22 +1,33 @@
 <script lang="ts">
+	import InfoTooltip from './InfoTooltip.svelte';
+	import { KERNEL_CAPTION, KERNEL_TOOLTIP, TAU_TOOLTIP, FAMILY_TOOLTIP } from './kernel-help.js';
+
 	interface Props {
 		maxDistance: number;
 		k: number;
 		epsilon: number;
+		tau: number;
+		family: 'exponential' | 'power-law' | 'gaussian';
 		disabled: boolean;
 		onmaxdistancechange: (v: number) => void;
 		onkchange: (v: number) => void;
 		onepsilonchange: (v: number) => void;
+		ontauchange: (v: number) => void;
+		onfamilychange: (v: 'exponential' | 'power-law' | 'gaussian') => void;
 	}
 
 	let {
 		maxDistance,
 		k,
 		epsilon,
+		tau,
+		family,
 		disabled,
 		onmaxdistancechange,
 		onkchange,
 		onepsilonchange,
+		ontauchange,
+		onfamilychange,
 	}: Props = $props();
 </script>
 
@@ -63,7 +74,39 @@
 			/>
 			<span class="param-value">{epsilon.toFixed(3)}</span>
 		</label>
+
+		<label>
+			<span>τ <InfoTooltip text={TAU_TOOLTIP.text} math={TAU_TOOLTIP.math} /></span>
+			<input
+				type="range"
+				min={0.05}
+				max={5}
+				step={0.05}
+				value={tau}
+				{disabled}
+				oninput={(e) => ontauchange(Number(e.currentTarget.value))}
+			/>
+			<span class="param-value">{tau.toFixed(2)}</span>
+		</label>
+
+		<label>
+			<span>Family <InfoTooltip text={FAMILY_TOOLTIP.text} math={FAMILY_TOOLTIP.math} /></span>
+			<select
+				{disabled}
+				value={family}
+				onchange={(e) => onfamilychange(e.currentTarget.value as Props['family'])}
+			>
+				<option value="exponential">Exponential</option>
+				<option value="power-law">Power law</option>
+				<option value="gaussian">Gaussian</option>
+			</select>
+		</label>
 	</div>
+
+	<p class="kernel-caption">
+		{KERNEL_CAPTION}
+		<InfoTooltip text={KERNEL_TOOLTIP.text} math={KERNEL_TOOLTIP.math} />
+	</p>
 </div>
 
 <style>
@@ -90,5 +133,11 @@
 		min-width: 2.5rem;
 		text-align: right;
 		font-variant-numeric: tabular-nums;
+	}
+
+	.kernel-caption {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-quiet);
+		margin: 0;
 	}
 </style>
