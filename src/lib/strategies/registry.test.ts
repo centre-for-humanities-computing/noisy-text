@@ -36,6 +36,13 @@ describe('strategy registry', () => {
 		expect(info!.stationary).toBe('data-dependent');
 	});
 
+	it('contains the embedding-knn strategy', () => {
+		const info = STRATEGIES['embedding-knn'];
+		expect(info).toBeDefined();
+		expect(info!.id).toBe('embedding-knn');
+		expect(info!.stationary).toBe('data-dependent');
+	});
+
 	it('every entry has the required shape', () => {
 		for (const [id, info] of Object.entries(STRATEGIES)) {
 			expect(info.id).toBe(id);
@@ -122,6 +129,38 @@ describe('strategyConfigFor', () => {
 			family: string;
 		};
 		expect(config.family).toBe('power-law');
+	});
+
+	it('defaults for embedding-knn use null maxDistance and all exclusions', () => {
+		const config = strategyConfigFor('embedding-knn', 100) as Record<string, unknown>;
+		expect(config.maxDistance).toBe(null);
+		expect(config.excludeSpecial).toBe(true);
+		expect(config.excludeUnused).toBe(true);
+		expect(config.excludeByteFallback).toBe(true);
+		expect(config.tokenClass).toBe('any');
+		expect(config.epsilon).toBe(0);
+		expect(config.family).toBe('exponential');
+	});
+
+	it('honors _extra for embedding-knn', () => {
+		const config = strategyConfigFor('embedding-knn', 100, {
+			sourceId: 'bert-base-uncased',
+			preprocess: 'whiten',
+			metric: 'l2',
+			k: 10,
+		}) as Record<string, unknown>;
+		expect(config.sourceId).toBe('bert-base-uncased');
+		expect(config.preprocess).toBe('whiten');
+		expect(config.metric).toBe('l2');
+		expect(config.k).toBe(10);
+	});
+
+	it('returns an instance for the embedding-knn strategy', () => {
+		const config = strategyConfigFor('embedding-knn', 100);
+		const s = getStrategy('embedding-knn', config, 100);
+		expect(s).toBeDefined();
+		expect(s.info.id).toBe('embedding-knn');
+		expect(typeof s.sampleStep).toBe('function');
 	});
 });
 

@@ -533,6 +533,13 @@
 		<div class="notice">Neighborhood truncated to keep the graph below 20k nodes.</div>
 	{/if}
 
+	{#if graph?.connectivity && !graph.connectivity.connected}
+		<div class="notice">
+			Neighbourhood graph is disconnected — {graph.connectivity.componentCount} components (largest
+			{graph.connectivity.largestComponentSize} nodes).
+		</div>
+	{/if}
+
 	{#if hover && hoverInfo}
 		<div class="node-tooltip" style="left: {hover.x + 14}px; top: {hover.y + 14}px" role="tooltip">
 			<div class="nt-label">{hoverInfo.label}</div>
