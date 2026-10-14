@@ -21,6 +21,7 @@
 
 import type { Rng } from './types.js';
 import type { DistanceSource } from './distance-source.js';
+import { clampTau } from './weight-family.js';
 import type { WeightFamily } from './weight-family.js';
 
 /** One sparse row of $K_\tau$: neighbor ids aligned with probabilities. */
@@ -67,7 +68,11 @@ export function createTokenKernel(
 	family: WeightFamily,
 	params: KernelParams,
 ): TokenKernel {
-	const { k, maxDistance, tau, epsilon, vocabSize } = params;
+	const { k, maxDistance, epsilon, vocabSize } = params;
+	// Clamp the temperature once: non-positive or non-finite $\tau$ would
+	// produce non-finite log-weights; the $\tau \to 0$ limit is the
+	// nearest-neighbor collapse instead.
+	const tau = clampTau(params.tau);
 
 	// Per-token memo: token → kernel row (empty rows memoized too).
 	const rows = new Map<number, KernelRow>();

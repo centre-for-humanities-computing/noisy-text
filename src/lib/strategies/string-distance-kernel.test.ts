@@ -101,6 +101,15 @@ describe('getStringDistanceKernel', () => {
 			'Unknown string distance kernel "soundex"',
 		);
 	});
+
+	it('rejects inherited Object.prototype keys', () => {
+		expect(() => getStringDistanceKernel('toString')).toThrow(
+			'Unknown string distance kernel "toString"',
+		);
+		expect(() => getStringDistanceKernel('constructor')).toThrow(
+			'Unknown string distance kernel "constructor"',
+		);
+	});
 });
 
 describe('stringDistanceKernelFor', () => {

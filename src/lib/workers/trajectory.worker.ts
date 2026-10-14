@@ -29,6 +29,7 @@ import {
 } from '../strategies/string-distance-kernel.js';
 import type { CharOverlapMode } from '../strategies/char-overlap-model.js';
 import type { DistanceModel } from '../strategies/distance-model.js';
+import type { WeightFamilyId } from '../strategies/weight-family.js';
 import { NeighborhoodProvider } from '../strategies/neighborhood.js';
 import type { Tokenizer } from '../tokenizers/types.js';
 import type {
@@ -141,7 +142,10 @@ async function ensureDistanceSourceProvider(
 	const strings = await decodeVocab(tok, onProgress);
 
 	const model = getStringDistanceKernel(kernelId).makeModel(strings);
-	const provider = new NeighborhoodProvider(model, R_MAX_BY_KERNEL[kernelId] ?? R_MAX, {
+	// Own-property check: inherited keys like 'toString' must fall back to
+	// the default radius instead of crashing with a TypeError.
+	const rMax = Object.hasOwn(R_MAX_BY_KERNEL, kernelId) ? R_MAX_BY_KERNEL[kernelId]! : R_MAX;
+	const provider = new NeighborhoodProvider(model, rMax, {
 		maxStored: NEIGHBOR_STORE_LIMIT,
 	});
 	_providerCache.set(cacheKey, { model, provider });
@@ -264,20 +268,32 @@ async function handleNeighbors(
 
 		if (strategyId === 'lexical') {
 			provider = await ensureDistanceSourceProvider('edit-distance', tokenizerId);
-			const cfg = strategyConfig as { maxDistance?: number; k?: number; tau?: number };
+			const cfg = strategyConfig as {
+				maxDistance?: number;
+				k?: number;
+				tau?: number;
+				family?: WeightFamilyId;
+			};
 			graphParams = {
 				maxDistance: cfg.maxDistance ?? 2,
 				k: cfg.k ?? 50,
 				tau: cfg.tau ?? 1.0,
+				family: cfg.family ?? 'exponential',
 			};
 		} else if (strategyId === 'char-overlap') {
 			const mode = (strategyConfig as { mode?: 'set' | 'multiset' }).mode ?? 'set';
 			provider = await ensureDistanceSourceProvider(stringDistanceKernelFor(mode).id, tokenizerId);
-			const cfg = strategyConfig as { maxDistance?: number; k?: number; tau?: number };
+			const cfg = strategyConfig as {
+				maxDistance?: number;
+				k?: number;
+				tau?: number;
+				family?: WeightFamilyId;
+			};
 			graphParams = {
 				maxDistance: cfg.maxDistance ?? 0.5,
 				k: cfg.k ?? 50,
 				tau: cfg.tau ?? 1.0,
+				family: cfg.family ?? 'exponential',
 			};
 		}
 
@@ -348,20 +364,32 @@ async function handleUnionGraph(msg: TrajectoryWorkerUnionGraphRequest): Promise
 
 		if (strategyId === 'lexical') {
 			provider = await ensureDistanceSourceProvider('edit-distance', tokenizerId);
-			const cfg = strategyConfig as { maxDistance?: number; k?: number; tau?: number };
+			const cfg = strategyConfig as {
+				maxDistance?: number;
+				k?: number;
+				tau?: number;
+				family?: WeightFamilyId;
+			};
 			graphParams = {
 				maxDistance: cfg.maxDistance ?? 2,
 				k: cfg.k ?? 50,
 				tau: cfg.tau ?? 1.0,
+				family: cfg.family ?? 'exponential',
 			};
 		} else if (strategyId === 'char-overlap') {
 			const mode = (strategyConfig as { mode?: CharOverlapMode }).mode ?? 'set';
 			provider = await ensureDistanceSourceProvider(stringDistanceKernelFor(mode).id, tokenizerId);
-			const cfg = strategyConfig as { maxDistance?: number; k?: number; tau?: number };
+			const cfg = strategyConfig as {
+				maxDistance?: number;
+				k?: number;
+				tau?: number;
+				family?: WeightFamilyId;
+			};
 			graphParams = {
 				maxDistance: cfg.maxDistance ?? 0.5,
 				k: cfg.k ?? 50,
 				tau: cfg.tau ?? 1.0,
+				family: cfg.family ?? 'exponential',
 			};
 		}
 		if (isStale()) return;

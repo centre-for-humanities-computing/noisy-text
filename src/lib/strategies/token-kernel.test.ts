@@ -157,6 +157,48 @@ describe('createTokenKernel', () => {
 		expect(kernel.sampleStep(0, rng)).toBe(1);
 	});
 
+	it('tau = 0 stays finite and matches the MIN_TAU row (tau -> 0 limit)', () => {
+		const zero = createTokenKernel(fakeSource(NEIGHBORS), getWeightFamily('exponential'), {
+			...PARAMS,
+			tau: 0,
+		});
+		const floored = createTokenKernel(fakeSource(NEIGHBORS), getWeightFamily('exponential'), {
+			...PARAMS,
+			tau: 1e-6,
+		});
+		for (let token = 0; token < 4; token++) {
+			const row = zero.getRow(token);
+			expect(row.ids.length).toBeGreaterThan(0);
+			let sum = 0;
+			for (let i = 0; i < row.probs.length; i++) {
+				expect(Number.isFinite(row.probs[i]!)).toBe(true);
+				sum += row.probs[i]!;
+			}
+			expect(sum).toBeCloseTo(1, 6);
+			// Identical to the clamped tiny-tau row.
+			expect(Array.from(row.probs)).toEqual(Array.from(floored.getRow(token).probs));
+		}
+	});
+
+	it('tau = 0 collapses to the nearest neighbor (distinct distances)', () => {
+		const kernel = createTokenKernel(fakeSource(NEIGHBORS), getWeightFamily('exponential'), {
+			...PARAMS,
+			tau: 0,
+		});
+		const row = kernel.getRow(0);
+		expect(row.probs[0]).toBeCloseTo(1, 6);
+	});
+
+	it('tau = NaN is clamped and stays finite', () => {
+		const kernel = createTokenKernel(fakeSource(NEIGHBORS), getWeightFamily('exponential'), {
+			...PARAMS,
+			tau: NaN,
+		});
+		const row = kernel.getRow(0);
+		expect(Number.isFinite(row.probs[0]!)).toBe(true);
+		expect(row.probs[0]).toBeCloseTo(1, 6);
+	});
+
 	it('sampleStep: tau -> infinity is uniform over the top-k neighbors', () => {
 		const kernel = createTokenKernel(fakeSource(NEIGHBORS), getWeightFamily('exponential'), {
 			...PARAMS,

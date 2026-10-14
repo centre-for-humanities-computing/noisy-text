@@ -5,6 +5,7 @@ import {
 	fillLocalDistribution,
 	applyLimit,
 } from './neighbor-softmax.js';
+import { getWeightFamily } from './weight-family.js';
 
 describe('resolveNeighbors', () => {
 	const neighbors = [
@@ -61,6 +62,58 @@ describe('resolveNeighbors', () => {
 		expect(rLow).not.toBeNull();
 		expect(rHigh).not.toBeNull();
 		expect(rLow!.weights[0]!).toBeGreaterThan(rHigh!.weights[0]!);
+	});
+
+	it('tau = 0 yields finite weights summing to 1 (nearest-neighbor collapse)', () => {
+		const r = resolveNeighbors(neighbors, 1.0, 20, 0);
+		expect(r).not.toBeNull();
+		let sum = 0;
+		for (let i = 0; i < r!.weights.length; i++) {
+			expect(Number.isFinite(r!.weights[i]!)).toBe(true);
+			sum += r!.weights[i]!;
+		}
+		expect(Math.abs(sum - 1)).toBeLessThan(1e-6);
+		// Collapse to the single nearest neighbor.
+		expect(r!.weights[0]).toBeCloseTo(1, 6);
+	});
+
+	it('default family equals explicit exponential (bit-identical)', () => {
+		const rDefault = resolveNeighbors(neighbors, 1.0, 20, 0.5);
+		const rExplicit = resolveNeighbors(neighbors, 1.0, 20, 0.5, getWeightFamily('exponential'));
+		expect(Array.from(rDefault!.weights)).toEqual(Array.from(rExplicit!.weights));
+	});
+
+	it('gaussian family matches the hand-computed softmax and differs from exponential', () => {
+		const dists = neighbors.map((n) => n.dist);
+		const tau = 0.5;
+		const logits = dists.map((d) => -(d * d) / (2 * tau * tau));
+		const maxLogit = Math.max(...logits);
+		const sumExp = logits.reduce((acc, l) => acc + Math.exp(l - maxLogit), 0);
+		const expected = logits.map((l) => Math.exp(l - maxLogit) / sumExp);
+
+		const r = resolveNeighbors(neighbors, 1.0, 20, tau, getWeightFamily('gaussian'));
+		expect(r!.weights.length).toBe(expected.length);
+		for (let i = 0; i < expected.length; i++) {
+			expect(r!.weights[i]).toBeCloseTo(expected[i]!, 6);
+		}
+
+		const rExp = resolveNeighbors(neighbors, 1.0, 20, tau, getWeightFamily('exponential'));
+		expect(Array.from(r!.weights)).not.toEqual(Array.from(rExp!.weights));
+	});
+
+	it('power-law family matches its closed form', () => {
+		const dists = neighbors.map((n) => n.dist);
+		const tau = 0.5;
+		const logits = dists.map((d) => -Math.log(1 + d) / tau);
+		const maxLogit = Math.max(...logits);
+		const sumExp = logits.reduce((acc, l) => acc + Math.exp(l - maxLogit), 0);
+		const expected = logits.map((l) => Math.exp(l - maxLogit) / sumExp);
+
+		const r = resolveNeighbors(neighbors, 1.0, 20, tau, getWeightFamily('power-law'));
+		expect(r!.weights.length).toBe(expected.length);
+		for (let i = 0; i < expected.length; i++) {
+			expect(r!.weights[i]).toBeCloseTo(expected[i]!, 6);
+		}
 	});
 });
 

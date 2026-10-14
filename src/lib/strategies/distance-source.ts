@@ -46,8 +46,9 @@ export interface DistanceSource {
 export interface ModelDistanceSourceOptions {
 	/**
 	 * Store limit recorded in `params` for cache keying. Informational
-	 * only — the underlying provider already truncates. `null` (default)
-	 * means unbounded.
+	 * only — the underlying provider already truncates. Default: the
+	 * provider's own `maxStored` cap; a non-finite limit (an unbounded
+	 * provider) is recorded as `null`.
 	 */
 	maxStored?: number;
 }
@@ -77,7 +78,11 @@ export class ModelDistanceSource implements DistanceSource {
 		this._provider = provider;
 		this.id = model.id;
 		this.vocabSize = model.K;
-		this.params = { rMax: provider.R_MAX, maxStored: opts?.maxStored ?? null };
+		const maxStored = opts?.maxStored ?? provider.maxStored;
+		this.params = {
+			rMax: provider.R_MAX,
+			maxStored: Number.isFinite(maxStored) ? maxStored : null,
+		};
 	}
 
 	/**

@@ -66,6 +66,19 @@ describe('ModelDistanceSource', () => {
 		expect(source.params).toEqual({ rMax: 3, maxStored: 200 });
 	});
 
+	it('params.maxStored defaults to the provider cap on the real path', () => {
+		const model = new EditDistanceModel(vocab);
+		const provider = new NeighborhoodProvider(model, 3, { maxStored: 200 });
+		const source = new ModelDistanceSource(model, provider);
+		expect(provider.maxStored).toBe(200);
+		expect(source.params.maxStored).toBe(provider.maxStored);
+	});
+
+	it('params.maxStored is null when the provider is unbounded', () => {
+		const { source } = makeSource();
+		expect(source.params.maxStored).toBeNull();
+	});
+
 	it('vocabSize mirrors the model', () => {
 		const { source } = makeSource();
 		expect(source.vocabSize).toBe(vocab.length);

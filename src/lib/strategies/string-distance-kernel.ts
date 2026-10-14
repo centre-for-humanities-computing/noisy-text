@@ -112,13 +112,12 @@ export const STRING_DISTANCE_KERNELS: Record<string, StringDistanceKernel> = {
  * @throws If the id is not a known kernel.
  */
 export function getStringDistanceKernel(id: string): StringDistanceKernel {
-	const kernel = STRING_DISTANCE_KERNELS[id];
-	if (!kernel) {
+	if (!Object.hasOwn(STRING_DISTANCE_KERNELS, id)) {
 		throw new Error(
 			`Unknown string distance kernel "${id}". Known: ${Object.keys(STRING_DISTANCE_KERNELS).join(', ')}`,
 		);
 	}
-	return kernel;
+	return STRING_DISTANCE_KERNELS[id]!;
 }
 
 /**

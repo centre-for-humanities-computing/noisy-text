@@ -34,6 +34,7 @@
 import type { NeighborGraphParams } from '../strategies/neighbor-graph.js';
 import { truncateByWeight } from '../strategies/neighbor-graph.js';
 import type { NeighborhoodProvider } from '../strategies/neighborhood.js';
+import { getWeightFamily } from '../strategies/weight-family.js';
 import { resolveNeighbors, applyLimit } from '../strategies/neighbor-softmax.js';
 import { largeIdealLength } from './force-layout.js';
 
@@ -248,11 +249,18 @@ export async function buildUnionGraph(opts: UnionGraphBuildOptions): Promise<Uni
 			if (perAnchor < limits.maxPerAnchor) truncated = true;
 
 			const { maxDistance, k, tau } = params;
+			const family = getWeightFamily(params.family ?? 'exponential');
 			let done = 0;
 			let lastYield = performance.now();
 			for (let anchor = 0; anchor < nodeCountAtTraj; anchor++) {
 				const anchorStep = trajSteps[anchor]!;
-				const resolved = resolveNeighbors(provider.neighborsOf(ids[anchor]!), maxDistance, k, tau);
+				const resolved = resolveNeighbors(
+					provider.neighborsOf(ids[anchor]!),
+					maxDistance,
+					k,
+					tau,
+					family,
+				);
 				const limited = applyLimit(resolved, limits.limitMode, limits.k, limits.p);
 				const kept = limited ? truncateByWeight(limited.entries, limited.weights, perAnchor) : null;
 				if (kept) {

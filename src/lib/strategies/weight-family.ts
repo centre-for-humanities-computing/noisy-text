@@ -89,5 +89,13 @@ export function getWeightFamily(id: string): WeightFamily {
 
 /** Type guard for `WeightFamilyId` strings (safe for untrusted config input). */
 export function isWeightFamilyId(id: string): id is WeightFamilyId {
-	return id in WEIGHT_FAMILIES;
+	return Object.hasOwn(WEIGHT_FAMILIES, id);
+}
+
+/** Smallest positive temperature; floors the $\tau \to 0$ limit at a finite value. */
+export const MIN_TAU = 1e-6;
+
+/** Clamp a temperature to the strictly-positive domain (guards $\tau \le 0$ and non-finite). */
+export function clampTau(tau: number): number {
+	return Number.isFinite(tau) && tau > MIN_TAU ? tau : MIN_TAU;
 }

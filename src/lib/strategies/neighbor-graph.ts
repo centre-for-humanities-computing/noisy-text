@@ -31,6 +31,8 @@ import type {
 } from '../workers/trajectory.protocol.js';
 import type { NoiseStrategy } from './types.js';
 import type { NeighborhoodProvider } from './neighborhood.js';
+import type { WeightFamilyId } from './weight-family.js';
+import { getWeightFamily } from './weight-family.js';
 import { resolveNeighbors, applyLimit } from './neighbor-softmax.js';
 
 /** Read-time filter params shared by lexical and char-overlap configs. */
@@ -38,6 +40,8 @@ export interface NeighborGraphParams {
 	maxDistance: number;
 	k: number;
 	tau: number;
+	/** Weight family for neighborhood weights. Default: `'exponential'`. */
+	family?: WeightFamilyId;
 }
 
 /** Spread-limit options for the tooltip neighborhood. */
@@ -179,10 +183,11 @@ export function buildNeighborGraph(
 	let hasNeighborhood = false;
 	if (provider && params) {
 		const { maxDistance, k, tau } = params;
+		const family = getWeightFamily(params.family ?? 'exponential');
 		const maxKeep = limits.maxPerAnchor ?? 8;
 		for (const node of acc.nodes.values()) {
 			if (node.role !== 'trajectory') continue;
-			const resolved = resolveNeighbors(provider.neighborsOf(node.id), maxDistance, k, tau);
+			const resolved = resolveNeighbors(provider.neighborsOf(node.id), maxDistance, k, tau, family);
 			const limited = applyLimit(resolved, limits.limitMode, limits.k, limits.p);
 			if (!limited) continue;
 			const kept = truncateByWeight(limited.entries, limited.weights, maxKeep);

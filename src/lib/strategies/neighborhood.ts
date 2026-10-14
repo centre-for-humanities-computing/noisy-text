@@ -48,8 +48,8 @@ export interface NeighborhoodProviderOptions {
  *
  * Given a `DistanceModel` and a fixed radius ceiling $R_{\max}$, provides
  * `neighborsOf(token)` returning the neighbors within $R_{\max}$, sorted
- * by distance ascending (nearest first, truncated to `maxStored`).
- * Results are memoized per token.
+ * by distance ascending (nearest first, truncated to the public
+ * `maxStored` cap). Results are memoized per token.
  *
  * The pair-cache exploits symmetry: when $d(a,b)$ is computed during
  * $a$'s neighborhood scan, it is stored under both $(a,b)$ and $(b,a)$
@@ -60,7 +60,9 @@ export class NeighborhoodProvider {
 	readonly K: number;
 
 	readonly model: DistanceModel;
-	private readonly _maxStored: number;
+	/** Store cap per token (`Infinity` when unbounded); public so callers
+	 * can record it in cache-key params. */
+	readonly maxStored: number;
 	private readonly _maxPairs: number;
 
 	/** Per-token memo: `token → NeighborEntry[]` (sorted by dist). */
@@ -77,7 +79,7 @@ export class NeighborhoodProvider {
 		this.R_MAX = R_MAX;
 		this.K = model.K;
 		this._neighbors = new Array(model.K);
-		this._maxStored = opts.maxStored ?? Infinity;
+		this.maxStored = opts.maxStored ?? Infinity;
 		this._maxPairs = opts.maxPairs ?? DEFAULT_MAX_PAIRS;
 	}
 
@@ -100,7 +102,7 @@ export class NeighborhoodProvider {
 		}
 
 		entries.sort((a, b) => a.dist - b.dist);
-		if (entries.length > this._maxStored) entries.length = this._maxStored;
+		if (entries.length > this.maxStored) entries.length = this.maxStored;
 		this._neighbors[token] = entries;
 		return entries;
 	}

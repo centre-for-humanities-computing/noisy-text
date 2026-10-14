@@ -1,4 +1,7 @@
 <script lang="ts">
+	import InfoTooltip from './InfoTooltip.svelte';
+	import { KERNEL_CAPTION, KERNEL_TOOLTIP, TAU_TOOLTIP, FAMILY_TOOLTIP } from './kernel-help.js';
+
 	interface Props {
 		maxDistance: number;
 		k: number;
@@ -73,7 +76,7 @@
 		</label>
 
 		<label>
-			<span>τ</span>
+			<span>τ <InfoTooltip text={TAU_TOOLTIP.text} math={TAU_TOOLTIP.math} /></span>
 			<input
 				type="range"
 				min={0.05}
@@ -87,7 +90,7 @@
 		</label>
 
 		<label>
-			<span>Family</span>
+			<span>Family <InfoTooltip text={FAMILY_TOOLTIP.text} math={FAMILY_TOOLTIP.math} /></span>
 			<select
 				{disabled}
 				value={family}
@@ -99,6 +102,11 @@
 			</select>
 		</label>
 	</div>
+
+	<p class="kernel-caption">
+		{KERNEL_CAPTION}
+		<InfoTooltip text={KERNEL_TOOLTIP.text} math={KERNEL_TOOLTIP.math} />
+	</p>
 </div>
 
 <style>
@@ -125,5 +133,11 @@
 		min-width: 2.5rem;
 		text-align: right;
 		font-variant-numeric: tabular-nums;
+	}
+
+	.kernel-caption {
+		font-size: var(--font-size-xs);
+		color: var(--color-text-quiet);
+		margin: 0;
 	}
 </style>

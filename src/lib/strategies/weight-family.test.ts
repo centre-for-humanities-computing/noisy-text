@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { WEIGHT_FAMILIES, getWeightFamily, isWeightFamilyId } from './weight-family.js';
+import {
+	WEIGHT_FAMILIES,
+	getWeightFamily,
+	isWeightFamilyId,
+	MIN_TAU,
+	clampTau,
+} from './weight-family.js';
 import type { WeightFamily } from './weight-family.js';
 
 const FAMILIES: WeightFamily[] = Object.values(WEIGHT_FAMILIES);
@@ -94,6 +100,11 @@ describe('getWeightFamily', () => {
 	it('throws on an unknown id', () => {
 		expect(() => getWeightFamily('linear')).toThrow('Unknown weight family "linear"');
 	});
+
+	it('rejects inherited Object.prototype keys', () => {
+		expect(() => getWeightFamily('toString')).toThrow('Unknown weight family "toString"');
+		expect(() => getWeightFamily('constructor')).toThrow('Unknown weight family "constructor"');
+	});
 });
 
 describe('isWeightFamilyId', () => {
@@ -106,5 +117,29 @@ describe('isWeightFamilyId', () => {
 	it('rejects unknown ids', () => {
 		expect(isWeightFamilyId('linear')).toBe(false);
 		expect(isWeightFamilyId('')).toBe(false);
+	});
+
+	it('rejects inherited Object.prototype keys', () => {
+		expect(isWeightFamilyId('toString')).toBe(false);
+		expect(isWeightFamilyId('constructor')).toBe(false);
+		expect(isWeightFamilyId('hasOwnProperty')).toBe(false);
+	});
+});
+
+describe('clampTau', () => {
+	it('passes through strictly positive finite temperatures', () => {
+		expect(clampTau(2)).toBe(2);
+		expect(clampTau(0.05)).toBe(0.05);
+		expect(clampTau(1e-5)).toBe(1e-5);
+	});
+
+	it('floors zero, negatives, and non-finite values to MIN_TAU', () => {
+		for (const tau of [0, -1, -1e-9, NaN, Infinity, -Infinity]) {
+			expect(clampTau(tau)).toBe(MIN_TAU);
+		}
+	});
+
+	it('floors tau = MIN_TAU exactly (boundary is inclusive)', () => {
+		expect(clampTau(MIN_TAU)).toBe(MIN_TAU);
 	});
 });

@@ -19,7 +19,13 @@ export { EditDistanceModel, levenshtein } from './distance-model.js';
 export type { NeighborEntry } from './neighborhood.js';
 export { NeighborhoodProvider } from './neighborhood.js';
 export type { WeightFamily, WeightFamilyId } from './weight-family.js';
-export { WEIGHT_FAMILIES, getWeightFamily, isWeightFamilyId } from './weight-family.js';
+export {
+	WEIGHT_FAMILIES,
+	getWeightFamily,
+	isWeightFamilyId,
+	MIN_TAU,
+	clampTau,
+} from './weight-family.js';
 export type { DistanceSource, NeighborTable } from './distance-source.js';
 export { ModelDistanceSource } from './distance-source.js';
 export type { KernelParams, KernelRow, TokenKernel } from './token-kernel.js';
