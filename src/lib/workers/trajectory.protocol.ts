@@ -7,6 +7,7 @@
  */
 
 import type { TrajectorySpec } from '../engine/types.js';
+import type { ConnectivityReport } from '../engine/connectivity.js';
 
 // ---- Requests (main → worker) ----
 
@@ -99,7 +100,7 @@ export type TrajectoryWorkerRequest =
 // ---- Responses (worker → main) ----
 
 /** Computation phase a progress message refers to. */
-export type TrajectoryWorkerPhase = 'preparing' | 'walking';
+export type TrajectoryWorkerPhase = 'preparing' | 'embeddings' | 'walking';
 
 /** Phases of the union-graph build: neighborhood pass, then layout. */
 export type UnionGraphPhase = 'neighbors' | 'layout';
@@ -231,6 +232,8 @@ export interface UnionGraph {
 	hasNeighborhood: boolean;
 	/** True when the size guards shrank or skipped the neighborhood. */
 	truncated: boolean;
+	/** Connectivity of the neighbourhood graph; `null` without a neighbourhood. */
+	connectivity: ConnectivityReport | null;
 	/** Layout positions (world units). */
 	layoutX: Float32Array;
 	layoutY: Float32Array;

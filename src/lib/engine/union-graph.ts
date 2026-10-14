@@ -36,6 +36,8 @@ import { truncateByWeight } from '../strategies/neighbor-graph.js';
 import type { NeighborhoodProvider } from '../strategies/neighborhood.js';
 import { getWeightFamily } from '../strategies/weight-family.js';
 import { resolveNeighbors, applyLimit } from '../strategies/neighbor-softmax.js';
+import { analyzeConnectivity } from './connectivity.js';
+import type { ConnectivityReport } from './connectivity.js';
 import { largeIdealLength } from './force-layout.js';
 
 /** Spread-limit params shared with the tooltip, plus size guards. */
@@ -89,6 +91,12 @@ export interface UnionGraphData {
 	hasNeighborhood: boolean;
 	/** True when the size guards shrank or skipped the neighborhood. */
 	truncated: boolean;
+	/**
+	 * Connectivity of the neighbourhood graph (kNN edges only); `null`
+	 * when the strategy has no neighbourhood. Surfaced so a disconnected
+	 * kNN graph can be flagged in the UI.
+	 */
+	connectivity: ConnectivityReport | null;
 }
 
 export interface UnionGraphBuildOptions {
@@ -394,6 +402,9 @@ export async function buildUnionGraph(opts: UnionGraphBuildOptions): Promise<Uni
 		edgeTraj,
 		hasNeighborhood,
 		truncated,
+		connectivity: hasNeighborhood
+			? analyzeConnectivity(nodeCount, edgeSrc, edgeDst, edgeTraj)
+			: null,
 	};
 }
 

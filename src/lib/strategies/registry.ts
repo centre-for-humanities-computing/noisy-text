@@ -4,6 +4,7 @@ import { createCharOverlap } from './char-overlap.js';
 import { createIdentity } from './identity.js';
 import { createLexical } from './lexical.js';
 import { createUniform } from './uniform.js';
+import { createEmbeddingKnn, EMBEDDING_KNN_INFO } from './embedding-knn.js';
 import type { NeighborhoodProvider } from './neighborhood.js';
 
 /** All known strategies (metadata only — safe to import from UI code). */
@@ -73,6 +74,7 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 			math: 'P(y \\mid x) = (1-\\varepsilon)\\,\\mathrm{overlap}(y\\mid x) + \\frac{\\varepsilon}{K},\\quad d(x,y) = 1 - J\\big(C(x), C(y)\\big)',
 		},
 	},
+	'embedding-knn': EMBEDDING_KNN_INFO,
 } as const;
 
 /**
@@ -83,6 +85,7 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 const STRATEGY_FACTORIES: Record<string, StrategyFactory<unknown>> = {
 	absorbing: createAbsorbing as StrategyFactory<unknown>,
 	'char-overlap': createCharOverlap as StrategyFactory<unknown>,
+	'embedding-knn': createEmbeddingKnn as StrategyFactory<unknown>,
 	identity: createIdentity as StrategyFactory<unknown>,
 	lexical: createLexical as StrategyFactory<unknown>,
 	uniform: createUniform as StrategyFactory<unknown>,
@@ -130,6 +133,24 @@ export function strategyConfigFor(
 			epsilon: _extra?.epsilon ?? 0,
 			tau: _extra?.tau ?? 1.0,
 			mode: _extra?.mode ?? 'set',
+			family: _extra?.family ?? 'exponential',
+		};
+	}
+	if (id === 'embedding-knn') {
+		// `maxDistance` uses `null` for "no cutoff" — `Infinity` is not
+		// JSON-serializable and the config is part of the cache key.
+		return {
+			sourceId: _extra?.sourceId ?? 'gpt2',
+			preprocess: _extra?.preprocess ?? 'none',
+			metric: _extra?.metric ?? 'cosine',
+			tokenClass: _extra?.tokenClass ?? 'any',
+			excludeSpecial: _extra?.excludeSpecial ?? true,
+			excludeUnused: _extra?.excludeUnused ?? true,
+			excludeByteFallback: _extra?.excludeByteFallback ?? true,
+			maxDistance: _extra?.maxDistance ?? null,
+			k: _extra?.k ?? 50,
+			epsilon: _extra?.epsilon ?? 0,
+			tau: _extra?.tau ?? 1.0,
 			family: _extra?.family ?? 'exponential',
 		};
 	}
