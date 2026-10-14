@@ -4,7 +4,12 @@ agent: plan
 model: openrouter/deepseek/deepseek-v4.1-flash
 ---
 
-Issue: $ARGUMENTS (issue number; fetch title/body with `gh issue view`).
+Issue: `$ARGUMENTS` — parse it before anything else. The first token is the
+issue number (fetch title/body with `gh issue view`). If the next token is
+literally `next`, force round N+1 and treat everything after `next` as a
+human-authored requirements block for this round. Any other extra token → STOP
+and ask; the only arguments are `<issue-number>`, optional `next`, and optional
+trailing text.
 
 Produce a plan concrete enough that a weaker implementer can execute it without
 any further exploration.
@@ -24,11 +29,13 @@ any further exploration.
    ```
 
    No output → round 1. Otherwise N is the number in `round-N/`. Commands
-   never take a round argument, with one exception: the explicit override
-   `$ARGUMENTS` ending in `next` (e.g. `/plan 66 next`) forces round N+1 —
-   used only after an `approve with nits` verdict (N1). If the artifact
-   directory does not match the branch-derived name (deliberate stacking
-   deviation), locate it manually; do not create a new one.
+   never take a round argument, with one exception: a `next` token immediately
+   after the issue number (`/plan 66 next`, or
+   `/plan 66 next add a loading spinner`) forces round N+1 — used only after an
+   `approve with nits` verdict. Any text after `next` is a requirements block
+   (step 4). If the artifact directory does not match the branch-derived name
+   (deliberate stacking deviation), locate it manually; do not create a new
+   one.
 
    Reviews live as marked PR comments, not files: fetch the latest review for
    round N (and, when composing a revision plan, for round N as the prior
@@ -52,6 +59,12 @@ any further exploration.
    - Latest verdict `block` or `fix-and-recheck` → compose a revision plan at
      `round-(N+1)/plan.md`, scoped to the finding IDs on that review's
      `- Open findings:` line; no unrelated changes.
+   - A requirements block (text after `next`) is human-authorized and in scope
+     by explicit instruction: the revision plan must satisfy it alongside any
+     open findings. It is not scope creep, and it applies regardless of the
+     latest verdict — with `block` / `fix-and-recheck` it folds into the
+     pending round. Findings outside the `- Open findings:` line still stay out
+     of scope.
    - The `- Verdict:` header bullet of the review comment is the verdict
      contract; read its first occurrence.
 5. Delegate reconnaissance to the `explore` subagent: exact files, existing
@@ -61,7 +74,13 @@ any further exploration.
 7. Compose the complete plan markdown in chat, following the artifact style in
    `.ai/README.md` (headings and bullets; no tables). Required sections:
    - Goal and acceptance criteria (from the issue).
+   - When a requirements block was given, a `## New requirements` section that
+     quotes the human's text verbatim and folds each requirement into the steps
+     and acceptance criteria.
    - Files to create/modify: exact path, exported signatures/types, data shapes.
+   - Expected reviewable surface: which files/areas change, roughly how much,
+     and which changes are mechanical (moves, renames, reindentation) versus
+     behavioral, so the reviewer knows the budget.
    - Ordered step-by-step implementation steps.
    - Tests to add (path + cases) and exact verification commands in order:
      `npm run check` → `npm run lint` → `npm run format` → `npm run test`.
@@ -78,8 +97,11 @@ any further exploration.
 
      ```
      - Round: <N+1>
-     - Addresses: round-<N> findings B1, N3
+     - Addresses: R1-B1, R1-N3
      ```
+
+     When a requirements block is present, append `; new requirements` to the
+     `Addresses:` line.
 
    - Revision plans add `## Findings and actions`: one bullet per addressed
      finding ID mapping it to concrete file-level actions (or an explicit
