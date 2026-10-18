@@ -16,6 +16,8 @@ run by CI and no binaries are committed.
 
 Usage:
     python scripts/export_embeddings.py --source gpt2 --out dist/embeddings
+    python scripts/export_embeddings.py --source gpt2 --out dist/embeddings \
+        --repo chcaa/noisy-text-embeddings
 
 Requires: torch, safetensors, numpy, huggingface_hub (loads via the HF
 hub cache; no transformers dependency).
@@ -30,8 +32,32 @@ from typing import Dict, NamedTuple
 
 import numpy as np
 import torch
-from huggingface_hub import hf_hub_download
+from huggingface_hub import HfApi, create_repo, hf_hub_download
 from safetensors.torch import load_file
+
+
+DATASET_CARD = """\
+---
+license: apache-2.0
+pretty_name: noisy-text embedding bundles
+tags:
+- embeddings
+- int8
+- quantization
+---
+# noisy-text embedding bundles
+
+Quantized token-embedding bundles for the `embedding-knn` noise strategy
+of the noisy-text playground (#28). Flat layout, four files per source:
+
+- `<source>.int8.bin`        int8 codes, row-major, K x d
+- `<source>.scales.f32.bin`  per-row scales, length K
+- `<source>.transform.f32.bin`  mean / PCA / eigenvalue / whitening blob
+- `<source>.meta.json`       header
+
+Sources: `bert-base-uncased`, `gpt2`, `gpt2-lmhead`.
+Regenerate with `scripts/export_embeddings.py` in the noisy-text repo.
+"""
 
 
 class SourceSpec(NamedTuple):
@@ -134,6 +160,8 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, choices=sorted(SOURCES))
     parser.add_argument("--out", required=True, help="output directory")
+    parser.add_argument("--repo", default=None, help="HF dataset repo id to upload to")
+    parser.add_argument("--revision", default=None, help="target revision/branch for the upload")
     args = parser.parse_args()
 
     spec = SOURCES[args.source]
@@ -171,6 +199,22 @@ def main() -> None:
     for name in ("int8.bin", "scales.f32.bin", "transform.f32.bin", "meta.json"):
         path = base + "." + name
         print(f"wrote {path} ({os.path.getsize(path):,} bytes)")
+
+    if args.repo:
+        with open(os.path.join(args.out, "README.md"), "w", encoding="utf-8") as f:
+            f.write(DATASET_CARD)
+        token = os.environ.get("HF_TOKEN")
+        create_repo(args.repo, repo_type="dataset", exist_ok=True, token=token)
+        commit = HfApi().upload_folder(
+            repo_id=args.repo,
+            repo_type="dataset",
+            folder_path=args.out,
+            revision=args.revision,
+            token=token,
+            commit_message=f"Upload {args.source} embedding bundle",
+        )
+        print(f"uploaded to {args.repo} @ {commit.oid}")
+        print("pin this sha: HF_DATASET_REVISION in src/lib/embeddings/loader.ts")
 
 
 if __name__ == "__main__":

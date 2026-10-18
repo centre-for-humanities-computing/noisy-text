@@ -12,22 +12,49 @@ import { idbGet, idbPut, hasIndexedDb } from './idb.js';
  *
  * Artefacts live at a configurable external URL (no binaries in git):
  * `<base>/<fileName>.int8.bin`, `.scales.f32.bin`, `.transform.f32.bin`,
- * `.meta.json`. Bundles are cached in IndexedDB (`matrices` store, keyed
- * by source); an IDB hit skips the network entirely.
+ * `.meta.json`. Bundles are cached in IndexedDB (`matrices` store,
+ * keyed by `source@<cache tag>`); an IDB hit skips the network entirely.
  *
  * Byte progress is reported per artefact as `(loaded, total)` per file —
  * the caller converts to its own phase units.
  */
 
 /**
- * Base URL of the hosted export artefacts. Override at build time with
- * `VITE_EMBEDDING_BASE_URL` (see `src/lib/embeddings/README.md`); the
- * default is a placeholder that must be configured before the
- * embedding-knn strategy can fetch real data.
+ * HF dataset repo hosting the exported bundles (#28 round 2).
+ */
+export const HF_DATASET_REPO = 'chcaa/noisy-text-embeddings';
+/**
+ * Pinned commit sha; replace with the sha printed by the exporter (see
+ * README runbook). Overridable at build via `VITE_EMBEDDING_BASE_URL`.
+ */
+export const HF_DATASET_REVISION = 'REPLACE_WITH_UPLOAD_SHA';
+
+/** Build an HF `resolve` prefix for a dataset repo at a revision. */
+export function hfResolvePrefix(repo: string, revision: string): string {
+	return `https://huggingface.co/datasets/${repo}/resolve/${revision}`;
+}
+
+/** FNV-1a 32-bit hash of a string → 8 lowercase hex chars. */
+export function shortHash(input: string): string {
+	let h = 2166136261;
+	for (let i = 0; i < input.length; i++) {
+		h ^= input.charCodeAt(i);
+		h = Math.imul(h, 16777619);
+	}
+	return (h >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * Base URL of the hosted export artefacts: the pinned HF dataset resolve
+ * prefix. Override at build time with `VITE_EMBEDDING_BASE_URL` (see
+ * `src/lib/embeddings/README.md`).
  */
 export const EMBEDDING_BASE_URL: string =
 	(import.meta.env.VITE_EMBEDDING_BASE_URL as string | undefined) ??
-	'https://embeddings.noisy-text.invalid';
+	hfResolvePrefix(HF_DATASET_REPO, HF_DATASET_REVISION);
+
+/** Cache tag: changes whenever the base URL (revision) changes. */
+export const EMBEDDING_CACHE_TAG: string = shortHash(EMBEDDING_BASE_URL);
 
 /** Progress callback: bytes loaded and total for the current artefact. */
 export type ByteProgress = (loaded: number, total: number) => void;
@@ -115,7 +142,7 @@ export async function loadEmbedding(
 	const info = getEmbeddingSource(sourceId);
 
 	if (hasIndexedDb()) {
-		const cached = await idbGet<CachedBundle>(MATRIX_STORE, sourceId);
+		const cached = await idbGet<CachedBundle>(MATRIX_STORE, `${sourceId}@${EMBEDDING_CACHE_TAG}`);
 		if (cached && cached.meta && cached.codes && cached.scales) {
 			return assemble(cached);
 		}
@@ -172,6 +199,6 @@ export async function loadEmbedding(
 		whitening,
 	};
 
-	void idbPut(MATRIX_STORE, sourceId, bundle);
+	void idbPut(MATRIX_STORE, `${sourceId}@${EMBEDDING_CACHE_TAG}`, bundle);
 	return assemble(bundle);
 }

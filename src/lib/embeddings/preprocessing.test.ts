@@ -58,4 +58,19 @@ describe('applyPreprocess', () => {
 		applyPreprocess(vec, mc, 'mean-center', t);
 		expect(Array.from(out)).toEqual(Array.from(mc));
 	});
+
+	it('whiten with a non-identity (diagonal) whitening scales components', () => {
+		// Diagonal W = diag(2, 1, ..., 1): the first component doubles.
+		const w = identity(d);
+		w[0] = 2;
+		const diag: TransformBundle = { ...t, whitening: w };
+		const out = new Float32Array(d);
+		applyPreprocess(vec, out, 'whiten', diag);
+		const mc = new Float32Array(d);
+		applyPreprocess(vec, mc, 'mean-center', t);
+		for (let i = 0; i < d; i++) {
+			const expected = i === 0 ? mc[0]! * 2 : mc[i];
+			expect(out[i]).toBeCloseTo(expected!, 6);
+		}
+	});
 });

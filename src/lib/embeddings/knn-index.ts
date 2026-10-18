@@ -15,8 +15,8 @@ import { metricDistance } from './metric.js';
  * Neighbours are the top-$M$ by metric — a $k$NN graph — not everything
  * within a radius; self is always excluded.
  *
- * Optional IndexedDB persistence: a `RowCache` (see `idb.ts`) is
- * consulted in `precomputeRows` under the key
+ * Optional IndexedDB persistence: a `RowCache` (see `idb.ts`), injected
+ * by the worker, is consulted in `precomputeRows` under the key
  * `source|preprocess|metric|m|token`, so revisits skip the full scan.
  */
 
@@ -62,8 +62,6 @@ export class EmbeddingKnnIndex {
 	private _rows: Map<number, Float32Array> = new Map();
 	/** Scratch dequantize buffer (dim-sized, reused). */
 	private _deq: Float32Array;
-	/** Scratch preprocess buffer (dim-sized, reused). */
-	private _pre: Float32Array;
 
 	constructor(
 		matrix: QuantizedMatrix,
@@ -86,7 +84,6 @@ export class EmbeddingKnnIndex {
 		this._maxMemoizedRows = opts.maxMemoizedRows ?? 4096;
 		this._chunkSize = opts.chunkSize ?? 128;
 		this._deq = new Float32Array(matrix.dim);
-		this._pre = new Float32Array(matrix.dim);
 	}
 
 	/**
@@ -112,8 +109,8 @@ export class EmbeddingKnnIndex {
 			if (size < this.m) {
 				heapIds[size] = j;
 				heapDists[size] = dist;
+				this._siftUpMax(heapDists, heapIds, size);
 				size++;
-				if (size === this.m) this._siftUpMax(heapDists, heapIds);
 			} else if (dist < heapDists[0]!) {
 				heapDists[0] = dist;
 				heapIds[0] = j;
@@ -157,9 +154,9 @@ export class EmbeddingKnnIndex {
 		}
 	}
 
-	/** Sift the last inserted element up (used when the heap just filled). */
-	private _siftUpMax(dists: Float32Array, ids: Int32Array): void {
-		let i = dists.length - 1;
+	/** Sift the element at `start` up to restore the max-heap invariant. */
+	private _siftUpMax(dists: Float32Array, ids: Int32Array, start: number): void {
+		let i = start;
 		while (i > 0) {
 			const parent = (i - 1) >> 1;
 			if (dists[i]! <= dists[parent]!) return;

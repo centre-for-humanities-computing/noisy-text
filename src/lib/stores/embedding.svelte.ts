@@ -1,8 +1,6 @@
-import { browser } from '$app/environment';
 import type { EmbeddingSourceId, MetricId, PreprocessId } from '$lib/embeddings/index.js';
 import type { WeightFamilyId } from '$lib/strategies/weight-family.js';
 
-export type EmbeddingStatus = 'idle' | 'ready';
 export type EmbeddingTokenClass = 'any' | 'word-initial' | 'continuation';
 
 /**
@@ -39,9 +37,6 @@ class EmbeddingStore {
 	/** Weight family for the kernel. */
 	family: WeightFamilyId = $state('exponential');
 
-	/** Status: `'idle'` until first use, then `'ready'`. */
-	status: EmbeddingStatus = $state('idle');
-
 	/** Current params as a plain object (for passing to strategyConfigFor). */
 	get params(): Record<string, unknown> {
 		return {
@@ -58,12 +53,6 @@ class EmbeddingStore {
 			tau: this.tau,
 			family: this.family,
 		};
-	}
-
-	/** Mark the store as ready (called when tokenizer is available). */
-	markReady(): void {
-		if (!browser) return;
-		this.status = 'ready';
 	}
 }
 

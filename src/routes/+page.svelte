@@ -390,7 +390,6 @@
 		if (tokenizerStore.tokenizer) {
 			lexicalStore.markReady();
 			charOverlapStore.markReady();
-			embeddingStore.markReady();
 		}
 	});
 

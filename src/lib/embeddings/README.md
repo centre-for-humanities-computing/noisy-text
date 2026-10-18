@@ -27,7 +27,8 @@ The matrix is **not shipped with the app** and nothing here runs in CI.
 - `idb.ts` — minimal IndexedDB wrapper (no dependency), guarded so node
   tests/SSR degrade to cache misses.
 - `loader.ts` — fetch + decode + IndexedDB caching of the export
-  bundle; base URL from `VITE_EMBEDDING_BASE_URL`.
+  bundle; base URL from `VITE_EMBEDDING_BASE_URL` (default: the pinned
+  HF dataset revision, see `## Hosting`).
 
 ## File formats (produced by `scripts/export_embeddings.py`)
 
@@ -48,12 +49,44 @@ quant, nPcs }`.
 
 DB `noisy-text-embeddings`:
 
-- `matrices`, key `<source>` — the full decoded bundle (typed arrays).
-- `rows`, key `<source>|<preprocess>|<metric>|<m>|<token>` — memoized
+- `matrices`, key `<source>@<EMBEDDING_CACHE_TAG>` — the full decoded
+  bundle (typed arrays).
+- `rows`, key
+  `<source>|<preprocess>|<metric>|<m>@<tag>|<token>` — memoized
   top-$M$ tables `{ ids: Int32Array, dists: Float32Array }`.
 
-Cache invalidation is structural: the keys pin the parameters that shape
-the stored rows, so a parameter change simply uses different keys.
+`EMBEDDING_CACHE_TAG` is an 8-hex FNV-1a hash of `EMBEDDING_BASE_URL`
+(exported from `loader.ts`). Cache invalidation is structural: the keys
+pin the parameters that shape the stored rows, so a parameter or
+revision change simply uses different keys (old entries are orphaned,
+harmlessly).
+
+## Hosting
+
+Bundles are hosted on the HF dataset repo `chcaa/noisy-text-embeddings`
+(flat layout, 12 files: three sources × four files above). Artefacts
+download from
+
+```
+https://huggingface.co/datasets/chcaa/noisy-text-embeddings/resolve/<revision>/<file>
+```
+
+The default `EMBEDDING_BASE_URL` pins an immutable commit sha in
+`loader.ts` (`HF_DATASET_REVISION`); the `resolve` endpoint serves it
+with CORS + `Content-Length`. `VITE_EMBEDDING_BASE_URL` overrides the
+default at build time (no trailing slash).
+
+## Re-export runbook
+
+1. `hf auth login` (or set `HF_TOKEN`).
+2. Once per source:
+   `python scripts/export_embeddings.py --source <id> --out dist/embeddings --repo chcaa/noisy-text-embeddings`
+   (`--revision` targets a specific branch; omit for the repo default).
+   The script writes the dataset card and uploads the folder, printing
+   the new commit sha.
+3. Copy the printed sha into `HF_DATASET_REVISION` in
+   `src/lib/embeddings/loader.ts` (or set `VITE_EMBEDDING_BASE_URL`).
+   The cache tag changes automatically, invalidating old IDB entries.
 
 ## Adding a source
 
@@ -61,7 +94,8 @@ the stored rows, so a parameter change simply uses different keys.
    description, `tokenizerId`, `dim`, `vocabSize`, `fileName`).
 2. Add the source to `SOURCES` in `scripts/export_embeddings.py` and
    run it: `python scripts/export_embeddings.py --source <id> --out <dir>`.
-3. Host the four files under `VITE_EMBEDDING_BASE_URL`.
+3. Host the four files under the HF dataset repo (see `## Hosting`),
+   then pin the new revision.
 
 ## Notes
 

@@ -98,6 +98,18 @@ export function classifyTokens(tokens: readonly string[], tokenizerId: string): 
 }
 
 /**
+ * Stable signature of the predicate-shaping fields (for cache keys).
+ */
+export function predicateSignature(
+	cfg: Pick<
+		EmbeddingKnnConfig,
+		'tokenClass' | 'excludeSpecial' | 'excludeUnused' | 'excludeByteFallback'
+	>,
+): string {
+	return `${cfg.tokenClass}:${cfg.excludeSpecial}:${cfg.excludeUnused}:${cfg.excludeByteFallback}`;
+}
+
+/**
  * Build the neighbour predicate from the classification masks and the
  * strategy config. A token is an admissible jump target when its token
  * class matches and none of the enabled exclusion flags are set.

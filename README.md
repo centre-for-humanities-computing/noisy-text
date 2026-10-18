@@ -14,6 +14,10 @@ npm run format     # Run Prettier
 npm run test       # Run Vitest
 ```
 
+The `embedding-knn` strategy reads `VITE_EMBEDDING_BASE_URL` (copy
+`.env.example` to `.env` to override); it defaults to the pinned HF
+dataset revision in `src/lib/embeddings/loader.ts`.
+
 ## Agent workflow
 
 See `AGENTS.md` for how agents work in this repo and `.ai/README.md` for the

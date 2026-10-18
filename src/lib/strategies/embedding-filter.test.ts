@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { classifyTokens, buildTokenPredicate, TOKEN_FLAG } from './embedding-filter.js';
+import {
+	classifyTokens,
+	buildTokenPredicate,
+	predicateSignature,
+	TOKEN_FLAG,
+} from './embedding-filter.js';
 
 describe('classifyTokens', () => {
 	it('classifies representative GPT-2 strings', () => {
@@ -55,5 +60,45 @@ describe('buildTokenPredicate', () => {
 		// Byte-fallback token is neither word-initial nor continuation.
 		expect(wi(2)).toBe(false);
 		expect(cont(2)).toBe(false);
+	});
+});
+
+describe('predicateSignature', () => {
+	it('is unchanged by non-predicate fields (R1-N2)', () => {
+		const a = {
+			tokenClass: 'any',
+			excludeSpecial: true,
+			excludeUnused: false,
+			excludeByteFallback: true,
+		} as const;
+		const withNoise = {
+			...a,
+			k: 99,
+			tau: 3.5,
+			epsilon: 0.01,
+			family: 'power-law',
+			maxDistance: 7,
+		};
+		expect(predicateSignature(withNoise)).toBe(predicateSignature(a));
+	});
+
+	it('changes when a predicate-shaping field changes', () => {
+		const base = {
+			tokenClass: 'any',
+			excludeSpecial: true,
+			excludeUnused: true,
+			excludeByteFallback: true,
+		} as const;
+		const signatures = new Set<string>([predicateSignature(base)]);
+		for (const variant of [
+			{ ...base, tokenClass: 'word-initial' },
+			{ ...base, excludeSpecial: false },
+			{ ...base, excludeUnused: false },
+			{ ...base, excludeByteFallback: false },
+		] as const) {
+			expect(predicateSignature(variant)).not.toBe(predicateSignature(base));
+			signatures.add(predicateSignature(variant));
+		}
+		expect(signatures.size).toBe(5);
 	});
 });

@@ -62,9 +62,36 @@ describe('EmbeddingKnnIndex.topM', () => {
 	});
 
 	it('handles M larger than the vocab minus one', () => {
-		const index = new EmbeddingKnnIndex(lineMatrix(5, d), emptyTransform(d), 'none', 'cosine', 10);
+		// L2 on the line matrix gives distinct distances (cosine would make
+		// them all 0 and the order arbitrary).
+		const index = new EmbeddingKnnIndex(lineMatrix(5, d), emptyTransform(d), 'none', 'l2', 10);
 		const t = index.topM(0);
-		expect(t.ids.length).toBe(4);
+		expect(Array.from(t.ids)).toEqual([1, 2, 3, 4]);
+		// Ascending: dequantized row i is $i^2/127$ per dim, so the L2
+		// distance from row 0 is $2 i^2 / 127$ — strictly increasing in i.
+		for (let i = 1; i < t.dists.length; i++) {
+			expect(t.dists[i]!).toBeGreaterThan(t.dists[i - 1]!);
+		}
+	});
+
+	it('maintains the heap invariant while filling (adversarial order, R1-B1)', () => {
+		// d=1 with codes [0,1,5,3,4] makes the insertion order of distances
+		// deliberately non-monotone (1, 5, 3, 4 for token 0); the old code
+		// never sifted up during filling, producing a corrupt heap and
+		// wrong neighbours.
+		const K = 5;
+		const codes = new Int8Array([0, 1, 5, 3, 4]);
+		const scales = new Float32Array(K).fill(1);
+		const index = new EmbeddingKnnIndex(
+			{ codes, scales, vocabSize: K, dim: 1 },
+			emptyTransform(1),
+			'none',
+			'l2',
+			3,
+		);
+		const t = index.topM(0);
+		expect(Array.from(t.ids)).toEqual([1, 3, 4]);
+		expect(Array.from(t.dists)).toEqual([1, 3, 4]);
 	});
 
 	it('rejects a non-positive m', () => {
@@ -95,5 +122,39 @@ describe('EmbeddingKnnIndex.precomputeRows', () => {
 		);
 		expect(calls[calls.length - 1]).toEqual([10, 10]);
 		expect(calls.length).toBeGreaterThanOrEqual(3);
+	});
+
+	it('serves repeat rows from the injected RowCache (R1-N1)', async () => {
+		class FakeRowCache {
+			store = new Map<string, unknown>();
+			puts = 0;
+			get(key: string): Promise<unknown> {
+				return Promise.resolve(this.store.get(key));
+			}
+			put(key: string, value: unknown): Promise<void> {
+				this.puts++;
+				this.store.set(key, value);
+				return Promise.resolve();
+			}
+		}
+		const cache = new FakeRowCache();
+		const tokens = Int32Array.from([2, 7, 9]);
+		const first = new EmbeddingKnnIndex(lineMatrix(K, d), emptyTransform(d), 'none', 'l2', 4, {
+			cache,
+			cacheKeyPrefix: 'pfx',
+		});
+		await first.precomputeRows(tokens, undefined);
+		expect(cache.puts).toBe(3);
+
+		// A second index over the same cache serves every row without
+		// recomputing (no new puts, and the memo is filled from the cache).
+		const second = new EmbeddingKnnIndex(lineMatrix(K, d), emptyTransform(d), 'none', 'l2', 4, {
+			cache,
+			cacheKeyPrefix: 'pfx',
+		});
+		const computed = await second.precomputeRows(tokens, undefined);
+		expect(computed).toBe(0);
+		expect(cache.puts).toBe(3);
+		expect(second.topM(7).ids.length).toBe(4);
 	});
 });

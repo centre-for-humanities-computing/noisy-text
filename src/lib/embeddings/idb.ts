@@ -10,6 +10,8 @@
  * environment, SSR) and behaves as a cache miss / no-op there.
  */
 
+import type { RowCache } from './knn-index.js';
+
 const DB_NAME = 'noisy-text-embeddings';
 const DB_VERSION = 1;
 const MATRIX_STORE = 'matrices';
@@ -74,3 +76,9 @@ export async function idbPut(store: string, key: string, value: unknown): Promis
 		console.warn('IndexedDB write failed:', e instanceof Error ? e.message : e);
 	}
 }
+
+/** `RowCache` backed by the `rows` object store (no-op without IDB). */
+export const idbRowCache: RowCache = {
+	get: (key) => idbGet(ROW_STORE, key),
+	put: (key, value) => idbPut(ROW_STORE, key, value),
+};

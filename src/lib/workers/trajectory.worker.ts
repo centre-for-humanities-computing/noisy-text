@@ -47,8 +47,14 @@ import {
 	loadEmbedding,
 	EmbeddingKnnIndex,
 	EmbeddingDistanceModel,
+	EMBEDDING_CACHE_TAG,
+	idbRowCache,
 } from '../embeddings/index.js';
-import { classifyTokens, buildTokenPredicate } from '../strategies/embedding-filter.js';
+import {
+	classifyTokens,
+	buildTokenPredicate,
+	predicateSignature,
+} from '../strategies/embedding-filter.js';
 import type { EmbeddingKnnConfig } from '../strategies/embedding-knn.js';
 import type { MetricId, PreprocessId, EmbeddingSourceId } from '../embeddings/index.js';
 
@@ -105,7 +111,8 @@ const _providerCache = new Map<string, { model: DistanceModel; provider: Neighbo
 /**
  * Cached embedding-backed model/provider/index triple per embedding
  * config. The matrix (int8, ~24 MB) and memoized top-$M$ rows are shared
- * across requests with the same `sourceId:preprocess:metric:k` key.
+ * across requests with the same
+ * `sourceId:preprocess:metric:predicate-signature` key.
  */
 const _embeddingCache = new Map<
 	string,
@@ -124,9 +131,9 @@ const _embeddingCache = new Map<
  * semantics: `maxDistance` filtering happens at read time in the
  * strategy, not at store time).
  *
- * The cache key pins everything that shapes the stored rows
- * (`sourceId`, preprocessing, metric, $k$, and the filter config hash),
- * so a parameter change rebuilds rather than mixes rows.
+ * The cache key pins everything that shapes the stored rows (`sourceId`,
+ * preprocessing, metric, and the filter predicate signature), so a
+ * parameter change rebuilds rather than mixes rows.
  */
 async function ensureEmbeddingProvider(
 	sourceId: EmbeddingSourceId,
@@ -146,12 +153,11 @@ async function ensureEmbeddingProvider(
 			`Embedding source "${sourceId}" requires the "${info.tokenizerId}" tokenizer, but "${tokenizerId}" is active.`,
 		);
 	}
-	const cfgHash = JSON.stringify(cfg);
-	const cacheKey = `embedding:${sourceId}:${preprocess}:${metric}:${k}:${cfgHash}`;
+	const cacheKey = `embedding:${sourceId}:${preprocess}:${metric}:${predicateSignature(cfg)}`;
 	const cached = _embeddingCache.get(cacheKey);
 	if (cached) return { provider: cached.provider, index: cached.index };
 
-	const { matrix, transform, meta } = await loadEmbedding(sourceId);
+	const { matrix, transform, meta } = await loadEmbedding(sourceId, onProgress);
 	const tok = await loadTokenizer(tokenizerId);
 	const strings = await decodeVocab(tok, onProgress);
 	if (strings.length !== meta.vocabSize || matrix.vocabSize !== meta.vocabSize) {
@@ -163,7 +169,11 @@ async function ensureEmbeddingProvider(
 	const predicate = buildTokenPredicate(classes, cfg);
 	// Store the top-$M$ (M = NEIGHBOR_STORE_LIMIT); read-time filtering
 	// (token class, $k$, maxDistance) happens in the strategy/kernel.
-	const index = new EmbeddingKnnIndex(matrix, transform, preprocess, metric, NEIGHBOR_STORE_LIMIT);
+	const rowPrefix = `${sourceId}|${preprocess}|${metric}|${NEIGHBOR_STORE_LIMIT}@${EMBEDDING_CACHE_TAG}`;
+	const index = new EmbeddingKnnIndex(matrix, transform, preprocess, metric, NEIGHBOR_STORE_LIMIT, {
+		cache: idbRowCache,
+		cacheKeyPrefix: rowPrefix,
+	});
 	const model = new EmbeddingDistanceModel(index, predicate, sourceId, preprocess, metric);
 	const provider = new NeighborhoodProvider(model, Infinity, {
 		maxStored: NEIGHBOR_STORE_LIMIT,
