@@ -25,6 +25,7 @@
 	import { EMBEDDING_SOURCES } from '$lib/embeddings/index.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
 	import { recencyAt, allTokenCharSpans } from '$lib/engine/diff.js';
+	import EmbeddingSourcePicker from '$lib/components/EmbeddingSourcePicker.svelte';
 	import LexicalParams from '$lib/components/LexicalParams.svelte';
 	import CharOverlapParams from '$lib/components/CharOverlapParams.svelte';
 	import EmbeddingParams from '$lib/components/EmbeddingParams.svelte';
@@ -439,6 +440,15 @@
 					<p class="caption">{strategyCaption}</p>
 				{/if}
 			</div>
+			{#if strategyStore.currentId === 'embedding-knn'}
+				<div class="picker-group">
+					<EmbeddingSourcePicker
+						value={embeddingStore.sourceId}
+						disabled={tokenizerStore.status !== 'ready'}
+						onchange={(id) => (embeddingStore.sourceId = id)}
+					/>
+				</div>
+			{/if}
 		</div>
 
 		<textarea bind:value={text} placeholder="Type or paste text here…" rows={8}></textarea>
@@ -557,6 +567,13 @@
 				onchange={(id) =>
 					strategyStore.selectStrategy(id, tokenizerStore.tokenizer?.vocabSize ?? 0)}
 			/>
+			{#if strategyStore.currentId === 'embedding-knn'}
+				<EmbeddingSourcePicker
+					value={embeddingStore.sourceId}
+					disabled={tokenizerStore.status !== 'ready'}
+					onchange={(id) => (embeddingStore.sourceId = id)}
+				/>
+			{/if}
 			<SchedulePicker
 				value={scheduleStore.currentId}
 				options={scheduleOptions}
@@ -625,7 +642,6 @@
 
 				{#if strategyStore.currentId === 'embedding-knn'}
 					<EmbeddingParams
-						sourceId={embeddingStore.sourceId}
 						preprocess={embeddingStore.preprocess}
 						metric={embeddingStore.metric}
 						tokenClass={embeddingStore.tokenClass}
@@ -637,7 +653,6 @@
 						tau={embeddingStore.tau}
 						family={embeddingStore.family}
 						disabled={tokenizerStore.status !== 'ready'}
-						onsourcechange={(v) => (embeddingStore.sourceId = v)}
 						onpreprocesschange={(v) => (embeddingStore.preprocess = v)}
 						onmetricchange={(v) => (embeddingStore.metric = v)}
 						ontokenclasschange={(v) => (embeddingStore.tokenClass = v)}

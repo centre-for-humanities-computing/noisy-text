@@ -141,16 +141,16 @@ export function strategyConfigFor(
 		// JSON-serializable and the config is part of the cache key.
 		return {
 			sourceId: _extra?.sourceId ?? 'gpt2',
-			preprocess: _extra?.preprocess ?? 'none',
+			preprocess: _extra?.preprocess ?? 'mean-center',
 			metric: _extra?.metric ?? 'cosine',
-			tokenClass: _extra?.tokenClass ?? 'any',
+			tokenClass: _extra?.tokenClass ?? 'word-initial',
 			excludeSpecial: _extra?.excludeSpecial ?? true,
 			excludeUnused: _extra?.excludeUnused ?? true,
 			excludeByteFallback: _extra?.excludeByteFallback ?? true,
 			maxDistance: _extra?.maxDistance ?? null,
-			k: _extra?.k ?? 50,
+			k: _extra?.k ?? 20,
 			epsilon: _extra?.epsilon ?? 0,
-			tau: _extra?.tau ?? 1.0,
+			tau: _extra?.tau ?? 0.1,
 			family: _extra?.family ?? 'exponential',
 		};
 	}

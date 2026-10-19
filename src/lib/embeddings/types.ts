@@ -17,8 +17,14 @@ export interface EmbeddingSourceInfo {
 	id: EmbeddingSourceId;
 	/** Human label for the picker. */
 	label: string;
+	/** Plain-language name shown on the picker card. */
+	plainName: string;
 	/** One-line description shown under the picker. */
 	description: string;
+	/** One-line summary shown on the picker card. */
+	gloss: string;
+	/** Tooltip copy for the picker card. */
+	tooltip: { text: string; math?: string };
 	/**
 	 * Tokenizer whose vocabulary indexes the embedding rows. Must match
 	 * the app's active tokenizer — the worker validates it.

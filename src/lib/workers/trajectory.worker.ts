@@ -356,17 +356,17 @@ async function handleCompute(
 			// Budgeted warm-up BFS: walk outward over the kNN graph from the
 			// inputs, precomputing reachable rows so the walk hits the memo
 			// or the IndexedDB cache instead of cold scans. Bounded by a
-			// token cap and a wall-clock budget (the preferred bound).
+			// token cap and a wall-clock budget (the preferred bound): the
+			// deadline is checked before each frontier expansion and passed
+			// to `precomputeRows`, which also honours it between chunks, so
+			// the budget holds even mid-batch.
 			const warmStart = performance.now();
+			const deadline = warmStart + WARMUP_TIME_BUDGET_MS;
 			const seen = new Set<number>();
 			for (let i = 0; i < inputs.length; i++) seen.add(inputs[i]!);
 			let frontier = inputs;
 			let warmed = 0;
-			while (
-				frontier.length > 0 &&
-				warmed < WARMUP_MAX_TOKENS &&
-				performance.now() - warmStart < WARMUP_TIME_BUDGET_MS
-			) {
+			while (frontier.length > 0 && warmed < WARMUP_MAX_TOKENS && performance.now() < deadline) {
 				const next: number[] = [];
 				for (let i = 0; i < frontier.length; i++) {
 					const neighbours = emb.index.topM(frontier[i]!).ids;
@@ -380,8 +380,10 @@ async function handleCompute(
 				if (next.length === 0) break;
 				const batch = Int32Array.from(next.slice(0, WARMUP_MAX_TOKENS - warmed));
 				warmed += batch.length;
-				await emb.index.precomputeRows(batch, (done, total) =>
-					postProgress('embeddings', done, total),
+				await emb.index.precomputeRows(
+					batch,
+					(done, total) => postProgress('embeddings', done, total),
+					deadline,
 				);
 				frontier = batch;
 			}

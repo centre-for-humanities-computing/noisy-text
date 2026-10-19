@@ -1,4 +1,7 @@
 <script lang="ts">
+	import InfoTooltip from './InfoTooltip.svelte';
+	import { RATE_MULTIPLIER_TOOLTIP } from './param-help.js';
+
 	interface Props {
 		/** Rate multiplier $\lambda$ applied to any schedule's $\beta_t$. */
 		multiplier: number;
@@ -11,7 +14,10 @@
 
 <div class="schedule-params">
 	<label>
-		<span>Rate multiplier λ</span>
+		<span>
+			Rate multiplier λ
+			<InfoTooltip text={RATE_MULTIPLIER_TOOLTIP.text} math={RATE_MULTIPLIER_TOOLTIP.math} />
+		</span>
 		<input
 			type="range"
 			min={0.1}

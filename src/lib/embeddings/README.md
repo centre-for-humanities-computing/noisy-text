@@ -104,6 +104,9 @@ default at build time (no trailing slash).
 
 ## Notes
 
+- Recommended strategy defaults (matching the store and registry
+  fallback): `preprocess: 'mean-center'`, `tokenClass: 'word-initial'`,
+  `k: 20`, `tau: 0.1`, `epsilon: 0`, `family: 'exponential'`.
 - `gpt2-lmhead` exports `lm_head.weight`; for base GPT-2 it is tied to
   `wte`, so the input-vs-output comparison may be a no-op.
 - The browser applies the exported transforms; it never re-derives them.

@@ -131,13 +131,16 @@ describe('strategyConfigFor', () => {
 		expect(config.family).toBe('power-law');
 	});
 
-	it('defaults for embedding-knn use null maxDistance and all exclusions', () => {
+	it('defaults for embedding-knn use the retuned params', () => {
 		const config = strategyConfigFor('embedding-knn', 100) as Record<string, unknown>;
 		expect(config.maxDistance).toBe(null);
 		expect(config.excludeSpecial).toBe(true);
 		expect(config.excludeUnused).toBe(true);
 		expect(config.excludeByteFallback).toBe(true);
-		expect(config.tokenClass).toBe('any');
+		expect(config.tokenClass).toBe('word-initial');
+		expect(config.preprocess).toBe('mean-center');
+		expect(config.k).toBe(20);
+		expect(config.tau).toBe(0.1);
 		expect(config.epsilon).toBe(0);
 		expect(config.family).toBe('exponential');
 	});

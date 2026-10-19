@@ -1,11 +1,24 @@
 <script lang="ts">
 	import InfoTooltip from './InfoTooltip.svelte';
-	import { KERNEL_CAPTION, KERNEL_TOOLTIP, TAU_TOOLTIP, FAMILY_TOOLTIP } from './kernel-help.js';
-	import { EMBEDDING_SOURCES, METRICS, PREPROCESSINGS } from '$lib/embeddings/index.js';
-	type EmbeddingSourceId = keyof typeof EMBEDDING_SOURCES;
+	import {
+		KERNEL_CAPTION,
+		KERNEL_TOOLTIP,
+		TAU_TOOLTIP,
+		FAMILY_TOOLTIP,
+		TOPK_TOOLTIP,
+		EPSILON_TOOLTIP,
+	} from './kernel-help.js';
+	import {
+		PREPROCESSING_TOOLTIP,
+		METRIC_TOOLTIP,
+		TOKEN_CLASS_TOOLTIP,
+		EXCLUDE_SPECIAL_TOOLTIP,
+		EXCLUDE_UNUSED_TOOLTIP,
+		EXCLUDE_BYTE_FALLBACK_TOOLTIP,
+	} from './param-help.js';
+	import { METRICS, PREPROCESSINGS } from '$lib/embeddings/index.js';
 
 	interface Props {
-		sourceId: EmbeddingSourceId;
 		preprocess: keyof typeof PREPROCESSINGS;
 		metric: keyof typeof METRICS;
 		tokenClass: 'any' | 'word-initial' | 'continuation';
@@ -17,7 +30,6 @@
 		tau: number;
 		family: 'exponential' | 'power-law' | 'gaussian';
 		disabled: boolean;
-		onsourcechange: (v: EmbeddingSourceId) => void;
 		onpreprocesschange: (v: keyof typeof PREPROCESSINGS) => void;
 		onmetricchange: (v: keyof typeof METRICS) => void;
 		ontokenclasschange: (v: Props['tokenClass']) => void;
@@ -31,7 +43,6 @@
 	}
 
 	let {
-		sourceId,
 		preprocess,
 		metric,
 		tokenClass,
@@ -43,7 +54,6 @@
 		tau,
 		family,
 		disabled,
-		onsourcechange,
 		onpreprocesschange,
 		onmetricchange,
 		ontokenclasschange,
@@ -60,46 +70,38 @@
 <div class="embedding-params">
 	<div class="param-grid">
 		<label>
-			<span>Source</span>
-			<select
-				{disabled}
-				value={sourceId}
-				onchange={(e) => onsourcechange(e.currentTarget.value as EmbeddingSourceId)}
-			>
-				{#each Object.values(EMBEDDING_SOURCES) as s (s.id)}
-					<option value={s.id}>{s.label}</option>
-				{/each}
-			</select>
-		</label>
-
-		<label>
-			<span>Preprocessing</span>
+			<span>
+				Preprocessing
+				<InfoTooltip text={PREPROCESSING_TOOLTIP.text} math={PREPROCESSING_TOOLTIP.math} />
+			</span>
 			<select
 				{disabled}
 				value={preprocess}
 				onchange={(e) => onpreprocesschange(e.currentTarget.value as keyof typeof PREPROCESSINGS)}
 			>
 				{#each Object.values(PREPROCESSINGS) as p (p.id)}
-					<option value={p.id}>{p.label}</option>
+					<option value={p.id} title={p.description}>{p.label}</option>
 				{/each}
 			</select>
 		</label>
 
 		<label>
-			<span>Metric</span>
+			<span>Metric <InfoTooltip text={METRIC_TOOLTIP.text} math={METRIC_TOOLTIP.math} /></span>
 			<select
 				{disabled}
 				value={metric}
 				onchange={(e) => onmetricchange(e.currentTarget.value as keyof typeof METRICS)}
 			>
 				{#each Object.values(METRICS) as m (m.id)}
-					<option value={m.id}>{m.label}</option>
+					<option value={m.id} title={m.description}>{m.label}</option>
 				{/each}
 			</select>
 		</label>
 
 		<label>
-			<span>Token class</span>
+			<span>
+				Token class <InfoTooltip text={TOKEN_CLASS_TOOLTIP.text} />
+			</span>
 			<select
 				{disabled}
 				value={tokenClass}
@@ -118,7 +120,9 @@
 				{disabled}
 				onchange={(e) => onexcludespecialchange(e.currentTarget.checked)}
 			/>
-			<span>No specials</span>
+			<span>
+				No specials <InfoTooltip text={EXCLUDE_SPECIAL_TOOLTIP.text} />
+			</span>
 		</label>
 
 		<label class="check">
@@ -128,7 +132,9 @@
 				{disabled}
 				onchange={(e) => onexcludeunusedchange(e.currentTarget.checked)}
 			/>
-			<span>No unused</span>
+			<span>
+				No unused <InfoTooltip text={EXCLUDE_UNUSED_TOOLTIP.text} />
+			</span>
 		</label>
 
 		<label class="check">
@@ -138,11 +144,13 @@
 				{disabled}
 				onchange={(e) => onexcludebytefallbackchange(e.currentTarget.checked)}
 			/>
-			<span>No byte-fallback</span>
+			<span>
+				No byte-fallback <InfoTooltip text={EXCLUDE_BYTE_FALLBACK_TOOLTIP.text} />
+			</span>
 		</label>
 
 		<label>
-			<span>Top-k</span>
+			<span>Top-k <InfoTooltip text={TOPK_TOOLTIP.text} math={TOPK_TOOLTIP.math} /></span>
 			<input
 				type="range"
 				min={1}
@@ -156,7 +164,7 @@
 		</label>
 
 		<label>
-			<span>Floor ε</span>
+			<span>Floor ε <InfoTooltip text={EPSILON_TOOLTIP.text} math={EPSILON_TOOLTIP.math} /></span>
 			<input
 				type="range"
 				min={0}

@@ -17,11 +17,11 @@ class EmbeddingStore {
 	/** Which embedding source (fixes the tokenizer pairing). */
 	sourceId: EmbeddingSourceId = $state('gpt2');
 	/** Row preprocessing before distance computation. */
-	preprocess: PreprocessId = $state('none');
+	preprocess: PreprocessId = $state('mean-center');
 	/** Distance metric over preprocessed rows. */
 	metric: MetricId = $state('cosine');
 	/** Token-class filter for jump targets. */
-	tokenClass: EmbeddingTokenClass = $state('any');
+	tokenClass: EmbeddingTokenClass = $state('word-initial');
 	/** Exclude special tokens (`[CLS]`, `</s>`, …). */
 	excludeSpecial: boolean = $state(true);
 	/** Exclude BERT `[unusedN]` rows. */
@@ -29,11 +29,11 @@ class EmbeddingStore {
 	/** Exclude byte-fallback tokens (`<0x4F>`). */
 	excludeByteFallback: boolean = $state(true);
 	/** Maximum neighbours per token. */
-	k: number = $state(50);
+	k: number = $state(20);
 	/** Ergodicity floor $\varepsilon$. */
 	epsilon: number = $state(0);
 	/** Softmax temperature $\tau$. */
-	tau: number = $state(1.0);
+	tau: number = $state(0.1);
 	/** Weight family for the kernel. */
 	family: WeightFamilyId = $state('exponential');
 

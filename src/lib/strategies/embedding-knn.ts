@@ -65,14 +65,15 @@ export const EMBEDDING_KNN_INFO = {
 	description:
 		'Tokens transition to semantically-similar tokens based on LM embedding-space nearest neighbours, mixed with uniform noise.',
 	stationary: 'data-dependent',
-	plainName: 'Drift by meaning',
+	plainName: 'Drift by language model',
 	gloss:
 		'Tokens morph into semantically-related tokens ("dog" -> "cat", "run" -> "walk") using language-model embedding space.',
 	tooltip: {
 		text:
 			'At each step, a token either stays the same or jumps to one of its nearest neighbours in a language-model ' +
 			'embedding space — tokens the model uses in similar contexts, so jumps follow meaning rather than spelling. ' +
-			'A small uniform floor $\\varepsilon$ keeps the process connected.',
+			'An optional uniform floor ε mixes in a little noise so the process stays connected; ' +
+			'at ε = 0 tokens only ever jump between embedding neighbours.',
 		math:
 			'P(y \\mid x) = (1-\\varepsilon)\\,\\mathrm{knn}(y\\mid x) + \\frac{\\varepsilon}{K},\\quad ' +
 			'\\mathrm{knn}(y\\mid x) \\propto w_\\tau(d(x,y)),\\ y \\in \\mathrm{top}\\text{-}k\\ \\text{embedding neighbours}',

@@ -335,19 +335,30 @@ export class EmbeddingKnnIndex {
 	 * loop between chunks so progress messages can be delivered. Consults
 	 * the row cache (when present) before scanning and persists results.
 	 *
+	 * The optional `deadline` (a `performance.now()` timestamp) stops the
+	 * loop at the next chunk boundary when it has passed — best-effort,
+	 * so the worst-case overrun is one chunk. Rows already memoized are
+	 * skipped without a scan but still report progress; when the deadline
+	 * breaks early, no synthetic final `[total, total]` call is emitted.
+	 *
 	 * @returns Number of rows computed fresh (not served from cache).
 	 */
 	async precomputeRows(
 		tokens: Int32Array,
 		onProgress?: (done: number, total: number) => void,
+		deadline?: number,
 	): Promise<number> {
 		let computed = 0;
 		const total = tokens.length;
 		for (let offset = 0; offset < total; offset += this._chunkSize) {
 			const end = Math.min(offset + this._chunkSize, total);
+			if (deadline !== undefined && performance.now() >= deadline) break;
 			for (let i = offset; i < end; i++) {
 				const token = tokens[i]!;
-				if (this._topM.has(token)) continue;
+				if (this._topM.has(token)) {
+					onProgress?.(i + 1, total);
+					continue;
+				}
 				const key = `${this._cachePrefix}|${token}`;
 				if (this._cache) {
 					const hit = (await this._cache.get(key)) as TopMTable | undefined | null;

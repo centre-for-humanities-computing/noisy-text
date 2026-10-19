@@ -131,6 +131,27 @@ describe('EmbeddingKnnIndex.precomputeRows', () => {
 		expect(calls.length).toBeGreaterThanOrEqual(3);
 	});
 
+	it('reports progress on the memoized skip path (final call is [total, total])', async () => {
+		const index = new EmbeddingKnnIndex(lineMatrix(K, d), emptyTransform(d), 'none', 'l2', 4);
+		const tokens = Int32Array.from([2, 7, 9]);
+		await index.precomputeRows(tokens, undefined);
+
+		// Second call over the same set: every row is memoized, so the loop
+		// only skips — but progress must still reach [total, total].
+		const calls: Array<[number, number]> = [];
+		await index.precomputeRows(tokens, (done, total) => calls.push([done, total]));
+		expect(calls.length).toBe(3);
+		expect(calls[calls.length - 1]).toEqual([3, 3]);
+	});
+
+	it('stops early when the deadline has passed', async () => {
+		const index = new EmbeddingKnnIndex(lineMatrix(K, d), emptyTransform(d), 'none', 'l2', 4);
+		// A deadline in the past stops the loop before the first chunk.
+		const computed = await index.precomputeRows(Int32Array.from([2, 7, 9]), undefined, 0);
+		expect(computed).toBe(0);
+		expect(index.topM(7).ids.length).toBe(4);
+	});
+
 	it('serves repeat rows from the injected RowCache (R1-N1)', async () => {
 		class FakeRowCache {
 			store = new Map<string, unknown>();
