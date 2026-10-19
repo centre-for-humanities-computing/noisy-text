@@ -60,7 +60,7 @@ describe('applyPreprocess', () => {
 	});
 
 	it('whiten with a non-identity (diagonal) whitening scales components', () => {
-		// Diagonal W = diag(2, 1, ..., 1): the first component doubles.
+		// Diagonal $W = \mathrm{diag}(2, 1, \ldots, 1)$: the first component doubles.
 		const w = identity(d);
 		w[0] = 2;
 		const diag: TransformBundle = { ...t, whitening: w };

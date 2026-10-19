@@ -18,8 +18,13 @@ The matrix is **not shipped with the app** and nothing here runs in CI.
 - `preprocessing.ts` — `none` / `mean-center` / `center-remove-pcs` /
   `whiten`, applied to dequantized rows.
 - `metric.ts` — cosine ($1 - \cos$) and L2 distances.
-- `knn-index.ts` — lazy $O(K \cdot d)$ scan + bounded max-heap top-$M$
-  selection, memoized per token; chunked `precomputeRows`.
+- `knn-index.ts` — $O(K \cdot d)$ scan + bounded max-heap top-$M$
+  selection, memoized per token; chunked `precomputeRows` (progress per
+  token). `materialize()` builds a contiguous `Float32Array` of all $K$
+  transformed rows plus `Float64Array` cosine norms (cosine only) once,
+  after which scans read the flat matrix directly; oversized matrices
+  ($K \cdot d \cdot 4$ above `materializeBudgetBytes`, default 256 MiB)
+  fall back to the lazy per-row path with identical results.
 - `embedding-distance-model.ts` — `DistanceModel` adapter: `candidates`
   = top-$M$ ids filtered by a token predicate (kNN semantics, not
   radius semantics); `distance` with the `maxDist + 1` early-exit
@@ -103,4 +108,7 @@ default at build time (no trailing slash).
   `wte`, so the input-vs-output comparison may be a no-op.
 - The browser applies the exported transforms; it never re-derives them.
 - Node has no `indexedDB`; `idb.ts` guards every call and `loader.ts`
-  degrades to network-only.
+  degrades to network-only. The IDB connection is opened once and reused
+  (the handle is dropped on `close`/`versionchange` and reopens lazily).
+- The materialized transformed matrix is in-memory only (never persisted
+  to IndexedDB); only top-$M$ rows are cached there.

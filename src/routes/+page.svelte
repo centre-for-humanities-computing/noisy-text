@@ -317,9 +317,11 @@
 		const label =
 			phase === 'preparing'
 				? 'Preparing vocabulary'
-				: phase === 'embeddings'
-					? 'Computing embedding neighbours'
-					: 'Computing trajectory';
+				: phase === 'materializing'
+					? 'Preparing vectors'
+					: phase === 'embeddings'
+						? 'Computing embedding neighbours'
+						: 'Computing trajectory';
 		const pctPart = phase !== null ? ` ${Math.round(trajectoryStore.progress * 100)}%` : '';
 		const elapsedPart =
 			trajectoryStore.elapsed >= 1 ? ` (${trajectoryStore.elapsed.toFixed(1)}s)` : '';

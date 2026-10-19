@@ -1,12 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-	EMBEDDING_BASE_URL,
-	EMBEDDING_CACHE_TAG,
-	HF_DATASET_REPO,
-	HF_DATASET_REVISION,
-	hfResolvePrefix,
-	shortHash,
-} from './loader.js';
+import { EMBEDDING_BASE_URL, EMBEDDING_CACHE_TAG, hfResolvePrefix, shortHash } from './loader.js';
 
 describe('shortHash', () => {
 	it('is deterministic', () => {
@@ -39,10 +32,10 @@ describe('hfResolvePrefix', () => {
 });
 
 describe('default base URL + cache tag', () => {
-	// Assumes the test environment leaves VITE_EMBEDDING_BASE_URL unset.
-	it('EMBEDDING_BASE_URL is the HF resolve prefix for the pinned revision', () => {
-		expect(EMBEDDING_BASE_URL).toBe(hfResolvePrefix(HF_DATASET_REPO, HF_DATASET_REVISION));
-	});
+	// `EMBEDDING_BASE_URL` is intentionally not asserted against the
+	// default prefix here: it honours a `VITE_EMBEDDING_BASE_URL` override
+	// when one is configured (e.g. the documented `.env`), so asserting
+	// the default would make this test non-hermetic.
 
 	it('EMBEDDING_CACHE_TAG is shortHash of the base URL', () => {
 		expect(EMBEDDING_CACHE_TAG).toBe(shortHash(EMBEDDING_BASE_URL));

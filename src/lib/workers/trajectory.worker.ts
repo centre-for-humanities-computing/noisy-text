@@ -12,9 +12,16 @@
  * computing neighborhoods on-demand during the walk). The model/provider
  * pair is cached in the worker for the lifetime of the tokenizer.
  *
- * Progress is posted in two phases: `'preparing'` while decoding the
- * vocabulary (chunked and yielding, so messages go out immediately) and
- * `'walking'` for the noise walk itself. Posts are throttled to at most
+ * For `embedding-knn`, after loading the matrix the kNN index is
+ * materialized into a contiguous row matrix (phase `'materializing'`),
+ * the input rows are precomputed (phase `'embeddings'`), and a budgeted
+ * BFS over the kNN graph warms the reachable set — so repeat runs and
+ * later walk steps mostly hit memory or the IndexedDB cache.
+ *
+ * Progress is posted in the phases `'preparing'` (vocabulary decode,
+ * chunked and yielding so messages go out immediately),
+ * `'materializing'` (flat-matrix build), `'embeddings'` (neighbour rows)
+ * and `'walking'` (the noise walk itself). Posts are throttled to at most
  * one per ~100 ms so fast runs send few or none.
  */
 
@@ -73,6 +80,12 @@ const UNION_LAYOUT_ITERATIONS = 300;
 /** Minimum interval between progress posts (ms). */
 const PROGRESS_INTERVAL_MS = 100;
 
+/** Warm-up BFS: hard cap on tokens precomputed beyond the inputs. */
+const WARMUP_MAX_TOKENS = 2000;
+
+/** Warm-up BFS: wall-clock cap (the preferred bound, keeping pre-walk time bounded). */
+const WARMUP_TIME_BUDGET_MS = 15_000;
+
 /**
  * Fixed radius ceiling for the edit-distance neighborhood provider.
  * All neighbors within this edit distance are cached; $k$ and
@@ -116,7 +129,12 @@ const _providerCache = new Map<string, { model: DistanceModel; provider: Neighbo
  */
 const _embeddingCache = new Map<
 	string,
-	{ model: DistanceModel; provider: NeighborhoodProvider; index: EmbeddingKnnIndex }
+	{
+		model: DistanceModel;
+		provider: NeighborhoodProvider;
+		index: EmbeddingKnnIndex;
+		predicate: (id: number) => boolean;
+	}
 >();
 
 /**
@@ -146,7 +164,11 @@ async function ensureEmbeddingProvider(
 		'tokenClass' | 'excludeSpecial' | 'excludeUnused' | 'excludeByteFallback'
 	>,
 	onProgress?: VocabProgress,
-): Promise<{ provider: NeighborhoodProvider; index: EmbeddingKnnIndex }> {
+): Promise<{
+	provider: NeighborhoodProvider;
+	index: EmbeddingKnnIndex;
+	predicate: (id: number) => boolean;
+}> {
 	const info = getEmbeddingSource(sourceId);
 	if (info.tokenizerId !== tokenizerId) {
 		throw new Error(
@@ -155,7 +177,8 @@ async function ensureEmbeddingProvider(
 	}
 	const cacheKey = `embedding:${sourceId}:${preprocess}:${metric}:${predicateSignature(cfg)}`;
 	const cached = _embeddingCache.get(cacheKey);
-	if (cached) return { provider: cached.provider, index: cached.index };
+	if (cached)
+		return { provider: cached.provider, index: cached.index, predicate: cached.predicate };
 
 	const { matrix, transform, meta } = await loadEmbedding(sourceId, onProgress);
 	const tok = await loadTokenizer(tokenizerId);
@@ -178,8 +201,8 @@ async function ensureEmbeddingProvider(
 	const provider = new NeighborhoodProvider(model, Infinity, {
 		maxStored: NEIGHBOR_STORE_LIMIT,
 	});
-	_embeddingCache.set(cacheKey, { model, provider, index });
-	return { provider, index };
+	_embeddingCache.set(cacheKey, { model, provider, index, predicate });
+	return { provider, index, predicate };
 }
 
 /** Callback reporting decoded-token count and vocabulary size. */
@@ -321,11 +344,47 @@ async function handleCompute(
 				(done, total) => postProgress('preparing', done, total),
 			);
 			provider = emb.provider;
-			// Lazy rows for the walk's input tokens are precomputed up front
+			// Materialize the contiguous row matrix once (memoized); later
+			// requests with the same config skip this almost instantly.
+			await emb.index.materialize((done, total) => postProgress('materializing', done, total));
+			// Rows for the walk's input tokens are precomputed up front
 			// (chunked, non-blocking) so the walk itself never stalls.
-			await emb.index.precomputeRows(distinctTokens(spec.inputIds), (done, total) =>
+			const inputs = distinctTokens(spec.inputIds);
+			await emb.index.precomputeRows(inputs, (done, total) =>
 				postProgress('embeddings', done, total),
 			);
+			// Budgeted warm-up BFS: walk outward over the kNN graph from the
+			// inputs, precomputing reachable rows so the walk hits the memo
+			// or the IndexedDB cache instead of cold scans. Bounded by a
+			// token cap and a wall-clock budget (the preferred bound).
+			const warmStart = performance.now();
+			const seen = new Set<number>();
+			for (let i = 0; i < inputs.length; i++) seen.add(inputs[i]!);
+			let frontier = inputs;
+			let warmed = 0;
+			while (
+				frontier.length > 0 &&
+				warmed < WARMUP_MAX_TOKENS &&
+				performance.now() - warmStart < WARMUP_TIME_BUDGET_MS
+			) {
+				const next: number[] = [];
+				for (let i = 0; i < frontier.length; i++) {
+					const neighbours = emb.index.topM(frontier[i]!).ids;
+					for (let j = 0; j < neighbours.length; j++) {
+						const id = neighbours[j]!;
+						if (seen.has(id) || !emb.predicate(id)) continue;
+						seen.add(id);
+						next.push(id);
+					}
+				}
+				if (next.length === 0) break;
+				const batch = Int32Array.from(next.slice(0, WARMUP_MAX_TOKENS - warmed));
+				warmed += batch.length;
+				await emb.index.precomputeRows(batch, (done, total) =>
+					postProgress('embeddings', done, total),
+				);
+				frontier = batch;
+			}
 		}
 
 		const strategy = getStrategy(spec.strategyId, spec.strategyConfig, spec.vocabSize, provider);

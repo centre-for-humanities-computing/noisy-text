@@ -26,6 +26,13 @@ function emptyTransform(d: number, nPcs = 0): TransformBundle {
 	};
 }
 
+/** `emptyTransform` with a nonzero mean, so `mean-center` does real work. */
+function shiftedTransform(d: number): TransformBundle {
+	const mean = new Float32Array(d);
+	for (let i = 0; i < d; i++) mean[i] = 0.25 * (i + 1);
+	return { ...emptyTransform(d), mean };
+}
+
 function identity(d: number): Float32Array {
 	const w = new Float32Array(d * d);
 	for (let i = 0; i < d; i++) w[i * d + i] = 1;
@@ -156,5 +163,45 @@ describe('EmbeddingKnnIndex.precomputeRows', () => {
 		expect(computed).toBe(0);
 		expect(cache.puts).toBe(3);
 		expect(second.topM(7).ids.length).toBe(4);
+	});
+});
+
+describe('EmbeddingKnnIndex.materialize', () => {
+	const K = 20;
+	const d = 4;
+
+	/**
+	 * Materialized vs lazy parity: for each metric × representative
+	 * preprocess, the materialized fast path must produce bit-identical
+	 * `topM` ids and dists (exact `toEqual` on floats — this is the
+	 * `_normSq`-equals-`metricDistance` assertion for cosine).
+	 */
+	for (const metric of ['cosine', 'l2'] as const) {
+		for (const preprocess of ['none', 'mean-center'] as const) {
+			it(`parity: materialized topM is bit-identical to lazy (${metric}, ${preprocess})`, async () => {
+				const transform = preprocess === 'mean-center' ? shiftedTransform(d) : emptyTransform(d);
+				const lazy = new EmbeddingKnnIndex(lineMatrix(K, d), transform, preprocess, metric, 5);
+				const mat = new EmbeddingKnnIndex(lineMatrix(K, d), transform, preprocess, metric, 5, {
+					materializeBudgetBytes: 1 << 30,
+				});
+				await expect(mat.materialize()).resolves.toBe(true);
+				for (const t of [0, 3, 10, 19]) {
+					const lazyTable = lazy.topM(t);
+					const matTable = mat.topM(t);
+					expect(Array.from(matTable.ids)).toEqual(Array.from(lazyTable.ids));
+					expect(Array.from(matTable.dists)).toEqual(Array.from(lazyTable.dists));
+				}
+			});
+		}
+	}
+
+	it('falls back to the lazy path when over budget', async () => {
+		const reference = new EmbeddingKnnIndex(lineMatrix(K, d), emptyTransform(d), 'none', 'l2', 5);
+		const overBudget = new EmbeddingKnnIndex(lineMatrix(K, d), emptyTransform(d), 'none', 'l2', 5, {
+			materializeBudgetBytes: 0,
+		});
+		await expect(overBudget.materialize()).resolves.toBe(false);
+		expect(Array.from(overBudget.topM(7).ids)).toEqual(Array.from(reference.topM(7).ids));
+		expect(Array.from(overBudget.topM(7).dists)).toEqual(Array.from(reference.topM(7).dists));
 	});
 });

@@ -100,7 +100,7 @@ export type TrajectoryWorkerRequest =
 // ---- Responses (worker → main) ----
 
 /** Computation phase a progress message refers to. */
-export type TrajectoryWorkerPhase = 'preparing' | 'embeddings' | 'walking';
+export type TrajectoryWorkerPhase = 'preparing' | 'materializing' | 'embeddings' | 'walking';
 
 /** Phases of the union-graph build: neighborhood pass, then layout. */
 export type UnionGraphPhase = 'neighbors' | 'layout';
