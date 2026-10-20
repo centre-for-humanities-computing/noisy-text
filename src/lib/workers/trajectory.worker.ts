@@ -12,9 +12,16 @@
  * computing neighborhoods on-demand during the walk). The model/provider
  * pair is cached in the worker for the lifetime of the tokenizer.
  *
- * Progress is posted in two phases: `'preparing'` while decoding the
- * vocabulary (chunked and yielding, so messages go out immediately) and
- * `'walking'` for the noise walk itself. Posts are throttled to at most
+ * For `embedding-knn`, after loading the matrix the kNN index is
+ * materialized into a contiguous row matrix (phase `'materializing'`),
+ * the input rows are precomputed (phase `'embeddings'`), and a budgeted
+ * BFS over the kNN graph warms the reachable set — so repeat runs and
+ * later walk steps mostly hit memory or the IndexedDB cache.
+ *
+ * Progress is posted in the phases `'preparing'` (vocabulary decode,
+ * chunked and yielding so messages go out immediately),
+ * `'materializing'` (flat-matrix build), `'embeddings'` (neighbour rows)
+ * and `'walking'` (the noise walk itself). Posts are throttled to at most
  * one per ~100 ms so fast runs send few or none.
  */
 
@@ -42,6 +49,21 @@ import type { NeighborGraphParams } from '../strategies/neighbor-graph.js';
 import { buildUnionGraph } from '../engine/union-graph.js';
 import { computeForceLayoutLarge } from '../engine/force-layout.js';
 import type { TrajectoryWorkerUnionGraphRequest, UnionGraph } from './trajectory.protocol.js';
+import {
+	getEmbeddingSource,
+	loadEmbedding,
+	EmbeddingKnnIndex,
+	EmbeddingDistanceModel,
+	EMBEDDING_CACHE_TAG,
+	idbRowCache,
+} from '../embeddings/index.js';
+import {
+	classifyTokens,
+	buildTokenPredicate,
+	predicateSignature,
+} from '../strategies/embedding-filter.js';
+import type { EmbeddingKnnConfig } from '../strategies/embedding-knn.js';
+import type { MetricId, PreprocessId, EmbeddingSourceId } from '../embeddings/index.js';
 
 /** Latest union-graph request id; older requests abort at checkpoints. */
 let latestUnionRequestId = 0;
@@ -57,6 +79,12 @@ const UNION_LAYOUT_ITERATIONS = 300;
 
 /** Minimum interval between progress posts (ms). */
 const PROGRESS_INTERVAL_MS = 100;
+
+/** Warm-up BFS: hard cap on tokens precomputed beyond the inputs. */
+const WARMUP_MAX_TOKENS = 2000;
+
+/** Warm-up BFS: wall-clock cap (the preferred bound, keeping pre-walk time bounded). */
+const WARMUP_TIME_BUDGET_MS = 15_000;
 
 /**
  * Fixed radius ceiling for the edit-distance neighborhood provider.
@@ -93,8 +121,109 @@ const NEIGHBOR_STORE_LIMIT = 200;
  */
 const _providerCache = new Map<string, { model: DistanceModel; provider: NeighborhoodProvider }>();
 
+/**
+ * Cached embedding-backed model/provider/index triple per embedding
+ * config. The matrix (int8, ~24 MB) and memoized top-$M$ rows are shared
+ * across requests with the same
+ * `sourceId:preprocess:metric:predicate-signature` key.
+ */
+const _embeddingCache = new Map<
+	string,
+	{
+		model: DistanceModel;
+		provider: NeighborhoodProvider;
+		index: EmbeddingKnnIndex;
+		predicate: (id: number) => boolean;
+	}
+>();
+
+/**
+ * Ensure the embedding-backed `DistanceModel` + `NeighborhoodProvider`
+ * for an embedding-knn config are ready for a tokenizer.
+ *
+ * Validates that the embedding source's `tokenizerId` matches the active
+ * tokenizer (embedding rows are indexed by the source model's own
+ * vocabulary), loads + decodes the quantized matrix (IndexedDB-cached),
+ * classifies the vocabulary once, and wraps the kNN index in the
+ * standard `NeighborhoodProvider` with $R_{\max} = \infty$ (kNN
+ * semantics: `maxDistance` filtering happens at read time in the
+ * strategy, not at store time).
+ *
+ * The cache key pins everything that shapes the stored rows (`sourceId`,
+ * preprocessing, metric, and the filter predicate signature), so a
+ * parameter change rebuilds rather than mixes rows.
+ */
+async function ensureEmbeddingProvider(
+	sourceId: EmbeddingSourceId,
+	preprocess: PreprocessId,
+	metric: MetricId,
+	k: number,
+	tokenizerId: string,
+	cfg: Pick<
+		EmbeddingKnnConfig,
+		'tokenClass' | 'excludeSpecial' | 'excludeUnused' | 'excludeByteFallback'
+	>,
+	onProgress?: VocabProgress,
+): Promise<{
+	provider: NeighborhoodProvider;
+	index: EmbeddingKnnIndex;
+	predicate: (id: number) => boolean;
+}> {
+	const info = getEmbeddingSource(sourceId);
+	if (info.tokenizerId !== tokenizerId) {
+		throw new Error(
+			`Embedding source "${sourceId}" requires the "${info.tokenizerId}" tokenizer, but "${tokenizerId}" is active.`,
+		);
+	}
+	const cacheKey = `embedding:${sourceId}:${preprocess}:${metric}:${predicateSignature(cfg)}`;
+	const cached = _embeddingCache.get(cacheKey);
+	if (cached)
+		return { provider: cached.provider, index: cached.index, predicate: cached.predicate };
+
+	const { matrix, transform, meta } = await loadEmbedding(sourceId, onProgress);
+	const tok = await loadTokenizer(tokenizerId);
+	const strings = await decodeVocab(tok, onProgress);
+	if (strings.length !== meta.vocabSize || matrix.vocabSize !== meta.vocabSize) {
+		throw new Error(
+			`Embedding vocab mismatch for "${sourceId}": matrix has ${matrix.vocabSize} rows, tokenizer has ${strings.length}.`,
+		);
+	}
+	const classes = classifyTokens(strings, tokenizerId);
+	const predicate = buildTokenPredicate(classes, cfg);
+	// Store the top-$M$ (M = NEIGHBOR_STORE_LIMIT); read-time filtering
+	// (token class, $k$, maxDistance) happens in the strategy/kernel.
+	const rowPrefix = `${sourceId}|${preprocess}|${metric}|${NEIGHBOR_STORE_LIMIT}@${EMBEDDING_CACHE_TAG}`;
+	const index = new EmbeddingKnnIndex(matrix, transform, preprocess, metric, NEIGHBOR_STORE_LIMIT, {
+		cache: idbRowCache,
+		cacheKeyPrefix: rowPrefix,
+	});
+	const model = new EmbeddingDistanceModel(index, predicate, sourceId, preprocess, metric);
+	const provider = new NeighborhoodProvider(model, Infinity, {
+		maxStored: NEIGHBOR_STORE_LIMIT,
+	});
+	_embeddingCache.set(cacheKey, { model, provider, index, predicate });
+	return { provider, index, predicate };
+}
+
 /** Callback reporting decoded-token count and vocabulary size. */
 type VocabProgress = (done: number, total: number) => void;
+
+/**
+ * Distinct token ids in `ids`, first-occurrence order. Used to bound the
+ * embedding row precompute to the tokens the walk can actually visit.
+ */
+function distinctTokens(ids: Int32Array): Int32Array {
+	const seen = new Set<number>();
+	const out: number[] = [];
+	for (let i = 0; i < ids.length; i++) {
+		const v = ids[i]!;
+		if (!seen.has(v)) {
+			seen.add(v);
+			out.push(v);
+		}
+	}
+	return Int32Array.from(out);
+}
 
 /**
  * Decode all $K$ token strings, in chunks of 4096, yielding to the event
@@ -203,6 +332,61 @@ async function handleCompute(
 				spec.tokenizerId,
 				(done, total) => postProgress('preparing', done, total),
 			);
+		} else if (spec.strategyId === 'embedding-knn') {
+			const cfg = spec.strategyConfig as unknown as EmbeddingKnnConfig;
+			const emb = await ensureEmbeddingProvider(
+				cfg.sourceId,
+				cfg.preprocess,
+				cfg.metric,
+				cfg.k,
+				spec.tokenizerId,
+				cfg,
+				(done, total) => postProgress('preparing', done, total),
+			);
+			provider = emb.provider;
+			// Materialize the contiguous row matrix once (memoized); later
+			// requests with the same config skip this almost instantly.
+			await emb.index.materialize((done, total) => postProgress('materializing', done, total));
+			// Rows for the walk's input tokens are precomputed up front
+			// (chunked, non-blocking) so the walk itself never stalls.
+			const inputs = distinctTokens(spec.inputIds);
+			await emb.index.precomputeRows(inputs, (done, total) =>
+				postProgress('embeddings', done, total),
+			);
+			// Budgeted warm-up BFS: walk outward over the kNN graph from the
+			// inputs, precomputing reachable rows so the walk hits the memo
+			// or the IndexedDB cache instead of cold scans. Bounded by a
+			// token cap and a wall-clock budget (the preferred bound): the
+			// deadline is checked before each frontier expansion and passed
+			// to `precomputeRows`, which also honours it between chunks, so
+			// the budget holds even mid-batch.
+			const warmStart = performance.now();
+			const deadline = warmStart + WARMUP_TIME_BUDGET_MS;
+			const seen = new Set<number>();
+			for (let i = 0; i < inputs.length; i++) seen.add(inputs[i]!);
+			let frontier = inputs;
+			let warmed = 0;
+			while (frontier.length > 0 && warmed < WARMUP_MAX_TOKENS && performance.now() < deadline) {
+				const next: number[] = [];
+				for (let i = 0; i < frontier.length; i++) {
+					const neighbours = emb.index.topM(frontier[i]!).ids;
+					for (let j = 0; j < neighbours.length; j++) {
+						const id = neighbours[j]!;
+						if (seen.has(id) || !emb.predicate(id)) continue;
+						seen.add(id);
+						next.push(id);
+					}
+				}
+				if (next.length === 0) break;
+				const batch = Int32Array.from(next.slice(0, WARMUP_MAX_TOKENS - warmed));
+				warmed += batch.length;
+				await emb.index.precomputeRows(
+					batch,
+					(done, total) => postProgress('embeddings', done, total),
+					deadline,
+				);
+				frontier = batch;
+			}
 		}
 
 		const strategy = getStrategy(spec.strategyId, spec.strategyConfig, spec.vocabSize, provider);
@@ -291,6 +475,24 @@ async function handleNeighbors(
 			};
 			graphParams = {
 				maxDistance: cfg.maxDistance ?? 0.5,
+				k: cfg.k ?? 50,
+				tau: cfg.tau ?? 1.0,
+				family: cfg.family ?? 'exponential',
+			};
+		} else if (strategyId === 'embedding-knn') {
+			const cfg = strategyConfig as unknown as EmbeddingKnnConfig;
+			provider = (
+				await ensureEmbeddingProvider(
+					cfg.sourceId,
+					cfg.preprocess,
+					cfg.metric,
+					cfg.k,
+					tokenizerId,
+					cfg,
+				)
+			).provider;
+			graphParams = {
+				maxDistance: cfg.maxDistance ?? Infinity,
 				k: cfg.k ?? 50,
 				tau: cfg.tau ?? 1.0,
 				family: cfg.family ?? 'exponential',
@@ -391,6 +593,24 @@ async function handleUnionGraph(msg: TrajectoryWorkerUnionGraphRequest): Promise
 				tau: cfg.tau ?? 1.0,
 				family: cfg.family ?? 'exponential',
 			};
+		} else if (strategyId === 'embedding-knn') {
+			const cfg = strategyConfig as unknown as EmbeddingKnnConfig;
+			provider = (
+				await ensureEmbeddingProvider(
+					cfg.sourceId,
+					cfg.preprocess,
+					cfg.metric,
+					cfg.k,
+					tokenizerId,
+					cfg,
+				)
+			).provider;
+			graphParams = {
+				maxDistance: cfg.maxDistance ?? Infinity,
+				k: cfg.k ?? 50,
+				tau: cfg.tau ?? 1.0,
+				family: cfg.family ?? 'exponential',
+			};
 		}
 		if (isStale()) return;
 
@@ -459,6 +679,7 @@ async function handleUnionGraph(msg: TrajectoryWorkerUnionGraphRequest): Promise
 			edgeTraj: built.edgeTraj,
 			hasNeighborhood: built.hasNeighborhood,
 			truncated: built.truncated,
+			connectivity: built.connectivity,
 			layoutX: layout.x,
 			layoutY: layout.y,
 		};

@@ -111,4 +111,24 @@ describe('registry tooltip fields', () => {
 			}
 		}
 	});
+
+	it('every embedding source has plainName, gloss, and tooltip', async () => {
+		const { EMBEDDING_SOURCES } = await import('$lib/embeddings/index.js');
+		for (const source of Object.values(EMBEDDING_SOURCES)) {
+			expect(typeof source.plainName).toBe('string');
+			expect(source.plainName.length).toBeGreaterThan(0);
+			expect(typeof source.gloss).toBe('string');
+			expect(source.gloss.length).toBeGreaterThan(0);
+			expect(typeof source.tooltip).toBe('object');
+			expect(typeof source.tooltip.text).toBe('string');
+			expect(source.tooltip.text.length).toBeGreaterThan(0);
+			if (source.tooltip.math) {
+				const html = katex.renderToString(source.tooltip.math, {
+					throwOnError: false,
+					displayMode: false,
+				});
+				expect(html).not.toContain('katex-error');
+			}
+		}
+	});
 });

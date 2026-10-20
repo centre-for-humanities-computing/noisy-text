@@ -29,6 +29,13 @@ export interface DistanceModel {
 	 * Yield candidate token ids that *could* be within `radius` of `token`.
 	 * Must be a superset of the true neighborhood — sound, no false
 	 * exclusions. May include false positives (filtered later by `distance`).
+	 *
+	 * Exception — kNN-backed models (e.g. `EmbeddingDistanceModel`):
+	 * these return a fixed top-$M$ neighbourhood rather than a
+	 * radius-bounded superset, so `candidates` is *not* sound in the
+	 * radius sense. Such models are valid only under the kNN
+	 * interpretation and must be wrapped with $R_{\max} = \infty$
+	 * (radius filtering then happens at read time, outside the model).
 	 */
 	candidates(token: number, radius: number): Iterable<number>;
 

@@ -17,14 +17,18 @@
 	import { graphStore } from '$lib/stores/graph.svelte.js';
 	import { lexicalStore } from '$lib/stores/lexical.svelte.js';
 	import { charOverlapStore } from '$lib/stores/charOverlap.svelte.js';
+	import { embeddingStore } from '$lib/stores/embedding.svelte.js';
 	import { viewStore } from '$lib/stores/view.svelte.js';
 	import { TOKENIZERS } from '$lib/tokenizers/index.js';
 	import { STRATEGIES } from '$lib/strategies/index.js';
 	import { strategyConfigFor } from '$lib/strategies/index.js';
+	import { EMBEDDING_SOURCES } from '$lib/embeddings/index.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
 	import { recencyAt, allTokenCharSpans } from '$lib/engine/diff.js';
+	import EmbeddingSourcePicker from '$lib/components/EmbeddingSourcePicker.svelte';
 	import LexicalParams from '$lib/components/LexicalParams.svelte';
 	import CharOverlapParams from '$lib/components/CharOverlapParams.svelte';
+	import EmbeddingParams from '$lib/components/EmbeddingParams.svelte';
 	import ScheduleParams from '$lib/components/ScheduleParams.svelte';
 	import BetaReadout from '$lib/components/BetaReadout.svelte';
 	import AdvancedPanel from '$lib/components/AdvancedPanel.svelte';
@@ -50,9 +54,18 @@
 				? lexicalStore.params
 				: id === 'char-overlap'
 					? charOverlapStore.params
-					: undefined,
+					: id === 'embedding-knn'
+						? embeddingStore.params
+						: undefined,
 		) as Record<string, unknown>;
 	}
+
+	/**
+	 * The embedding-knn strategy pins the tokenizer: embedding rows are
+	 * indexed by the source model's own vocabulary. True while it is the
+	 * active strategy.
+	 */
+	const tokenizerLocked = $derived(strategyStore.currentId === 'embedding-knn');
 
 	/**
 	 * Cache key for the union-graph build. Hashing the rows *content*
@@ -302,7 +315,14 @@
 	const trajStatus = $derived.by(() => {
 		if (trajectoryStore.status !== 'computing') return '';
 		const phase = trajectoryStore.phase;
-		const label = phase === 'preparing' ? 'Preparing vocabulary' : 'Computing trajectory';
+		const label =
+			phase === 'preparing'
+				? 'Preparing vocabulary'
+				: phase === 'materializing'
+					? 'Preparing vectors'
+					: phase === 'embeddings'
+						? 'Computing embedding neighbours'
+						: 'Computing trajectory';
 		const pctPart = phase !== null ? ` ${Math.round(trajectoryStore.progress * 100)}%` : '';
 		const elapsedPart =
 			trajectoryStore.elapsed >= 1 ? ` (${trajectoryStore.elapsed.toFixed(1)}s)` : '';
@@ -368,11 +388,21 @@
 		tokenizerStore.selectTokenizer('gpt2');
 	});
 
-	// Mark lexical and char-overlap stores ready when tokenizer is available.
+	// Mark param stores ready when tokenizer is available.
 	$effect(() => {
 		if (tokenizerStore.tokenizer) {
 			lexicalStore.markReady();
 			charOverlapStore.markReady();
+		}
+	});
+
+	// Keep the tokenizer aligned with the embedding source's vocabulary
+	// whenever the embedding-knn strategy is active.
+	$effect(() => {
+		if (strategyStore.currentId !== 'embedding-knn') return;
+		const want = EMBEDDING_SOURCES[embeddingStore.sourceId].tokenizerId;
+		if (tokenizerStore.currentId !== want) {
+			tokenizerStore.selectTokenizer(want);
 		}
 	});
 </script>
@@ -391,7 +421,7 @@
 				<TokenizerPicker
 					value={tokenizerStore.currentId}
 					options={tokenizerOptions}
-					disabled={tokenizerStore.status === 'loading'}
+					disabled={tokenizerStore.status === 'loading' || tokenizerLocked}
 					onchange={(id) => tokenizerStore.selectTokenizer(id)}
 				/>
 				{#if tokenizerCaption}
@@ -410,6 +440,15 @@
 					<p class="caption">{strategyCaption}</p>
 				{/if}
 			</div>
+			{#if strategyStore.currentId === 'embedding-knn'}
+				<div class="picker-group">
+					<EmbeddingSourcePicker
+						value={embeddingStore.sourceId}
+						disabled={tokenizerStore.status !== 'ready'}
+						onchange={(id) => (embeddingStore.sourceId = id)}
+					/>
+				</div>
+			{/if}
 		</div>
 
 		<textarea bind:value={text} placeholder="Type or paste text here…" rows={8}></textarea>
@@ -518,7 +557,7 @@
 			<TokenizerPicker
 				value={tokenizerStore.currentId}
 				options={tokenizerOptions}
-				disabled={tokenizerStore.status === 'loading'}
+				disabled={tokenizerStore.status === 'loading' || tokenizerLocked}
 				onchange={(id) => tokenizerStore.selectTokenizer(id)}
 			/>
 			<StrategyPicker
@@ -528,6 +567,13 @@
 				onchange={(id) =>
 					strategyStore.selectStrategy(id, tokenizerStore.tokenizer?.vocabSize ?? 0)}
 			/>
+			{#if strategyStore.currentId === 'embedding-knn'}
+				<EmbeddingSourcePicker
+					value={embeddingStore.sourceId}
+					disabled={tokenizerStore.status !== 'ready'}
+					onchange={(id) => (embeddingStore.sourceId = id)}
+				/>
+			{/if}
 			<SchedulePicker
 				value={scheduleStore.currentId}
 				options={scheduleOptions}
@@ -591,6 +637,32 @@
 						ontauchange={(v) => (charOverlapStore.tau = v)}
 						onfamilychange={(v) => (charOverlapStore.family = v)}
 						onmodechange={(v) => (charOverlapStore.mode = v)}
+					/>
+				{/if}
+
+				{#if strategyStore.currentId === 'embedding-knn'}
+					<EmbeddingParams
+						preprocess={embeddingStore.preprocess}
+						metric={embeddingStore.metric}
+						tokenClass={embeddingStore.tokenClass}
+						excludeSpecial={embeddingStore.excludeSpecial}
+						excludeUnused={embeddingStore.excludeUnused}
+						excludeByteFallback={embeddingStore.excludeByteFallback}
+						k={embeddingStore.k}
+						epsilon={embeddingStore.epsilon}
+						tau={embeddingStore.tau}
+						family={embeddingStore.family}
+						disabled={tokenizerStore.status !== 'ready'}
+						onpreprocesschange={(v) => (embeddingStore.preprocess = v)}
+						onmetricchange={(v) => (embeddingStore.metric = v)}
+						ontokenclasschange={(v) => (embeddingStore.tokenClass = v)}
+						onexcludespecialchange={(v) => (embeddingStore.excludeSpecial = v)}
+						onexcludeunusedchange={(v) => (embeddingStore.excludeUnused = v)}
+						onexcludebytefallbackchange={(v) => (embeddingStore.excludeByteFallback = v)}
+						onkchange={(v) => (embeddingStore.k = v)}
+						onepsilonchange={(v) => (embeddingStore.epsilon = v)}
+						ontauchange={(v) => (embeddingStore.tau = v)}
+						onfamilychange={(v) => (embeddingStore.family = v)}
 					/>
 				{/if}
 

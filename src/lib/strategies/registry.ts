@@ -4,6 +4,8 @@ import { createCharOverlap } from './char-overlap.js';
 import { createIdentity } from './identity.js';
 import { createLexical } from './lexical.js';
 import { createUniform } from './uniform.js';
+import { createEmbeddingKnn, EMBEDDING_KNN_INFO } from './embedding-knn.js';
+import { EMBEDDING_KNN_DEFAULTS } from './embedding-knn-defaults.js';
 import type { NeighborhoodProvider } from './neighborhood.js';
 
 /** All known strategies (metadata only — safe to import from UI code). */
@@ -73,6 +75,7 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 			math: 'P(y \\mid x) = (1-\\varepsilon)\\,\\mathrm{overlap}(y\\mid x) + \\frac{\\varepsilon}{K},\\quad d(x,y) = 1 - J\\big(C(x), C(y)\\big)',
 		},
 	},
+	'embedding-knn': EMBEDDING_KNN_INFO,
 } as const;
 
 /**
@@ -83,6 +86,7 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 const STRATEGY_FACTORIES: Record<string, StrategyFactory<unknown>> = {
 	absorbing: createAbsorbing as StrategyFactory<unknown>,
 	'char-overlap': createCharOverlap as StrategyFactory<unknown>,
+	'embedding-knn': createEmbeddingKnn as StrategyFactory<unknown>,
 	identity: createIdentity as StrategyFactory<unknown>,
 	lexical: createLexical as StrategyFactory<unknown>,
 	uniform: createUniform as StrategyFactory<unknown>,
@@ -131,6 +135,27 @@ export function strategyConfigFor(
 			tau: _extra?.tau ?? 1.0,
 			mode: _extra?.mode ?? 'set',
 			family: _extra?.family ?? 'exponential',
+		};
+	}
+	if (id === 'embedding-knn') {
+		// `maxDistance` uses `null` for "no cutoff" — `Infinity` is not
+		// JSON-serializable and the config is part of the cache key.
+		// Defaults come from `EMBEDDING_KNN_DEFAULTS` (shared with the UI
+		// store); overridden by `_extra` when called from +page.svelte.
+		return {
+			sourceId: _extra?.sourceId ?? EMBEDDING_KNN_DEFAULTS.sourceId,
+			preprocess: _extra?.preprocess ?? EMBEDDING_KNN_DEFAULTS.preprocess,
+			metric: _extra?.metric ?? EMBEDDING_KNN_DEFAULTS.metric,
+			tokenClass: _extra?.tokenClass ?? EMBEDDING_KNN_DEFAULTS.tokenClass,
+			excludeSpecial: _extra?.excludeSpecial ?? EMBEDDING_KNN_DEFAULTS.excludeSpecial,
+			excludeUnused: _extra?.excludeUnused ?? EMBEDDING_KNN_DEFAULTS.excludeUnused,
+			excludeByteFallback:
+				_extra?.excludeByteFallback ?? EMBEDDING_KNN_DEFAULTS.excludeByteFallback,
+			maxDistance: _extra?.maxDistance ?? EMBEDDING_KNN_DEFAULTS.maxDistance,
+			k: _extra?.k ?? EMBEDDING_KNN_DEFAULTS.k,
+			epsilon: _extra?.epsilon ?? EMBEDDING_KNN_DEFAULTS.epsilon,
+			tau: _extra?.tau ?? EMBEDDING_KNN_DEFAULTS.tau,
+			family: _extra?.family ?? EMBEDDING_KNN_DEFAULTS.family,
 		};
 	}
 	return {};

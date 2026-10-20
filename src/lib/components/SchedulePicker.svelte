@@ -13,7 +13,7 @@
 </script>
 
 <div class="schedule-picker">
-	<CardPicker {value} {options} {disabled} {onchange} variant="quiet" />
+	<CardPicker {value} {options} {disabled} {onchange} variant="quiet" ariaLabel="Noise schedule" />
 </div>
 
 <style>

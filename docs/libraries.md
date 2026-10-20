@@ -28,3 +28,18 @@ Seeded PRNG. We use the Alea algorithm (`seedrandom.alea`) for speed
   `seedrandom.alea(String(seed) + '\0')`.
 - **Never** call `seedrandom(s, { global: true })` — it pollutes `Math.random`.
 - Types are in the separate `@types/seedrandom` package (dev dependency).
+
+## Hugging Face Hub (resolve URLs)
+
+The `embedding-knn` bundles (#28) download from the HF dataset repo
+`chcaa/noisy-text-embeddings` at a pinned revision.
+
+- Artefact URLs:
+  `https://huggingface.co/datasets/<repo>/resolve/<revision>/<file>`.
+- The `resolve` endpoint sets permissive CORS headers and a
+  `Content-Length` (CORS-safelisted), so `fetchBytes`
+  (`src/lib/embeddings/loader.ts`) streams byte progress unchanged.
+- Pin an immutable commit sha, not `main` — shas are content-addressed,
+  so a pinned URL never changes semantics silently.
+- Range/resumable downloads are not used (out of scope); each file is
+  fetched whole with a streaming reader for progress.

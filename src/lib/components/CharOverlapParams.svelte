@@ -1,6 +1,14 @@
 <script lang="ts">
 	import InfoTooltip from './InfoTooltip.svelte';
-	import { KERNEL_CAPTION, KERNEL_TOOLTIP, TAU_TOOLTIP, FAMILY_TOOLTIP } from './kernel-help.js';
+	import {
+		KERNEL_CAPTION,
+		KERNEL_TOOLTIP,
+		TAU_TOOLTIP,
+		FAMILY_TOOLTIP,
+		TOPK_TOOLTIP,
+		EPSILON_TOOLTIP,
+	} from './kernel-help.js';
+	import { MIN_SIMILARITY_TOOLTIP, MULTISET_TOOLTIP } from './param-help.js';
 
 	interface Props {
 		minSimilarity: number;
@@ -38,7 +46,10 @@
 <div class="char-overlap-params">
 	<div class="param-grid">
 		<label>
-			<span>Min similarity</span>
+			<span>
+				Min similarity
+				<InfoTooltip text={MIN_SIMILARITY_TOOLTIP.text} math={MIN_SIMILARITY_TOOLTIP.math} />
+			</span>
 			<input
 				type="range"
 				min={0}
@@ -52,7 +63,7 @@
 		</label>
 
 		<label>
-			<span>Top-k</span>
+			<span>Top-k <InfoTooltip text={TOPK_TOOLTIP.text} math={TOPK_TOOLTIP.math} /></span>
 			<input
 				type="range"
 				min={1}
@@ -66,7 +77,7 @@
 		</label>
 
 		<label>
-			<span>Floor ε</span>
+			<span>Floor ε <InfoTooltip text={EPSILON_TOOLTIP.text} math={EPSILON_TOOLTIP.math} /></span>
 			<input
 				type="range"
 				min={0}
@@ -80,7 +91,7 @@
 		</label>
 
 		<label class="mode-toggle">
-			<span>Multiset</span>
+			<span>Multiset <InfoTooltip text={MULTISET_TOOLTIP.text} /></span>
 			<input
 				type="checkbox"
 				checked={mode === 'multiset'}

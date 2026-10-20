@@ -1,12 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import katex from 'katex';
-import { KERNEL_CAPTION, KERNEL_TOOLTIP, TAU_TOOLTIP, FAMILY_TOOLTIP } from './kernel-help.js';
+import {
+	KERNEL_CAPTION,
+	KERNEL_TOOLTIP,
+	TAU_TOOLTIP,
+	FAMILY_TOOLTIP,
+	TOPK_TOOLTIP,
+	EPSILON_TOOLTIP,
+} from './kernel-help.js';
 import type { HelpCopy } from './kernel-help.js';
 
 const COPY: Array<[string, HelpCopy]> = [
 	['KERNEL_TOOLTIP', KERNEL_TOOLTIP],
 	['TAU_TOOLTIP', TAU_TOOLTIP],
 	['FAMILY_TOOLTIP', FAMILY_TOOLTIP],
+	['TOPK_TOOLTIP', TOPK_TOOLTIP],
+	['EPSILON_TOOLTIP', EPSILON_TOOLTIP],
 ];
 
 describe('kernel-help copy', () => {

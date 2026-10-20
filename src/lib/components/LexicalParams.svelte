@@ -1,6 +1,14 @@
 <script lang="ts">
 	import InfoTooltip from './InfoTooltip.svelte';
-	import { KERNEL_CAPTION, KERNEL_TOOLTIP, TAU_TOOLTIP, FAMILY_TOOLTIP } from './kernel-help.js';
+	import {
+		KERNEL_CAPTION,
+		KERNEL_TOOLTIP,
+		TAU_TOOLTIP,
+		FAMILY_TOOLTIP,
+		TOPK_TOOLTIP,
+		EPSILON_TOOLTIP,
+	} from './kernel-help.js';
+	import { MAX_DISTANCE_TOOLTIP } from './param-help.js';
 
 	interface Props {
 		maxDistance: number;
@@ -34,7 +42,10 @@
 <div class="lexical-params">
 	<div class="param-grid">
 		<label>
-			<span>Max distance</span>
+			<span>
+				Max distance
+				<InfoTooltip text={MAX_DISTANCE_TOOLTIP.text} math={MAX_DISTANCE_TOOLTIP.math} />
+			</span>
 			<input
 				type="range"
 				min={1}
@@ -48,7 +59,7 @@
 		</label>
 
 		<label>
-			<span>Top-k</span>
+			<span>Top-k <InfoTooltip text={TOPK_TOOLTIP.text} math={TOPK_TOOLTIP.math} /></span>
 			<input
 				type="range"
 				min={1}
@@ -62,7 +73,7 @@
 		</label>
 
 		<label>
-			<span>Floor ε</span>
+			<span>Floor ε <InfoTooltip text={EPSILON_TOOLTIP.text} math={EPSILON_TOOLTIP.math} /></span>
 			<input
 				type="range"
 				min={0}
