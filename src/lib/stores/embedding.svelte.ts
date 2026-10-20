@@ -1,5 +1,6 @@
 import type { EmbeddingSourceId, MetricId, PreprocessId } from '$lib/embeddings/index.js';
 import type { WeightFamilyId } from '$lib/strategies/weight-family.js';
+import { EMBEDDING_KNN_DEFAULTS } from '$lib/strategies/embedding-knn-defaults.js';
 
 export type EmbeddingTokenClass = 'any' | 'word-initial' | 'continuation';
 
@@ -15,27 +16,27 @@ export type EmbeddingTokenClass = 'any' | 'word-initial' | 'continuation';
  */
 class EmbeddingStore {
 	/** Which embedding source (fixes the tokenizer pairing). */
-	sourceId: EmbeddingSourceId = $state('gpt2');
+	sourceId: EmbeddingSourceId = $state(EMBEDDING_KNN_DEFAULTS.sourceId);
 	/** Row preprocessing before distance computation. */
-	preprocess: PreprocessId = $state('mean-center');
+	preprocess: PreprocessId = $state(EMBEDDING_KNN_DEFAULTS.preprocess);
 	/** Distance metric over preprocessed rows. */
-	metric: MetricId = $state('cosine');
+	metric: MetricId = $state(EMBEDDING_KNN_DEFAULTS.metric);
 	/** Token-class filter for jump targets. */
-	tokenClass: EmbeddingTokenClass = $state('word-initial');
+	tokenClass: EmbeddingTokenClass = $state(EMBEDDING_KNN_DEFAULTS.tokenClass);
 	/** Exclude special tokens (`[CLS]`, `</s>`, …). */
-	excludeSpecial: boolean = $state(true);
+	excludeSpecial: boolean = $state(EMBEDDING_KNN_DEFAULTS.excludeSpecial);
 	/** Exclude BERT `[unusedN]` rows. */
-	excludeUnused: boolean = $state(true);
+	excludeUnused: boolean = $state(EMBEDDING_KNN_DEFAULTS.excludeUnused);
 	/** Exclude byte-fallback tokens (`<0x4F>`). */
-	excludeByteFallback: boolean = $state(true);
+	excludeByteFallback: boolean = $state(EMBEDDING_KNN_DEFAULTS.excludeByteFallback);
 	/** Maximum neighbours per token. */
-	k: number = $state(20);
+	k: number = $state(EMBEDDING_KNN_DEFAULTS.k);
 	/** Ergodicity floor $\varepsilon$. */
-	epsilon: number = $state(0);
+	epsilon: number = $state(EMBEDDING_KNN_DEFAULTS.epsilon);
 	/** Softmax temperature $\tau$. */
-	tau: number = $state(0.1);
+	tau: number = $state(EMBEDDING_KNN_DEFAULTS.tau);
 	/** Weight family for the kernel. */
-	family: WeightFamilyId = $state('exponential');
+	family: WeightFamilyId = $state(EMBEDDING_KNN_DEFAULTS.family);
 
 	/** Current params as a plain object (for passing to strategyConfigFor). */
 	get params(): Record<string, unknown> {
@@ -47,7 +48,7 @@ class EmbeddingStore {
 			excludeSpecial: this.excludeSpecial,
 			excludeUnused: this.excludeUnused,
 			excludeByteFallback: this.excludeByteFallback,
-			maxDistance: null,
+			maxDistance: EMBEDDING_KNN_DEFAULTS.maxDistance,
 			k: this.k,
 			epsilon: this.epsilon,
 			tau: this.tau,

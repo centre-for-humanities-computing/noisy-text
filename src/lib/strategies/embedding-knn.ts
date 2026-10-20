@@ -63,7 +63,7 @@ export const EMBEDDING_KNN_INFO = {
 	id: 'embedding-knn',
 	label: 'Embedding kNN',
 	description:
-		'Tokens transition to semantically-similar tokens based on LM embedding-space nearest neighbours, mixed with uniform noise.',
+		'Tokens transition to semantically-similar tokens based on LM embedding-space nearest neighbours, optionally mixed with uniform noise.',
 	stationary: 'data-dependent',
 	plainName: 'Drift by language model',
 	gloss:

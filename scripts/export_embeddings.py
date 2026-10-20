@@ -55,7 +55,7 @@ of the noisy-text playground (#28). Flat layout, four files per source:
 - `<source>.transform.f32.bin`  mean / PCA / eigenvalue / whitening blob
 - `<source>.meta.json`       header
 
-Sources: `bert-base-uncased`, `gpt2`, `gpt2-lmhead`.
+Sources: `bert-base-uncased`, `gpt2`.
 Regenerate with `scripts/export_embeddings.py` in the noisy-text repo.
 """
 
@@ -85,15 +85,6 @@ SOURCES: Dict[str, SourceSpec] = {
         dim=768,
         vocab_size=50257,
         note="input embeddings (wte)",
-    ),
-    "gpt2-lmhead": SourceSpec(
-        model="openai-community/gpt2",
-        file="model.safetensors",
-        tensor="lm_head.weight",
-        dim=768,
-        vocab_size=50257,
-        note="output embeddings (lm_head); tied to wte for base GPT-2, "
-        "so this variant is typically identical to 'gpt2'",
     ),
 }
 

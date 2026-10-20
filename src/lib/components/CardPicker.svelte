@@ -13,9 +13,18 @@
 		onchange: (id: string) => void;
 		/** Visual emphasis: 'primary' for strategy, 'quiet' for tokenizer/schedule. */
 		variant?: 'primary' | 'quiet';
+		/** Accessible name of the radiogroup (each picker passes its own). */
+		ariaLabel?: string;
 	}
 
-	let { value, options, disabled, onchange, variant = 'primary' }: Props = $props();
+	let {
+		value,
+		options,
+		disabled,
+		onchange,
+		variant = 'primary',
+		ariaLabel = 'Options',
+	}: Props = $props();
 
 	/** Index of the currently focused card (for roving tabindex). */
 	let focusedIndex = $state(0);
@@ -60,7 +69,7 @@
 	class:primary={variant === 'primary'}
 	class:quiet={variant === 'quiet'}
 	role="radiogroup"
-	aria-label="Options"
+	aria-label={ariaLabel}
 >
 	{#each options as opt, i (opt.id)}
 		<button

@@ -5,6 +5,7 @@ import { createIdentity } from './identity.js';
 import { createLexical } from './lexical.js';
 import { createUniform } from './uniform.js';
 import { createEmbeddingKnn, EMBEDDING_KNN_INFO } from './embedding-knn.js';
+import { EMBEDDING_KNN_DEFAULTS } from './embedding-knn-defaults.js';
 import type { NeighborhoodProvider } from './neighborhood.js';
 
 /** All known strategies (metadata only — safe to import from UI code). */
@@ -139,19 +140,22 @@ export function strategyConfigFor(
 	if (id === 'embedding-knn') {
 		// `maxDistance` uses `null` for "no cutoff" — `Infinity` is not
 		// JSON-serializable and the config is part of the cache key.
+		// Defaults come from `EMBEDDING_KNN_DEFAULTS` (shared with the UI
+		// store); overridden by `_extra` when called from +page.svelte.
 		return {
-			sourceId: _extra?.sourceId ?? 'gpt2',
-			preprocess: _extra?.preprocess ?? 'mean-center',
-			metric: _extra?.metric ?? 'cosine',
-			tokenClass: _extra?.tokenClass ?? 'word-initial',
-			excludeSpecial: _extra?.excludeSpecial ?? true,
-			excludeUnused: _extra?.excludeUnused ?? true,
-			excludeByteFallback: _extra?.excludeByteFallback ?? true,
-			maxDistance: _extra?.maxDistance ?? null,
-			k: _extra?.k ?? 20,
-			epsilon: _extra?.epsilon ?? 0,
-			tau: _extra?.tau ?? 0.1,
-			family: _extra?.family ?? 'exponential',
+			sourceId: _extra?.sourceId ?? EMBEDDING_KNN_DEFAULTS.sourceId,
+			preprocess: _extra?.preprocess ?? EMBEDDING_KNN_DEFAULTS.preprocess,
+			metric: _extra?.metric ?? EMBEDDING_KNN_DEFAULTS.metric,
+			tokenClass: _extra?.tokenClass ?? EMBEDDING_KNN_DEFAULTS.tokenClass,
+			excludeSpecial: _extra?.excludeSpecial ?? EMBEDDING_KNN_DEFAULTS.excludeSpecial,
+			excludeUnused: _extra?.excludeUnused ?? EMBEDDING_KNN_DEFAULTS.excludeUnused,
+			excludeByteFallback:
+				_extra?.excludeByteFallback ?? EMBEDDING_KNN_DEFAULTS.excludeByteFallback,
+			maxDistance: _extra?.maxDistance ?? EMBEDDING_KNN_DEFAULTS.maxDistance,
+			k: _extra?.k ?? EMBEDDING_KNN_DEFAULTS.k,
+			epsilon: _extra?.epsilon ?? EMBEDDING_KNN_DEFAULTS.epsilon,
+			tau: _extra?.tau ?? EMBEDDING_KNN_DEFAULTS.tau,
+			family: _extra?.family ?? EMBEDDING_KNN_DEFAULTS.family,
 		};
 	}
 	return {};

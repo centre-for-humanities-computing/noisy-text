@@ -39,20 +39,6 @@ export const EMBEDDING_SOURCES: Record<EmbeddingSourceId, EmbeddingSourceInfo> =
 		vocabSize: 50257,
 		fileName: 'gpt2',
 	},
-	'gpt2-lmhead': {
-		id: 'gpt2-lmhead',
-		label: 'GPT-2 (output)',
-		plainName: 'GPT-2 (output)',
-		description: 'GPT-2 output embeddings (lm_head); tied to wte for base GPT-2.',
-		gloss: "GPT-2's output (lm_head) embeddings.",
-		tooltip: {
-			text: 'GPT-2 output embeddings (lm_head); for base GPT-2 these are tied to the input matrix, so results may match GPT-2 (input).',
-		},
-		tokenizerId: 'gpt2',
-		dim: 768,
-		vocabSize: 50257,
-		fileName: 'gpt2-lmhead',
-	},
 };
 
 /**

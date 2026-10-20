@@ -9,7 +9,7 @@
  */
 
 /** Identifiers of the supported embedding sources. */
-export type EmbeddingSourceId = 'bert-base-uncased' | 'gpt2' | 'gpt2-lmhead';
+export type EmbeddingSourceId = 'bert-base-uncased' | 'gpt2';
 
 /** Registry metadata for one embedding source. */
 export interface EmbeddingSourceInfo {
