@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
 	countChanged,
 	changedMask,
@@ -710,17 +710,24 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 				}
 			}
 
-			// Mask positions carry the MASK id; visible positions carry their
-			// index, so the faithful single-token stub resolves to the raw
-			// vocab entry (`##` included) and allTokenCharSpans must strip it.
-			const ids = new Int32Array(rawTokens.map((_, i) => (isMask[i]! ? MASK : i)));
+			// Mask positions carry the MASK id; visible positions carry
+			// distinct ids (BASE_ID + index), so `tokenId` and `index` differ
+			// and the faithful single-token stub resolves to the raw vocab
+			// entry (`##` included) — allTokenCharSpans must strip it.
+			const BASE_ID = 1000;
+			const ids = new Int32Array(rawTokens.map((_, i) => (isMask[i]! ? MASK : BASE_ID + i)));
 			const recency = new Float32Array(rawTokens.map(() => prng()));
-			const decodeToken = (id: number): string => rawTokens[id] ?? '';
+			const decodeToken = vi.fn((id: number): string =>
+				id === MASK ? '' : (rawTokens[id - BASE_ID] ?? ''),
+			);
 
 			const visible = rawTokens.filter((_, i) => !isMask[i]!);
 			const text = decodeStub(visible);
 
 			const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text, true);
+			// The mask skip must be load-bearing: decodeToken is never called
+			// with the mask sentinel.
+			expect(decodeToken).not.toHaveBeenCalledWith(MASK);
 
 			// One span per locatable visible token, in visible order. Empty
 			// pieces decode to '' and are dropped by allTokenCharSpans, so the
@@ -750,7 +757,9 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 				const pieceText = raw.startsWith('##') ? raw.slice(2) : raw;
 				expect([s.start, s.end]).toEqual([expected[k]!.start, expected[k]!.end]);
 				expect(s.index).toBe(orig);
-				expect(s.tokenId).toBe(ids[orig]!);
+				expect(s.tokenId).toBe(BASE_ID + orig);
+				// With BASE_ID + i ids, tokenId and index can no longer coincide.
+				expect(s.tokenId).not.toBe(s.index);
 				expect(s.recency).toBe(recency[orig]!);
 				expect(text.slice(s.start, s.end)).toBe(pieceText);
 			}
