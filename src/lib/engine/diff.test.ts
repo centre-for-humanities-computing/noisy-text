@@ -8,6 +8,7 @@ import {
 	alignTokenPieces,
 } from './diff.js';
 import type { TokenPiece } from './diff.js';
+import seedrandom from 'seedrandom';
 import type { Trajectory } from './types.js';
 
 /** Build a minimal Trajectory from a 2D array of rows for testing. */
@@ -459,5 +460,116 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 		expect(spans[0]).toMatchObject({ tokenId: 0, index: 0, recency: 0.5 });
 		expect(spans[1]).toMatchObject({ tokenId: 1, index: 2, recency: 1 });
 		expect(spans[2]).toMatchObject({ tokenId: 2, index: 3, recency: 0 });
+	});
+});
+describe('alignTokenPieces (differential vs naive prefix-length reference)', () => {
+	/**
+	 * Stub whole-sequence decode with cleanup disabled: strips `##` and
+	 * joins non-`##` pieces with a single space. Prefix decoding is
+	 * prefix-consistent because there is no cleanup.
+	 */
+	function decodeStub(rawTokens: readonly string[]): string {
+		let text = '';
+		let first = true;
+		for (const raw of rawTokens) {
+			const isCont = raw.startsWith('##');
+			if (!first && !isCont) text += ' ';
+			text += isCont ? raw.slice(2) : raw;
+			first = false;
+		}
+		return text;
+	}
+
+	/**
+	 * Naive reference: decode the prefix of the first $k$ pieces and measure
+	 * its length, then add one for each non-`##` piece after the first.
+	 */
+	function naiveSpans(rawTokens: readonly string[]): { start: number; end: number }[] {
+		const spans: { start: number; end: number }[] = [];
+		for (let k = 0; k < rawTokens.length; k++) {
+			const raw = rawTokens[k]!;
+			const isCont = raw.startsWith('##');
+			const pieceText = isCont ? raw.slice(2) : raw;
+			const prefix = decodeStub(rawTokens.slice(0, k));
+			let start = prefix.length;
+			if (k > 0 && !isCont) start += 1;
+			spans.push({ start, end: start + pieceText.length });
+		}
+		return spans;
+	}
+
+	const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
+
+	function randomWord(prng: () => number): string {
+		const len = 1 + Math.floor(prng() * 5);
+		let s = '';
+		for (let i = 0; i < len; i++) {
+			s += LETTERS[Math.floor(prng() * LETTERS.length)];
+		}
+		return s;
+	}
+
+	it('matches the naive reference on random WordPiece sequences', () => {
+		const prng = seedrandom.alea('align-token-spans' + '\0');
+		const CASES = 200;
+
+		for (let c = 0; c < CASES; c++) {
+			const rawTokens: string[] = [];
+			const numTokens = 3 + Math.floor(prng() * 8);
+			for (let i = 0; i < numTokens; i++) {
+				const isCont = rawTokens.length > 0 && prng() < 0.4;
+				rawTokens.push(isCont ? '##' + randomWord(prng) : randomWord(prng));
+			}
+
+			const text = decodeStub(rawTokens);
+			const pieces: TokenPiece[] = rawTokens.map((raw, i) => ({
+				index: i,
+				tokenId: i,
+				text: raw.startsWith('##') ? raw.slice(2) : raw,
+			}));
+
+			const actual = alignTokenPieces(text, pieces);
+			const expected = naiveSpans(rawTokens);
+			expect(
+				actual,
+				`case ${c}: text=${JSON.stringify(text)} raw=${JSON.stringify(rawTokens)}`,
+			).toEqual(expected);
+		}
+	});
+
+	it('matches the naive reference with mask sentinels interspersed', () => {
+		const prng = seedrandom.alea('align-token-spans-masks' + '\0');
+		const CASES = 200;
+
+		for (let c = 0; c < CASES; c++) {
+			const rawTokens: string[] = [];
+			const isMask: boolean[] = [];
+			const numTokens = 3 + Math.floor(prng() * 8);
+			for (let i = 0; i < numTokens; i++) {
+				if (prng() < 0.15) {
+					isMask.push(true);
+					rawTokens.push('');
+				} else {
+					const isCont = rawTokens.length > 0 && !isMask[rawTokens.length - 1] && prng() < 0.4;
+					rawTokens.push(isCont ? '##' + randomWord(prng) : randomWord(prng));
+					isMask.push(false);
+				}
+			}
+
+			const visible = rawTokens.filter((_, i) => !isMask[i]!);
+			const text = decodeStub(visible);
+			const pieces: TokenPiece[] = visible.map((raw, i) => ({
+				index: i,
+				tokenId: i,
+				text: raw.startsWith('##') ? raw.slice(2) : raw,
+			}));
+
+			const actual = alignTokenPieces(text, pieces);
+			const expected = naiveSpans(visible);
+			expect(
+				actual,
+				`case ${c}: text=${JSON.stringify(text)} raw=${JSON.stringify(rawTokens)}`,
+			).toEqual(expected);
+		}
 	});
 });
