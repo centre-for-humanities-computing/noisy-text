@@ -10,15 +10,7 @@ from `.ai/<issue-number>-<slug>/round-N/plan.md` where N is the latest round.
 1. Branch check: `git rev-parse --abbrev-ref HEAD` must be
    `<issue-number>-<slug>`. If not, STOP and ask — do not implement on the
    wrong branch. The working tree must be clean: `git status --porcelain` must
-   print nothing. One exception: `/plan` writes `round-N/plan.md` but does not
-   commit it, so the plan artifact may sit untracked when `/implement` starts.
-   If `git status --porcelain` shows only untracked
-   `.ai/<issue-number>-<slug>/round-N/plan.md` (or the fix-mode plan written in
-   step 2) — plus any modified `.opencode/` workflow files changed while
-   starting the round — commit them together as the round's first commit,
-   before slice S1: subject `docs(#<n>): add round <N> plan`, trailers
-   `Slice: plan` / `Kind: mechanical`, body explaining what the round plans.
-   Then the tree must be clean. Any other dirt → STOP.
+   print nothing. If not, STOP.
 2. Derive the round (same snippet as `/plan`; commands never take a round
    argument):
 
