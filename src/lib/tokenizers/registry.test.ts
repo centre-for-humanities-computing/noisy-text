@@ -14,7 +14,10 @@ describe('tokenizer registry', () => {
 			expect(info.label.length).toBeGreaterThan(0);
 			expect(typeof info.description).toBe('string');
 			expect(info.description.length).toBeGreaterThan(0);
+			expect(typeof info.wordPiece).toBe('boolean');
 		}
+		expect(TOKENIZERS.gpt2?.wordPiece).toBe(false);
+		expect(TOKENIZERS['bert-base-uncased']?.wordPiece).toBe(true);
 	});
 
 	it('ids are unique', () => {

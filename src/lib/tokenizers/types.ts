@@ -12,6 +12,12 @@ export interface TokenizerInfo {
 	plainName: string;
 	/** One-sentence plain-language gloss of what this tokenizer does. */
 	gloss: string;
+	/**
+	 * True when a continuation piece's isolated decode carries a `##`
+	 * prefix that the whole-sequence decode drops — but only after the
+	 * first token; the first token is decoded raw.
+	 */
+	readonly wordPiece: boolean;
 	/** Tooltip content: plain-language explanation followed by maths. */
 	tooltip: {
 		/** Plain-language explanation (first paragraph). */

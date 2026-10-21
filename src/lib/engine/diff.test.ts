@@ -29,6 +29,28 @@ function makeTraj(rows: number[][]): Trajectory {
 	};
 }
 
+/**
+ * Faithful WordPiece whole-sequence decode: the first token is emitted
+ * raw; every later token strips `##` if it is a continuation and is
+ * joined with a space otherwise.
+ */
+function decodeWord(vocab: readonly string[], ids: readonly number[]): string {
+	let text = '';
+	let first = true;
+	for (const id of ids) {
+		const raw = vocab[id] ?? '';
+		if (first) {
+			text += raw;
+		} else if (raw.startsWith('##')) {
+			text += raw.slice(2);
+		} else {
+			text += ' ' + raw;
+		}
+		first = false;
+	}
+	return text;
+}
+
 describe('countChanged', () => {
 	it('returns 0 for identical arrays', () => {
 		const a = new Int32Array([0, 1, 2, 3]);
@@ -177,7 +199,7 @@ describe('recencyAt', () => {
 
 describe('allTokenCharSpans', () => {
 	/** Stub decoder: each token id maps to a fixed-length string. */
-	function decode(id: number): string {
+	function decodeToken(id: number): string {
 		if (id === 0) return '';
 		if (id === 99) return '[MASK]';
 		return `t${id}`;
@@ -186,13 +208,13 @@ describe('allTokenCharSpans', () => {
 	it('returns empty for empty input', () => {
 		const ids = new Int32Array(0);
 		const recency = new Float32Array(0);
-		expect(allTokenCharSpans(ids, recency, decode, 99, '')).toEqual([]);
+		expect(allTokenCharSpans(ids, recency, decodeToken, 99, '', false)).toEqual([]);
 	});
 
 	it('emits one span per visible token', () => {
 		const ids = new Int32Array([1, 2, 3]);
 		const recency = new Float32Array([0, 0, 0]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t2t3');
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, 't1t2t3', false);
 		expect(spans).toHaveLength(3);
 		expect(spans.map((s) => s.tokenId)).toEqual([1, 2, 3]);
 	});
@@ -201,7 +223,7 @@ describe('allTokenCharSpans', () => {
 		// ids [1, 2, 3] → "t1t2t3" (each 2 chars)
 		const ids = new Int32Array([1, 2, 3]);
 		const recency = new Float32Array([0, 0, 0]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t2t3');
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, 't1t2t3', false);
 		expect(spans[0]).toMatchObject({ start: 0, end: 2 });
 		expect(spans[1]).toMatchObject({ start: 2, end: 4 });
 		expect(spans[2]).toMatchObject({ start: 4, end: 6 });
@@ -210,7 +232,7 @@ describe('allTokenCharSpans', () => {
 	it('skips mask sentinel positions', () => {
 		const ids = new Int32Array([1, 99, 3]);
 		const recency = new Float32Array([0, 0, 0]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t3');
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, 't1t3', false);
 		expect(spans).toHaveLength(2);
 		expect(spans.map((s) => s.tokenId)).toEqual([1, 3]);
 	});
@@ -218,7 +240,7 @@ describe('allTokenCharSpans', () => {
 	it('skips empty-decoded tokens', () => {
 		const ids = new Int32Array([1, 0, 3]);
 		const recency = new Float32Array([0, 0, 0]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t3');
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, 't1t3', false);
 		expect(spans).toHaveLength(2);
 		// "t1" then "t3": positions 0-2 and 2-4.
 		expect(spans[1]).toMatchObject({ start: 2, end: 4 });
@@ -227,7 +249,7 @@ describe('allTokenCharSpans', () => {
 	it('carries recency per token', () => {
 		const ids = new Int32Array([1, 2]);
 		const recency = new Float32Array([0.5, 1]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t2');
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, 't1t2', false);
 		expect(spans[0]!.recency).toBe(0.5);
 		expect(spans[1]!.recency).toBe(1);
 	});
@@ -235,7 +257,7 @@ describe('allTokenCharSpans', () => {
 	it('preserves original position index', () => {
 		const ids = new Int32Array([1, 99, 3]);
 		const recency = new Float32Array([0, 0, 0]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t3');
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, 't1t3', false);
 		expect(spans[0]!.index).toBe(0);
 		expect(spans[1]!.index).toBe(2);
 	});
@@ -245,7 +267,7 @@ describe('allTokenCharSpans', () => {
 		const replacement = (): string => '\uFFFD';
 		const ids = new Int32Array([1, 2, 3, 4]);
 		const recency = new Float32Array(4);
-		const spans = allTokenCharSpans(ids, recency, replacement, 99, '你好世界');
+		const spans = allTokenCharSpans(ids, recency, replacement, 99, '你好世界', false);
 		// The prose text itself is correct; only the highlights are omitted.
 		expect(spans).toEqual([]);
 	});
@@ -259,7 +281,7 @@ describe('allTokenCharSpans', () => {
 		};
 		const ids = new Int32Array([1, 2, 3]);
 		const recency = new Float32Array(3);
-		const spans = allTokenCharSpans(ids, recency, decoder, 99, 'abcd');
+		const spans = allTokenCharSpans(ids, recency, decoder, 99, 'abcd', false);
 		// 'zz' cannot be located, so it is dropped; 'cd' keeps its position.
 		expect(spans).toHaveLength(2);
 		expect(spans[0]).toMatchObject({ tokenId: 1, start: 0, end: 2 });
@@ -362,34 +384,19 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 		return vocab[id] ?? '';
 	}
 
-	/**
-	 * Whole-sequence decode (WordPiece style): the first token is emitted
-	 * raw; every later token strips `##` if it is a continuation and is
-	 * joined with a space otherwise.
-	 */
+	/** Whole-sequence decode of the visible ids (masks filtered). */
 	function decodeAll(ids: readonly number[]): string {
-		let text = '';
-		let first = true;
-		for (const id of ids) {
-			if (id === MASK) continue;
-			const raw = vocab[id] ?? '';
-			if (first) {
-				text += raw;
-			} else if (raw.startsWith('##')) {
-				text += raw.slice(2);
-			} else {
-				text += ' ' + raw;
-			}
-			first = false;
-		}
-		return text;
+		return decodeWord(
+			vocab,
+			ids.filter((id) => id !== MASK),
+		);
 	}
 
 	it('aligns spans to the whole-sequence decode', () => {
 		const ids = new Int32Array([0, 1, 2]);
 		const recency = new Float32Array([0, 0, 1]);
 		const text = decodeAll([0, 1, 2]);
-		const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text);
+		const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text, true);
 		expect(text).toBe('playing dog');
 		expect(spans).toHaveLength(3);
 		for (const s of spans) {
@@ -404,7 +411,7 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 		const ids = new Int32Array([0, MASK, 2]);
 		const recency = new Float32Array([0, 0, 0]);
 		const text = decodeAll([0, MASK, 2]);
-		const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text);
+		const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text, true);
 		expect(text).toBe('play dog');
 		expect(spans).toHaveLength(2);
 		for (const s of spans) {
@@ -418,7 +425,7 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 		const ids = new Int32Array([0, MASK, 1, 2]);
 		const recency = new Float32Array([0.5, 0, 1, 0]);
 		const text = decodeAll([0, MASK, 1, 2]);
-		const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text);
+		const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text, true);
 		expect(spans).toHaveLength(3);
 		expect(spans[0]).toMatchObject({ tokenId: 0, index: 0, recency: 0.5 });
 		expect(spans[1]).toMatchObject({ tokenId: 1, index: 2, recency: 1 });
@@ -429,29 +436,13 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 		// Isolated decodes keep `##`: 'h', '##yp', '##hen', '##ated'.
 		const word = ['h', '##yp', '##hen', '##ated'];
 		const decodeToken = (id: number): string => word[id] ?? '';
-		const decodeWord = (ids: readonly number[]): string => {
-			let text = '';
-			let first = true;
-			for (const id of ids) {
-				const raw = word[id] ?? '';
-				if (first) {
-					text += raw;
-				} else if (raw.startsWith('##')) {
-					text += raw.slice(2);
-				} else {
-					text += ' ' + raw;
-				}
-				first = false;
-			}
-			return text;
-		};
 
 		const ids = new Int32Array([0, 1, 2, 3]);
 		const recency = new Float32Array(4);
-		const text = decodeWord([0, 1, 2, 3]);
+		const text = decodeWord(word, [0, 1, 2, 3]);
 		expect(text).toBe('hyphenated');
 
-		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, text);
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, text, true);
 		expect(spans.map((s) => text.slice(s.start, s.end))).toEqual(['h', 'yp', 'hen', 'ated']);
 		expect(spans.map((s) => [s.start, s.end])).toEqual([
 			[0, 1],
@@ -465,30 +456,13 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 	it('aligns two multi-piece words without dropping continuations', () => {
 		const word = ['h', '##yp', '##hen', '##ated'];
 		const decodeToken = (id: number): string => word[id] ?? '';
-		// Same WordPiece-style whole-sequence decode as above.
-		const decodeWords = (ids: Int32Array): string => {
-			let text = '';
-			let first = true;
-			for (const id of ids) {
-				const raw = word[id] ?? '';
-				if (first) {
-					text += raw;
-				} else if (raw.startsWith('##')) {
-					text += raw.slice(2);
-				} else {
-					text += ' ' + raw;
-				}
-				first = false;
-			}
-			return text;
-		};
 
 		const ids = new Int32Array([0, 1, 2, 3, 0, 1, 2]);
 		const recency = new Float32Array(7);
-		const text = decodeWords(ids);
+		const text = decodeWord(word, Array.from(ids));
 		expect(text).toBe('hyphenated hyphen');
 
-		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, text);
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, text, true);
 		expect(spans.map((s) => text.slice(s.start, s.end))).toEqual([
 			'h',
 			'yp',
@@ -509,6 +483,108 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 		]);
 		// The final token's span reaches the end of the decoded prose.
 		expect(spans[spans.length - 1]!.end).toBe(text.length);
+	});
+
+	it('keeps GPT-2 pieces whose decoded text starts with ## (wordPiece = false)', () => {
+		// Round 2 stripped a leading `##` unconditionally, which dropped
+		// GPT-2 tokens like `##` or `###`. Non-WordPiece tokenizers must
+		// never be normalized.
+		const vocabGpt2 = ['##', ' heading', '###', ' title'];
+		const decodeToken = (id: number): string => vocabGpt2[id] ?? '';
+
+		const ids = new Int32Array([0, 1]);
+		const recency = new Float32Array(2);
+		// GPT-2 BPE decodes by concatenation: the leading space is part of
+		// the piece, so no separator is inserted.
+		const text = vocabGpt2.slice(0, 2).join('');
+		expect(text).toBe('## heading');
+
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, text, false);
+		expect(spans.map((s) => text.slice(s.start, s.end))).toEqual(['##', ' heading']);
+		expect(spans.map((s) => s.tokenId)).toEqual([0, 1]);
+		expect(spans.map((s) => [s.start, s.end])).toEqual([
+			[0, 2],
+			[2, 10],
+		]);
+
+		const idsHash = new Int32Array([2, 3]);
+		const textHash = vocabGpt2.slice(2, 4).join('');
+		expect(textHash).toBe('### title');
+		const spansHash = allTokenCharSpans(idsHash, recency, decodeToken, 99, textHash, false);
+		expect(spansHash.map((s) => textHash.slice(s.start, s.end))).toEqual(['###', ' title']);
+		expect(spansHash.map((s) => [s.start, s.end])).toEqual([
+			[0, 3],
+			[3, 9],
+		]);
+	});
+
+	it('keeps ## on the first visible WordPiece continuation piece', () => {
+		// transformers.js's whole-sequence decode strips `##` only when
+		// `i !== 0`, so a continuation at the first visible position keeps
+		// its prefix — the span mapping must match that.
+		const vocabBert = ['##yp', '##hen'];
+		const decodeToken = (id: number): string => vocabBert[id] ?? '';
+
+		const ids = new Int32Array([0, 1]);
+		const recency = new Float32Array(2);
+		const text = decodeWord(vocabBert, [0, 1]);
+		expect(text).toBe('##yphen');
+
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, text, true);
+		expect(spans.map((s) => text.slice(s.start, s.end))).toEqual(['##yp', 'hen']);
+		expect(spans.map((s) => [s.start, s.end])).toEqual([
+			[0, 4],
+			[4, 7],
+		]);
+		expect(spans.map((s) => s.index)).toEqual([0, 1]);
+	});
+
+	it('strips ## from a WordPiece continuation after a masked first token', () => {
+		// When the first token is masked, the first *visible* piece is a
+		// continuation — but it is the first token of the whole-sequence
+		// decode, so it keeps `##`; the following continuation is stripped.
+		const vocabBert = ['##yp', '##hen'];
+		const decodeToken = (id: number): string => vocabBert[id] ?? '';
+		const MASK = 99;
+
+		const ids = new Int32Array([MASK, 0, 1]);
+		const recency = new Float32Array(3);
+		const text = decodeWord(vocabBert, [0, 1]);
+		expect(text).toBe('##yphen');
+
+		const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text, true);
+		expect(spans.map((s) => text.slice(s.start, s.end))).toEqual(['##yp', 'hen']);
+		expect(spans.map((s) => [s.start, s.end])).toEqual([
+			[0, 4],
+			[4, 7],
+		]);
+		expect(spans.map((s) => s.index)).toEqual([1, 2]);
+	});
+
+	it('keeps a piece that is exactly ## when first visible and drops it when later', () => {
+		// vocab: the piece decodes to exactly `##`; kept raw at the first
+		// visible position, stripped to '' (and thus omitted) when later.
+		const vocabBert = ['##', 'dog'];
+		const decodeToken = (id: number): string => vocabBert[id] ?? '';
+
+		const firstIds = new Int32Array([0, 1]);
+		const recency = new Float32Array(2);
+		const firstText = decodeWord(vocabBert, [0, 1]);
+		expect(firstText).toBe('## dog');
+		const firstSpans = allTokenCharSpans(firstIds, recency, decodeToken, 99, firstText, true);
+		expect(firstSpans.map((s) => firstText.slice(s.start, s.end))).toEqual(['##', 'dog']);
+		expect(firstSpans.map((s) => [s.start, s.end])).toEqual([
+			[0, 2],
+			[3, 6],
+		]);
+
+		const laterIds = new Int32Array([1, 0]);
+		// The whole-sequence decode strips the later `##` piece to ''.
+		const laterText = 'dog';
+		const laterSpans = allTokenCharSpans(laterIds, recency, decodeToken, 99, laterText, true);
+		// The later `##` piece strips to '' and is omitted; `dog` keeps its span.
+		expect(laterSpans.map((s) => laterText.slice(s.start, s.end))).toEqual(['dog']);
+		expect(laterSpans.map((s) => [s.start, s.end])).toEqual([[0, 3]]);
 	});
 });
 describe('alignTokenPieces (differential vs naive prefix-length reference)', () => {
@@ -644,7 +720,7 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 			const visible = rawTokens.filter((_, i) => !isMask[i]!);
 			const text = decodeStub(visible);
 
-			const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text);
+			const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text, true);
 
 			// One span per locatable visible token, in visible order. Empty
 			// pieces decode to '' and are dropped by allTokenCharSpans, so the

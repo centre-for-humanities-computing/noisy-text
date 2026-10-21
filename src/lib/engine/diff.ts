@@ -109,9 +109,10 @@ export interface TokenPiece {
 	tokenId: number;
 	/**
 	 * The text this token renders in isolation (e.g. `tok.decode([id])`).
-	 * This is the raw isolated decode and may carry a WordPiece `##`
-	 * continuation prefix; callers must normalize it (strip a leading `##`)
-	 * before aligning — `allTokenCharSpans` does.
+	 * This is the raw isolated decode. For WordPiece tokenizers, a
+	 * continuation piece after the first visible piece carries a `##`
+	 * prefix that callers must strip before aligning — `allTokenCharSpans`
+	 * does, when the tokenizer is marked `wordPiece`.
 	 */
 	text: string;
 }
@@ -218,8 +219,9 @@ export interface TokenCharSpan {
  * tokens decode to U+FFFD in isolation and are therefore omitted, while
  * the prose text itself is correct.
  *
- * Spans are derived by aligning each token's isolated decode (with a
- * leading WordPiece `##` stripped) to the whole-sequence decoded string
+ * Spans are derived by aligning each token's isolated decode (for
+ * WordPiece, with the `##` continuation prefix stripped from every
+ * visible piece except the first) to the whole-sequence decoded string
  * via `alignTokenPieces` — see that function for why lengths must not
  * simply be summed.
  *
@@ -231,6 +233,8 @@ export interface TokenCharSpan {
  *   positions are skipped.
  * @param text - The whole-sequence decoded string (same ids, sentinels
  *   filtered out).
+ * @param wordPiece - True for WordPiece tokenizers, whose continuation
+ *   pieces carry a `##` prefix in their isolated decode.
  * @returns One `TokenCharSpan` per locatable visible token, in order.
  */
 export function allTokenCharSpans(
@@ -239,14 +243,23 @@ export function allTokenCharSpans(
 	decodeToken: (id: number) => string,
 	maskSentinel: number,
 	text: string,
+	wordPiece: boolean,
 ): TokenCharSpan[] {
 	const pieces: TokenPiece[] = [];
 	for (let i = 0; i < ids.length; i++) {
 		const id = ids[i]!;
 		if (id === maskSentinel) continue;
 		const raw = decodeToken(id);
-		const text = raw.startsWith('##') ? raw.slice(2) : raw;
-		pieces.push({ index: i, tokenId: id, text });
+		// The visible position is the number of pieces collected so far
+		// (masks are filtered first). WordPiece's whole-sequence decode
+		// keeps `##` on the first token and strips it from later
+		// continuations, so the first visible piece keeps its `##` too;
+		// later continuation pieces are stripped to match. Non-WordPiece
+		// tokenizers (e.g. GPT-2 BPE) may legitimately decode to text
+		// starting with `##` — never modify those.
+		const isContinuation = wordPiece && pieces.length > 0 && raw.startsWith('##');
+		const pieceText = isContinuation ? raw.slice(2) : raw;
+		pieces.push({ index: i, tokenId: id, text: pieceText });
 	}
 
 	const spans: TokenCharSpan[] = [];
