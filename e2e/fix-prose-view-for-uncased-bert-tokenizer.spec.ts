@@ -1,77 +1,170 @@
 // Prose view alignment for the uncased BERT tokenizer: every token highlight
 // must cover exactly that token's characters in the decoded prose text.
-// Covers the WordPiece separator case (`bert-base-uncased`) and the
-// leading-space case (`gpt2`).
+// Expectations are hardcoded per tokenizer, including a multi-piece BERT word,
+// so a dropped `##` continuation token fails the test. The post-scrub phase
+// exercises the mask path: sentinels are dropped without shifting later spans.
 import { expect, test } from '@playwright/test';
 
 const TOKENIZER_TIMEOUT = 120_000;
-const INPUT = 'The quick brown fox jumps over the lazy dog again and again';
-const TOKENIZERS = ['bert-base-uncased', 'gpt2'];
+
+interface Fixture {
+	input: string;
+	/** The exact decoded prose the app must render. */
+	prose: string;
+	/** Expected token text per span, in order. */
+	tokens: string[];
+	/** Expected `[start, end)` per span, in order. */
+	spans: Array<[number, number]>;
+}
+
+const FIXTURES: Fixture[] = [
+	{
+		input: 'hyphenated hyphen',
+		prose: 'hyphenated hyphen',
+		tokens: ['h', 'yp', 'hen', 'ated', 'h', 'yp', 'hen'],
+		spans: [
+			[0, 1],
+			[1, 3],
+			[3, 6],
+			[6, 10],
+			[11, 12],
+			[12, 14],
+			[14, 17],
+		],
+	},
+	{
+		input: 'hello world',
+		prose: 'hello world',
+		tokens: ['hello', ' world'],
+		spans: [
+			[0, 5],
+			[5, 11],
+		],
+	},
+];
+
+const TOKENIZER_IDS = ['bert-base-uncased', 'gpt2'];
 
 interface SpanInfo {
 	text: string;
 	start: number;
 	end: number;
+	tokenId: string;
 }
 
-async function assertAlignment(page: import('@playwright/test').Page) {
-	const result = await page.evaluate(() => {
+async function readProse(page: import('@playwright/test').Page) {
+	return page.evaluate(() => {
 		const prose = document.querySelector('[data-testid="prose-text"]');
 		if (!prose) return null;
-		const text = prose.textContent ?? '';
 		const spans: SpanInfo[] = Array.from(prose.querySelectorAll('[data-testid="prose-token"]')).map(
 			(el) => ({
 				text: el.textContent ?? '',
 				start: Number(el.getAttribute('data-start')),
 				end: Number(el.getAttribute('data-end')),
+				tokenId: el.getAttribute('data-token-id') ?? '',
 			}),
 		);
-		return { text, spans };
+		return { text: prose.textContent ?? '', spans };
 	});
-
-	expect(result).not.toBeNull();
-	const { text, spans } = result!;
-	expect(spans.length).toBeGreaterThanOrEqual(4);
-
-	for (let i = 0; i < spans.length; i++) {
-		const span = spans[i]!;
-		// Spans are sorted by start and non-overlapping.
-		if (i > 0) {
-			expect(span.start).toBeGreaterThanOrEqual(spans[i - 1]!.end);
-		}
-		// The highlight covers exactly the token's own characters.
-		expect(text.slice(span.start, span.end)).toBe(span.text);
-	}
-
-	// The final span ends at the end of the decoded prose.
-	expect(spans[spans.length - 1]!.end).toBe(text.length);
 }
 
-for (const id of TOKENIZERS) {
-	test(`prose alignment holds for ${id}`, async ({ page }) => {
+async function selectCard(page: import('@playwright/test').Page, testid: string) {
+	const card = page.getByTestId(testid);
+	await expect(card).toBeEnabled({ timeout: TOKENIZER_TIMEOUT });
+	await card.click();
+	await expect(card).toHaveAttribute('aria-checked', 'true');
+}
+
+/** Wait for a recompute: catch the brief `computing` phase, then require `ready`. */
+async function waitForReady(page: import('@playwright/test').Page) {
+	const status = page.getByTestId('app-status');
+	await expect(status)
+		.toHaveAttribute('data-trajectory-status', 'computing', { timeout: 5_000 })
+		.catch(() => {
+			// The compute may already have finished between polls.
+		});
+	await expect(status).toHaveAttribute('data-trajectory-status', 'ready', {
+		timeout: TOKENIZER_TIMEOUT,
+	});
+}
+
+for (let f = 0; f < FIXTURES.length; f++) {
+	const fixture = FIXTURES[f]!;
+	const id = TOKENIZER_IDS[f]!;
+
+	test(`prose spans match the decoded text for ${id}`, async ({ page }) => {
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
+		page.on('console', (m) => {
+			if (m.type() === 'error') errors.push(m.text());
+		});
 
 		await page.goto('/');
-		await page.getByTestId('input-text').fill(INPUT);
-
-		const card = page.getByTestId(`tokenizer-${id}`);
-		await expect(card).toBeEnabled({ timeout: TOKENIZER_TIMEOUT });
-		await card.click();
-		await expect(card).toHaveAttribute('aria-checked', 'true');
-
+		// Wait for the app to be hydrated and the tokenizer loaded before
+		// filling the textarea, or the fill is overwritten by the default.
+		await selectCard(page, `tokenizer-${id}`);
+		await page.getByTestId('input-text').fill(fixture.input);
 		await page.getByTestId('noise-button').click();
+		await waitForReady(page);
+
+		// Unmasked trajectory: exact hardcoded spans and token strings.
+		const result = await readProse(page);
+		expect(result).not.toBeNull();
+		const { text, spans } = result!;
+		expect(text).toBe(fixture.prose);
+		expect(spans).toHaveLength(fixture.tokens.length);
+		expect(spans.map((s) => [s.start, s.end])).toEqual(fixture.spans);
+		for (let i = 0; i < spans.length; i++) {
+			const s = spans[i]!;
+			// The slice must equal the expected token string — not the span's
+			// own textContent, which could agree with a wrong span.
+			expect(text.slice(s.start, s.end)).toBe(fixture.tokens[i]!);
+			if (i > 0) {
+				expect(s.start).toBeGreaterThanOrEqual(spans[i - 1]!.end);
+			}
+		}
+		// No misalignment accumulates: the final span ends at the prose end.
+		expect(spans[spans.length - 1]!.end).toBe(text.length);
+
+		// Record tokenId → token text before masking.
+		const tokenTextById = new Map<string, string>();
+		for (const s of spans) tokenTextById.set(s.tokenId, text.slice(s.start, s.end));
+
+		// Mask path: absorb noise, scrub to 10% of the trajectory.
+		// Selecting a new strategy triggers a recompute on its own; in
+		// explore mode there is no noise button.
+		await selectCard(page, 'strategy-absorbing');
+		await waitForReady(page);
 
 		const slider = page.getByTestId('time-slider');
-		await expect(slider).toBeEnabled({ timeout: TOKENIZER_TIMEOUT });
-
-		await assertAlignment(page);
-
-		// Scrub to the middle: mask tokens are dropped without shifting
-		// later spans, so the invariant must still hold.
 		const max = Number((await slider.getAttribute('max')) ?? '1');
-		await slider.fill(String(max / 2));
-		await assertAlignment(page);
+
+		// Scrub forward gradually until the noise has actually taken effect:
+		// low t under the absorbing strategy may not have masked anything yet.
+		let noised: Awaited<ReturnType<typeof readProse>> = null;
+		for (let frac = 0.05; frac <= 1.001; frac += 0.05) {
+			await slider.fill(String(Math.round(max * frac)));
+			const current = await readProse(page);
+			if (current && current.text !== fixture.input && current.spans.length >= 1) {
+				noised = current;
+				break;
+			}
+		}
+		expect(noised, 'no timestep produced a partly-masked prose').not.toBeNull();
+		const { text: noisedText, spans: noisedSpans } = noised!;
+		// The trajectory actually noised the text.
+		expect(noisedText).not.toBe(fixture.input);
+		expect(noisedSpans.length).toBeGreaterThanOrEqual(1);
+		for (let i = 0; i < noisedSpans.length; i++) {
+			const s = noisedSpans[i]!;
+			if (i > 0) {
+				expect(s.start).toBeGreaterThanOrEqual(noisedSpans[i - 1]!.end);
+			}
+			// Every surviving span still renders its own token's text.
+			const expected = tokenTextById.get(s.tokenId);
+			expect(expected).toBeDefined();
+			expect(noisedText.slice(s.start, s.end)).toBe(expected!);
+		}
 
 		expect(errors).toEqual([]);
 	});

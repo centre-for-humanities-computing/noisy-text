@@ -52,6 +52,7 @@
 					data-testid="prose-token"
 					data-start={seg.span.start}
 					data-end={seg.span.end}
+					data-token-id={seg.span.tokenId}
 					role="button"
 					tabindex={0}
 					aria-label="token {seg.text}"

@@ -553,7 +553,12 @@
 
 		<BetaReadout t={trajectoryStore.t} schedule={scheduleStore.instance} />
 
-		<div class="status" class:error={tokenizerStore.status === 'error'}>
+		<div
+			class="status"
+			class:error={tokenizerStore.status === 'error'}
+			data-testid="app-status"
+			data-trajectory-status={trajectoryStore.status}
+		>
 			{#if isComputing}
 				<span class="throbber" aria-hidden="true"></span>
 			{/if}
