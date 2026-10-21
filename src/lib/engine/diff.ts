@@ -6,6 +6,8 @@
 
 import type { Trajectory } from './types.js';
 
+const WHITESPACE = /\s/;
+
 // ── Token-level diffs ────────────────────────────────────────────────
 
 /**
@@ -105,7 +107,12 @@ export interface TokenPiece {
 	index: number;
 	/** The token id at this position. */
 	tokenId: number;
-	/** The text this token renders in isolation (e.g. `tok.decode([id])`). */
+	/**
+	 * The text this token renders in isolation (e.g. `tok.decode([id])`).
+	 * This is the raw isolated decode and may carry a WordPiece `##`
+	 * continuation prefix; callers must normalize it (strip a leading `##`)
+	 * before aligning — `allTokenCharSpans` does.
+	 */
 	text: string;
 }
 
@@ -128,15 +135,18 @@ export interface PieceSpan {
  *
  * Matching rules, in order (the cursor never moves backwards):
  *
- * 1. Exact match at the cursor — covers `##` continuations and GPT-2-style
- *    pieces whose leading space is part of the piece text.
+ * 1. Exact match at the cursor — covers GPT-2-style pieces whose leading
+ *    space is part of the piece text.
  * 2. Whitespace-skip match — skip whitespace after the cursor, then match.
  *    Covers WordPiece separators inserted by the whole-sequence decode.
  * 3. `indexOf` fallback — search forward from the cursor for intervening
  *    cleanup artifacts the skip rule cannot handle. If not found, the
  *    piece gets an empty span at the cursor and the cursor stays put.
  *
- * Empty pieces never match anything and never move the cursor.
+ * Empty pieces never match anything and never move the cursor. Piece text
+ * must already be normalized: a WordPiece `##` continuation prefix in a
+ * piece's isolated decode makes the piece unmatchable, so callers strip it
+ * first (`allTokenCharSpans` does).
  *
  * @param text - The whole-sequence decoded string.
  * @param pieces - The pieces in token order; `text` should decode from
@@ -158,7 +168,7 @@ export function alignTokenPieces(text: string, pieces: readonly TokenPiece[]): P
 			end = cursor + pieceText.length;
 		} else {
 			let skip = cursor;
-			while (skip < text.length && /\s/.test(text[skip]!)) skip++;
+			while (skip < text.length && WHITESPACE.test(text[skip]!)) skip++;
 			if (skip > cursor && pieceText.length > 0 && text.startsWith(pieceText, skip)) {
 				start = skip;
 				end = skip + pieceText.length;
@@ -227,7 +237,9 @@ export function allTokenCharSpans(
 	for (let i = 0; i < ids.length; i++) {
 		const id = ids[i]!;
 		if (id === maskSentinel) continue;
-		pieces.push({ index: i, tokenId: id, text: decodeToken(id) });
+		const raw = decodeToken(id);
+		const text = raw.startsWith('##') ? raw.slice(2) : raw;
+		pieces.push({ index: i, tokenId: id, text });
 	}
 
 	const spans: TokenCharSpan[] = [];

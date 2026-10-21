@@ -311,21 +311,38 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 	const vocab = ['play', '##ing', 'dog', 'fast'];
 	const MASK = 99;
 
-	function decodeToken(id: number): string {
+	/** The text a piece contributes after WordPiece normalization. */
+	function pieceText(id: number): string {
 		const raw = vocab[id] ?? '';
 		return raw.startsWith('##') ? raw.slice(2) : raw;
 	}
 
-	/** Whole-sequence decode: strips `##`, joins non-`##` pieces with a space. */
+	/**
+	 * Faithful to transformers.js: a single-token decode returns the raw
+	 * vocab entry unchanged, `##` prefix included.
+	 */
+	function decodeToken(id: number): string {
+		return vocab[id] ?? '';
+	}
+
+	/**
+	 * Whole-sequence decode (WordPiece style): the first token is emitted
+	 * raw; every later token strips `##` if it is a continuation and is
+	 * joined with a space otherwise.
+	 */
 	function decodeAll(ids: readonly number[]): string {
 		let text = '';
 		let first = true;
 		for (const id of ids) {
 			if (id === MASK) continue;
 			const raw = vocab[id] ?? '';
-			const isCont = raw.startsWith('##');
-			if (!first && !isCont) text += ' ';
-			text += isCont ? raw.slice(2) : raw;
+			if (first) {
+				text += raw;
+			} else if (raw.startsWith('##')) {
+				text += raw.slice(2);
+			} else {
+				text += ' ' + raw;
+			}
 			first = false;
 		}
 		return text;
@@ -339,7 +356,7 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 		expect(text).toBe('playing dog');
 		expect(spans).toHaveLength(3);
 		for (const s of spans) {
-			expect(text.slice(s.start, s.end)).toBe(decodeToken(s.tokenId));
+			expect(text.slice(s.start, s.end)).toBe(pieceText(s.tokenId));
 		}
 		expect(spans[0]).toMatchObject({ start: 0, end: 4 });
 		expect(spans[1]).toMatchObject({ start: 4, end: 7 });
@@ -354,7 +371,7 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 		expect(text).toBe('play dog');
 		expect(spans).toHaveLength(2);
 		for (const s of spans) {
-			expect(text.slice(s.start, s.end)).toBe(decodeToken(s.tokenId));
+			expect(text.slice(s.start, s.end)).toBe(pieceText(s.tokenId));
 		}
 		expect(spans[0]).toMatchObject({ start: 0, end: 4 });
 		expect(spans[1]).toMatchObject({ start: 5, end: 8 });
@@ -369,6 +386,92 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 		expect(spans[0]).toMatchObject({ tokenId: 0, index: 0, recency: 0.5 });
 		expect(spans[1]).toMatchObject({ tokenId: 1, index: 2, recency: 1 });
 		expect(spans[2]).toMatchObject({ tokenId: 2, index: 3, recency: 0 });
+	});
+
+	it('aligns continuation pieces of a multi-piece word (## regression)', () => {
+		// Isolated decodes keep `##`: 'h', '##yp', '##hen', '##ated'.
+		const word = ['h', '##yp', '##hen', '##ated'];
+		const decodeToken = (id: number): string => word[id] ?? '';
+		const decodeWord = (ids: readonly number[]): string => {
+			let text = '';
+			let first = true;
+			for (const id of ids) {
+				const raw = word[id] ?? '';
+				if (first) {
+					text += raw;
+				} else if (raw.startsWith('##')) {
+					text += raw.slice(2);
+				} else {
+					text += ' ' + raw;
+				}
+				first = false;
+			}
+			return text;
+		};
+
+		const ids = new Int32Array([0, 1, 2, 3]);
+		const recency = new Float32Array(4);
+		const text = decodeWord([0, 1, 2, 3]);
+		expect(text).toBe('hyphenated');
+
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, text);
+		expect(spans.map((s) => text.slice(s.start, s.end))).toEqual(['h', 'yp', 'hen', 'ated']);
+		expect(spans.map((s) => [s.start, s.end])).toEqual([
+			[0, 1],
+			[1, 3],
+			[3, 6],
+			[6, 10],
+		]);
+		expect(spans.map((s) => s.index)).toEqual([0, 1, 2, 3]);
+	});
+
+	it('aligns two multi-piece words without dropping continuations', () => {
+		const word = ['h', '##yp', '##hen', '##ated'];
+		const decodeToken = (id: number): string => word[id] ?? '';
+		// Same WordPiece-style whole-sequence decode as above.
+		const decodeWords = (ids: Int32Array): string => {
+			let text = '';
+			let first = true;
+			for (const id of ids) {
+				const raw = word[id] ?? '';
+				if (first) {
+					text += raw;
+				} else if (raw.startsWith('##')) {
+					text += raw.slice(2);
+				} else {
+					text += ' ' + raw;
+				}
+				first = false;
+			}
+			return text;
+		};
+
+		const ids = new Int32Array([0, 1, 2, 3, 0, 1, 2]);
+		const recency = new Float32Array(7);
+		const text = decodeWords(ids);
+		expect(text).toBe('hyphenated hyphen');
+
+		const spans = allTokenCharSpans(ids, recency, decodeToken, 99, text);
+		expect(spans.map((s) => text.slice(s.start, s.end))).toEqual([
+			'h',
+			'yp',
+			'hen',
+			'ated',
+			'h',
+			'yp',
+			'hen',
+		]);
+		expect(spans.map((s) => [s.start, s.end])).toEqual([
+			[0, 1],
+			[1, 3],
+			[3, 6],
+			[6, 10],
+			[11, 12],
+			[12, 14],
+			[14, 17],
+		]);
+		// The final token's span reaches the end of the decoded prose.
+		expect(spans[spans.length - 1]!.end).toBe(text.length);
 	});
 });
 describe('alignTokenPieces (differential vs naive prefix-length reference)', () => {
