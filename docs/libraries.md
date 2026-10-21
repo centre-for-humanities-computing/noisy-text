@@ -12,7 +12,12 @@ Non-obvious API notes for dependencies we rely on.
 - **`tokenizer.model.convert_ids_to_tokens(ids)`** — returns raw subword
   strings (e.g. `Ġ`, `##ing`). Used for chip rendering.
 - **`tokenizer.decode(ids, { skip_special_tokens: false })`** — decodes
-  ids back to text.
+  ids back to text. `decode` joins pieces with separators — WordPiece
+  inserts a space before each non-`##` piece — and applies
+  `clean_up_tokenization_spaces`, so decoding a single id omits its
+  separator and per-token decoded lengths never sum to the decoded
+  text length. Offsets must be aligned to the decoded text (see
+  `alignTokenPieces` in `src/lib/engine/diff.ts`), not summed.
 - **Vocab size** — `tokenizer.model.vocab` is a `string[]` on
   `TokenizerModel`; we just read `.length`.
 

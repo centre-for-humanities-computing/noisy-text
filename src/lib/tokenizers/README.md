@@ -27,3 +27,7 @@
   later.
 - `idsToTokens` returns raw subword strings (e.g. `Ġ`, `##ing`) so
   chips show exactly what the tokenizer emits.
+- `decode` inserts separators between pieces (WordPiece adds a space
+  before each non-`##` piece), so single-id decode lengths never sum
+  to the full decoded length; prose spans must be aligned against the
+  decoded text (see `alignTokenPieces` in `src/lib/engine/diff.ts`).
