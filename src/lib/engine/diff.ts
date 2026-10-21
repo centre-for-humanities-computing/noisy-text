@@ -6,8 +6,6 @@
 
 import type { Trajectory } from './types.js';
 
-const WHITESPACE = /\s/;
-
 // ── Token-level diffs ────────────────────────────────────────────────
 
 /**
@@ -137,12 +135,13 @@ export interface PieceSpan {
  * Matching rules, in order (the cursor never moves backwards):
  *
  * 1. Exact match at the cursor — covers GPT-2-style pieces whose leading
- *    space is part of the piece text.
- * 2. Whitespace-skip match — skip whitespace after the cursor, then match.
- *    Covers WordPiece separators inserted by the whole-sequence decode.
- * 3. `indexOf` fallback — search forward from the cursor for intervening
- *    cleanup artifacts the skip rule cannot handle. If not found, the
- *    piece gets an empty span at the cursor and the cursor stays put.
+ *    space is part of the piece text, and WordPiece separators inserted
+ *    by the whole-sequence decode (the skipped region is all whitespace,
+ *    so a non-empty piece that matches after it matches at that first
+ *    non-whitespace character, which `indexOf` finds from the cursor).
+ * 2. `indexOf` fallback — search forward from the cursor for intervening
+ *    cleanup artifacts. If not found, the piece gets an empty span at
+ *    the cursor and the cursor stays put.
  *
  * Empty pieces never match anything and never move the cursor. Piece text
  * must already be normalized: a WordPiece `##` continuation prefix in a
@@ -168,20 +167,13 @@ export function alignTokenPieces(text: string, pieces: readonly TokenPiece[]): P
 			start = cursor;
 			end = cursor + pieceText.length;
 		} else {
-			let skip = cursor;
-			while (skip < text.length && WHITESPACE.test(text[skip]!)) skip++;
-			if (skip > cursor && pieceText.length > 0 && text.startsWith(pieceText, skip)) {
-				start = skip;
-				end = skip + pieceText.length;
+			const found = pieceText.length > 0 ? text.indexOf(pieceText, cursor) : -1;
+			if (found >= 0) {
+				start = found;
+				end = found + pieceText.length;
 			} else {
-				const found = pieceText.length > 0 ? text.indexOf(pieceText, cursor) : -1;
-				if (found >= 0) {
-					start = found;
-					end = found + pieceText.length;
-				} else {
-					start = cursor;
-					end = cursor;
-				}
+				start = cursor;
+				end = cursor;
 			}
 		}
 

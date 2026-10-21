@@ -354,13 +354,24 @@ describe('alignTokenPieces', () => {
 	});
 
 	it('finds a piece via indexOf only (no whitespace to skip)', () => {
-		// 'two' cannot match at or past whitespace from the cursor; only the
-		// indexOf branch locates it, without jumping back to the earlier 'one'.
+		// 'two' cannot match at the cursor ('X' intervenes); only the
+		// indexOf branch locates it, without jumping back to 'one' at 0.
 		const spans = alignTokenPieces('oneXtwoone', pieces(['one', 'two', 'one']));
 		expect(spans).toEqual([
 			{ start: 0, end: 3 },
 			{ start: 4, end: 7 },
 			{ start: 7, end: 10 },
+		]);
+	});
+
+	it('searches indexOf from the cursor, not from 0', () => {
+		// The second 'one' must not re-match the 'one' at position 0: the
+		// fallback starts at the cursor (7), so it finds the one at 8.
+		const spans = alignTokenPieces('oneXtwoYone', pieces(['one', 'two', 'one']));
+		expect(spans).toEqual([
+			{ start: 0, end: 3 },
+			{ start: 4, end: 7 },
+			{ start: 8, end: 11 },
 		]);
 	});
 });
@@ -593,7 +604,9 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 	 * joins non-`##` pieces with a single space. Empty pieces emit nothing
 	 * and no separator; a whitespace piece emits its space without a
 	 * separator. Prefix decoding is prefix-consistent because there is no
-	 * cleanup.
+	 * cleanup. The stub intentionally models no cleanup: punctuation
+	 * cleanup is covered by the hand-picked `hello, world` case above, not
+	 * by this differential.
 	 */
 	function decodeStub(rawTokens: readonly string[]): string {
 		let text = '';
