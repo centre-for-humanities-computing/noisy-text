@@ -330,6 +330,17 @@ describe('alignTokenPieces', () => {
 			{ start: 3, end: 5 },
 		]);
 	});
+
+	it('finds a piece via indexOf only (no whitespace to skip)', () => {
+		// 'two' cannot match at or past whitespace from the cursor; only the
+		// indexOf branch locates it, without jumping back to the earlier 'one'.
+		const spans = alignTokenPieces('oneXtwoone', pieces(['one', 'two', 'one']));
+		expect(spans).toEqual([
+			{ start: 0, end: 3 },
+			{ start: 4, end: 7 },
+			{ start: 7, end: 10 },
+		]);
+	});
 });
 
 describe('allTokenCharSpans (WordPiece-style decoder)', () => {
@@ -504,8 +515,9 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 	/**
 	 * Stub whole-sequence decode with cleanup disabled: strips `##` and
 	 * joins non-`##` pieces with a single space. Empty pieces emit nothing
-	 * and no separator. Prefix decoding is prefix-consistent because there
-	 * is no cleanup.
+	 * and no separator; a whitespace piece emits its space without a
+	 * separator. Prefix decoding is prefix-consistent because there is no
+	 * cleanup.
 	 */
 	function decodeStub(rawTokens: readonly string[]): string {
 		let text = '';
@@ -516,7 +528,8 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 				continue;
 			}
 			const isCont = raw.startsWith('##');
-			if (!first && !isCont) text += ' ';
+			const isSpacePiece = raw === ' ';
+			if (!first && !isCont && !isSpacePiece) text += ' ';
 			text += isCont ? raw.slice(2) : raw;
 			first = false;
 		}
@@ -526,8 +539,8 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 	/**
 	 * Naive reference: decode the prefix of the first $k$ pieces and measure
 	 * its length, then add one for each non-`##` piece after the first.
-	 * Empty pieces sit at the cursor: they emit no separator, so their span
-	 * is the prefix length with no +1.
+	 * Empty pieces and whitespace pieces sit at the cursor: they emit no
+	 * separator, so their spans start at the prefix length with no +1.
 	 */
 	function naiveSpans(rawTokens: readonly string[]): { start: number; end: number }[] {
 		const spans: { start: number; end: number }[] = [];
@@ -537,17 +550,22 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 			const pieceText = isCont ? raw.slice(2) : raw;
 			const prefix = decodeStub(rawTokens.slice(0, k));
 			let start = prefix.length;
-			if (k > 0 && !isCont && pieceText.length > 0) start += 1;
+			if (k > 0 && !isCont && pieceText.length > 0 && raw !== ' ') start += 1;
 			spans.push({ start, end: start + pieceText.length });
 		}
 		return spans;
 	}
 
 	const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
+	const PUNCT = [',', '.', '?', '!'];
 
-	/** Random word; occasionally returns '' (an empty piece). */
+	/**
+	 * Random piece: usually a word, occasionally a punctuation mark, and
+	 * rarely '' (an empty piece).
+	 */
 	function randomWord(prng: () => number): string {
 		if (prng() < 0.05) return '';
+		if (prng() < 0.15) return PUNCT[Math.floor(prng() * PUNCT.length)]!;
 		const len = 1 + Math.floor(prng() * 5);
 		let s = '';
 		for (let i = 0; i < len; i++) {
@@ -567,6 +585,8 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 				const w = randomWord(prng);
 				const isCont = w.length > 0 && rawTokens.length > 0 && prng() < 0.4;
 				rawTokens.push(isCont ? '##' + w : w);
+				// An occasional whitespace piece forces multi-space runs.
+				if (w !== '' && prng() < 0.07) rawTokens.push(' ');
 			}
 
 			const text = decodeStub(rawTokens);
@@ -585,9 +605,10 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 		}
 	});
 
-	it('matches the naive reference with mask sentinels interspersed', () => {
+	it('routes mask sentinels through allTokenCharSpans to the naive reference', () => {
 		const prng = seedrandom.alea('align-token-spans-masks' + '\0');
 		const CASES = 200;
+		const MASK = 99;
 
 		for (let c = 0; c < CASES; c++) {
 			const rawTokens: string[] = [];
@@ -605,23 +626,62 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 						w.length > 0 && rawTokens.length > 0 && !isMask[rawTokens.length - 1] && prng() < 0.4;
 					rawTokens.push(isCont ? '##' + w : w);
 					isMask.push(false);
+					// An occasional whitespace piece forces multi-space runs.
+					if (w !== '' && prng() < 0.07) {
+						rawTokens.push(' ');
+						isMask.push(false);
+					}
 				}
 			}
 
+			// Mask positions carry the MASK id; visible positions carry their
+			// index, so the faithful single-token stub resolves to the raw
+			// vocab entry (`##` included) and allTokenCharSpans must strip it.
+			const ids = new Int32Array(rawTokens.map((_, i) => (isMask[i]! ? MASK : i)));
+			const recency = new Float32Array(rawTokens.map(() => prng()));
+			const decodeToken = (id: number): string => rawTokens[id] ?? '';
+
 			const visible = rawTokens.filter((_, i) => !isMask[i]!);
 			const text = decodeStub(visible);
-			const pieces: TokenPiece[] = visible.map((raw, i) => ({
-				index: i,
-				tokenId: i,
-				text: raw.startsWith('##') ? raw.slice(2) : raw,
-			}));
 
-			const actual = alignTokenPieces(text, pieces);
-			const expected = naiveSpans(visible);
+			const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text);
+
+			// One span per locatable visible token, in visible order. Empty
+			// pieces decode to '' and are dropped by allTokenCharSpans, so the
+			// naive spans and their source positions are filtered in lockstep.
+			const visibleIdx: number[] = [];
+			rawTokens.forEach((_, i) => {
+				if (!isMask[i]!) visibleIdx.push(i);
+			});
+			const naive = naiveSpans(visible);
+			const keptIdx: number[] = [];
+			const expected: { start: number; end: number }[] = [];
+			visibleIdx.forEach((orig, k) => {
+				const e = naive[k]!;
+				if (e.end > e.start) {
+					keptIdx.push(orig);
+					expected.push(e);
+				}
+			});
 			expect(
-				actual,
+				spans,
 				`case ${c}: text=${JSON.stringify(text)} raw=${JSON.stringify(rawTokens)}`,
-			).toEqual(expected);
+			).toHaveLength(expected.length);
+			for (let k = 0; k < expected.length; k++) {
+				const s = spans[k]!;
+				const orig = keptIdx[k]!;
+				const raw = rawTokens[orig]!;
+				const pieceText = raw.startsWith('##') ? raw.slice(2) : raw;
+				expect([s.start, s.end]).toEqual([expected[k]!.start, expected[k]!.end]);
+				expect(s.index).toBe(orig);
+				expect(s.tokenId).toBe(ids[orig]!);
+				expect(s.recency).toBe(recency[orig]!);
+				expect(text.slice(s.start, s.end)).toBe(pieceText);
+			}
+			// Mask positions never produce a span.
+			for (const s of spans) {
+				expect(isMask[s.index]!).toBe(false);
+			}
 		}
 	});
 });
