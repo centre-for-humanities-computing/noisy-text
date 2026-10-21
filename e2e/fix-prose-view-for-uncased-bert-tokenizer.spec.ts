@@ -8,6 +8,7 @@ import { expect, test } from '@playwright/test';
 const TOKENIZER_TIMEOUT = 120_000;
 
 interface Fixture {
+	id: string;
 	input: string;
 	/** The exact decoded prose the app must render. */
 	prose: string;
@@ -19,6 +20,7 @@ interface Fixture {
 
 const FIXTURES: Fixture[] = [
 	{
+		id: 'bert-base-uncased',
 		input: 'hyphenated hyphen',
 		prose: 'hyphenated hyphen',
 		tokens: ['h', 'yp', 'hen', 'ated', 'h', 'yp', 'hen'],
@@ -33,6 +35,7 @@ const FIXTURES: Fixture[] = [
 		],
 	},
 	{
+		id: 'bert-base-uncased',
 		input: 'hello world',
 		prose: 'hello world',
 		tokens: ['hello', ' world'],
@@ -41,9 +44,19 @@ const FIXTURES: Fixture[] = [
 			[5, 11],
 		],
 	},
+	{
+		// GPT-2 BPE decodes `##` literally: round 2 stripped a leading `##`
+		// unconditionally, which dropped this token entirely.
+		id: 'gpt2',
+		input: '## heading',
+		prose: '## heading',
+		tokens: ['##', ' heading'],
+		spans: [
+			[0, 2],
+			[2, 10],
+		],
+	},
 ];
-
-const TOKENIZER_IDS = ['bert-base-uncased', 'gpt2'];
 
 interface SpanInfo {
 	text: string;
@@ -75,22 +88,16 @@ async function selectCard(page: import('@playwright/test').Page, testid: string)
 	await expect(card).toHaveAttribute('aria-checked', 'true');
 }
 
-/** Wait for a recompute: catch the brief `computing` phase, then require `ready`. */
+/** Wait for the trajectory recompute to finish. */
 async function waitForReady(page: import('@playwright/test').Page) {
 	const status = page.getByTestId('app-status');
-	await expect(status)
-		.toHaveAttribute('data-trajectory-status', 'computing', { timeout: 5_000 })
-		.catch(() => {
-			// The compute may already have finished between polls.
-		});
 	await expect(status).toHaveAttribute('data-trajectory-status', 'ready', {
 		timeout: TOKENIZER_TIMEOUT,
 	});
 }
 
-for (let f = 0; f < FIXTURES.length; f++) {
-	const fixture = FIXTURES[f]!;
-	const id = TOKENIZER_IDS[f]!;
+for (const fixture of FIXTURES) {
+	const id = fixture.id;
 
 	test(`prose spans match the decoded text for ${id}`, async ({ page }) => {
 		const errors: string[] = [];
@@ -130,7 +137,9 @@ for (let f = 0; f < FIXTURES.length; f++) {
 		const tokenTextById = new Map<string, string>();
 		for (const s of spans) tokenTextById.set(s.tokenId, text.slice(s.start, s.end));
 
-		// Mask path: absorb noise, scrub to 10% of the trajectory.
+		// Mask path: absorb noise, scrub forward in 5% steps. Under the
+		// default linear schedule and seed 42, 10% leaves every token
+		// unmasked, so the loop advances until the first partial state.
 		// Selecting a new strategy triggers a recompute on its own; in
 		// explore mode there is no noise button.
 		await selectCard(page, 'strategy-absorbing');
