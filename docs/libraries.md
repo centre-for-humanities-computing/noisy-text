@@ -18,8 +18,10 @@ Non-obvious API notes for dependencies we rely on.
   pieces and retains the `##` continuation prefix, so per-token decoded
   lengths may not sum to the decoded text length. GPT-2's byte-level
   decoder already carries each piece's leading space in its isolated
-  decode, so its lengths do sum except for non-ASCII pieces (which
-  decode to U+FFFD in isolation). Offsets must be aligned to the
+  decode, so its lengths do sum except for non-ASCII pieces whose
+  UTF-8 bytes are split across token boundaries (those decode to U+FFFD
+  in isolation; pieces that decode to a complete character align
+  normally). Offsets must be aligned to the
   decoded text (see `alignTokenPieces` in `src/lib/engine/diff.ts`),
   not summed.
 - **Vocab size** — `tokenizer.model.vocab` is a `string[]` on

@@ -280,11 +280,15 @@ recency}`) — one span per located token, with `start`/`end` character
   their characters stay as plain text.
 - Alignment goes through `alignTokenPieces`: a greedy cursor matches each
   token's isolated decode against the whole-sequence decode — exact match
-  at the cursor, then whitespace-skip, then an `indexOf` fallback —
-  because per-token decode lengths never sum to the decoded text length.
-  A leading WordPiece `##` continuation prefix is stripped from the
-  isolated decode before matching (a single-id WordPiece decode retains
-  it); GPT-2 byte-level decodes already carry their leading space.
+  at the cursor, then an `indexOf` fallback — because per-token decode
+  lengths do not sum for WordPiece, whose whole-sequence decode inserts a
+  space before non-first pieces. A WordPiece `##` continuation prefix is
+  stripped from the isolated decode before matching, but only for
+  tokenizers marked `wordPiece` and only for continuations after the
+  first visible piece: the whole-sequence decode keeps `##` on the first
+  token, so the first visible continuation keeps it too. GPT-2 byte-level
+  decodes already carry their leading space and are never stripped
+  (tokens like `##` decode literally).
 - `InlineTokens.svelte` accepts the decoded text plus the `TokenCharSpan`
   array, and renders the text with `<span>` wrappers around the token
   spans; gaps between spans render as plain text. Spans are not merged:

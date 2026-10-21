@@ -35,7 +35,9 @@ const FIXTURES: Fixture[] = [
 		],
 	},
 	{
-		id: 'bert-base-uncased',
+		// GPT-2 BPE carries each piece's leading space in its own decode,
+		// so the whole-sequence decode is plain concatenation.
+		id: 'gpt2',
 		input: 'hello world',
 		prose: 'hello world',
 		tokens: ['hello', ' world'],
@@ -99,7 +101,7 @@ async function waitForReady(page: import('@playwright/test').Page) {
 for (const fixture of FIXTURES) {
 	const id = fixture.id;
 
-	test(`prose spans match the decoded text for ${id}`, async ({ page }) => {
+	test(`prose spans match the decoded text for ${id} (${fixture.input})`, async ({ page }) => {
 		const errors: string[] = [];
 		page.on('pageerror', (e) => errors.push(e.message));
 		page.on('console', (m) => {
@@ -169,10 +171,14 @@ for (const fixture of FIXTURES) {
 			if (i > 0) {
 				expect(s.start).toBeGreaterThanOrEqual(noisedSpans[i - 1]!.end);
 			}
-			// Every surviving span still renders its own token's text.
+			// Every surviving span still renders its own token's text. For
+			// WordPiece, a continuation whose predecessor got masked is now
+			// the first visible piece, and the whole-sequence decode keeps
+			// `##` on the first token — so it legitimately gains the prefix.
 			const expected = tokenTextById.get(s.tokenId);
 			expect(expected).toBeDefined();
-			expect(noisedText.slice(s.start, s.end)).toBe(expected!);
+			const rendered = noisedText.slice(s.start, s.end);
+			expect(rendered === expected! || rendered === `##${expected}`).toBe(true);
 		}
 
 		expect(errors).toEqual([]);

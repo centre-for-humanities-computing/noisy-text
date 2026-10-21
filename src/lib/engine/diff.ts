@@ -207,9 +207,11 @@ export interface TokenCharSpan {
  * mode). Tokens that decode to the empty string, or whose isolated decode
  * cannot be located in the decoded text, are omitted: a zero-width span
  * would not be hoverable, and their characters remain in the rendered
- * prose as plain (unhighlighted) text. In particular, GPT-2 non-ASCII
- * tokens decode to U+FFFD in isolation and are therefore omitted, while
- * the prose text itself is correct.
+ * prose as plain (unhighlighted) text. In particular, some GPT-2
+ * non-ASCII tokens — those whose UTF-8 bytes are split across token
+ * boundaries — decode to U+FFFD in isolation and are therefore omitted,
+ * while tokens that decode to a complete character align normally and
+ * the prose text itself is always correct.
  *
  * Spans are derived by aligning each token's isolated decode (for
  * WordPiece, with the `##` continuation prefix stripped from every
