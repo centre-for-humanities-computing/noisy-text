@@ -239,6 +239,32 @@ describe('allTokenCharSpans', () => {
 		expect(spans[0]!.index).toBe(0);
 		expect(spans[1]!.index).toBe(2);
 	});
+
+	it('omits non-ASCII GPT-2 tokens that decode to U+FFFD', () => {
+		// GPT-2 byte-level isolated decodes of non-ASCII text yield U+FFFD.
+		const replacement = (): string => '\uFFFD';
+		const ids = new Int32Array([1, 2, 3, 4]);
+		const recency = new Float32Array(4);
+		const spans = allTokenCharSpans(ids, recency, replacement, 99, '你好世界');
+		// The prose text itself is correct; only the highlights are omitted.
+		expect(spans).toEqual([]);
+	});
+
+	it('omits an unalignable piece without shifting later spans', () => {
+		const decoder = (id: number): string => {
+			if (id === 1) return 'ab';
+			if (id === 2) return 'zz';
+			if (id === 3) return 'cd';
+			return '';
+		};
+		const ids = new Int32Array([1, 2, 3]);
+		const recency = new Float32Array(3);
+		const spans = allTokenCharSpans(ids, recency, decoder, 99, 'abcd');
+		// 'zz' cannot be located, so it is dropped; 'cd' keeps its position.
+		expect(spans).toHaveLength(2);
+		expect(spans[0]).toMatchObject({ tokenId: 1, start: 0, end: 2 });
+		expect(spans[1]).toMatchObject({ tokenId: 3, start: 2, end: 4 });
+	});
 });
 
 describe('alignTokenPieces', () => {
@@ -477,13 +503,18 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 describe('alignTokenPieces (differential vs naive prefix-length reference)', () => {
 	/**
 	 * Stub whole-sequence decode with cleanup disabled: strips `##` and
-	 * joins non-`##` pieces with a single space. Prefix decoding is
-	 * prefix-consistent because there is no cleanup.
+	 * joins non-`##` pieces with a single space. Empty pieces emit nothing
+	 * and no separator. Prefix decoding is prefix-consistent because there
+	 * is no cleanup.
 	 */
 	function decodeStub(rawTokens: readonly string[]): string {
 		let text = '';
 		let first = true;
 		for (const raw of rawTokens) {
+			if (raw === '') {
+				first = false;
+				continue;
+			}
 			const isCont = raw.startsWith('##');
 			if (!first && !isCont) text += ' ';
 			text += isCont ? raw.slice(2) : raw;
@@ -495,6 +526,8 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 	/**
 	 * Naive reference: decode the prefix of the first $k$ pieces and measure
 	 * its length, then add one for each non-`##` piece after the first.
+	 * Empty pieces sit at the cursor: they emit no separator, so their span
+	 * is the prefix length with no +1.
 	 */
 	function naiveSpans(rawTokens: readonly string[]): { start: number; end: number }[] {
 		const spans: { start: number; end: number }[] = [];
@@ -504,7 +537,7 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 			const pieceText = isCont ? raw.slice(2) : raw;
 			const prefix = decodeStub(rawTokens.slice(0, k));
 			let start = prefix.length;
-			if (k > 0 && !isCont) start += 1;
+			if (k > 0 && !isCont && pieceText.length > 0) start += 1;
 			spans.push({ start, end: start + pieceText.length });
 		}
 		return spans;
@@ -512,7 +545,9 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 
 	const LETTERS = 'abcdefghijklmnopqrstuvwxyz';
 
+	/** Random word; occasionally returns '' (an empty piece). */
 	function randomWord(prng: () => number): string {
+		if (prng() < 0.05) return '';
 		const len = 1 + Math.floor(prng() * 5);
 		let s = '';
 		for (let i = 0; i < len; i++) {
@@ -529,8 +564,9 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 			const rawTokens: string[] = [];
 			const numTokens = 3 + Math.floor(prng() * 8);
 			for (let i = 0; i < numTokens; i++) {
-				const isCont = rawTokens.length > 0 && prng() < 0.4;
-				rawTokens.push(isCont ? '##' + randomWord(prng) : randomWord(prng));
+				const w = randomWord(prng);
+				const isCont = w.length > 0 && rawTokens.length > 0 && prng() < 0.4;
+				rawTokens.push(isCont ? '##' + w : w);
 			}
 
 			const text = decodeStub(rawTokens);
@@ -562,8 +598,12 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 					isMask.push(true);
 					rawTokens.push('');
 				} else {
-					const isCont = rawTokens.length > 0 && !isMask[rawTokens.length - 1] && prng() < 0.4;
-					rawTokens.push(isCont ? '##' + randomWord(prng) : randomWord(prng));
+					let w = randomWord(prng);
+					// An empty piece never immediately follows a mask sentinel.
+					if (w === '' && isMask[isMask.length - 1]) w = randomWord(prng) || 'a';
+					const isCont =
+						w.length > 0 && rawTokens.length > 0 && !isMask[rawTokens.length - 1] && prng() < 0.4;
+					rawTokens.push(isCont ? '##' + w : w);
 					isMask.push(false);
 				}
 			}

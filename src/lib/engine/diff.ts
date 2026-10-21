@@ -208,13 +208,20 @@ export interface TokenCharSpan {
 /**
  * Map every token to its character span in the decoded prose string.
  *
- * Emits one span per visible token so the prose view can make each token
- * individually hoverable. Mask sentinel positions are skipped (invisible
- * in prose mode).
+ * Emits one span per visible, non-mask token that can be located in the
+ * decoded prose, so the prose view can make each token individually
+ * hoverable. Mask sentinel positions are skipped (invisible in prose
+ * mode). Tokens that decode to the empty string, or whose isolated decode
+ * cannot be located in the decoded text, are omitted: a zero-width span
+ * would not be hoverable, and their characters remain in the rendered
+ * prose as plain (unhighlighted) text. In particular, GPT-2 non-ASCII
+ * tokens decode to U+FFFD in isolation and are therefore omitted, while
+ * the prose text itself is correct.
  *
- * Spans are derived by aligning each token's isolated decode to the
- * whole-sequence decoded string via `alignTokenPieces` — see that
- * function for why lengths must not simply be summed.
+ * Spans are derived by aligning each token's isolated decode (with a
+ * leading WordPiece `##` stripped) to the whole-sequence decoded string
+ * via `alignTokenPieces` — see that function for why lengths must not
+ * simply be summed.
  *
  * @param ids - Token IDs for the current step (includes mask sentinels).
  * @param tokenRecency - Per-position recency from `recencyAt`, length $L$.
@@ -224,7 +231,7 @@ export interface TokenCharSpan {
  *   positions are skipped.
  * @param text - The whole-sequence decoded string (same ids, sentinels
  *   filtered out).
- * @returns One `TokenCharSpan` per visible token, in order.
+ * @returns One `TokenCharSpan` per locatable visible token, in order.
  */
 export function allTokenCharSpans(
 	ids: Int32Array,
