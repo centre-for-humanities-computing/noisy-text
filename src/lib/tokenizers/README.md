@@ -27,7 +27,9 @@
   later.
 - `idsToTokens` returns raw subword strings (e.g. `Ġ`, `##ing`) so
   chips show exactly what the tokenizer emits.
-- `decode` inserts separators between pieces (WordPiece adds a space
-  before each non-`##` piece), so single-id decode lengths never sum
-  to the full decoded length; prose spans must be aligned against the
+- `decode` inserts separators between pieces. For WordPiece, a
+  single-id decode omits the space the whole-sequence decode inserts
+  and retains the `##` continuation prefix, so lengths may not sum to
+  the full decoded length (GPT-2's byte-level decoder already carries
+  each piece's leading space); prose spans must be aligned against the
   decoded text (see `alignTokenPieces` in `src/lib/engine/diff.ts`).
