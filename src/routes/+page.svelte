@@ -226,6 +226,7 @@
 			tokenRecency,
 			(id) => tok.decode(new Int32Array([id])),
 			maskTokenId,
+			decodedText,
 		);
 	});
 

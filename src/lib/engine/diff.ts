@@ -271,12 +271,18 @@ export interface TokenCharSpan {
  * make each token individually hoverable. Mask sentinel positions are
  * skipped (invisible in prose mode).
  *
+ * Spans are derived by aligning each token's isolated decode to the
+ * whole-sequence decoded string via `alignTokenPieces` — see that
+ * function for why lengths must not simply be summed.
+ *
  * @param ids - Token IDs for the current step (includes mask sentinels).
  * @param tokenRecency - Per-position recency from `recencyAt`, length $L$.
  * @param decodeToken - Function that decodes a single token ID to its
  *   rendered text (e.g. `tok.decode(new Int32Array([id]))`).
  * @param maskSentinel - The sentinel ID used for mask tokens; these
  *   positions are skipped.
+ * @param text - The whole-sequence decoded string (same ids, sentinels
+ *   filtered out).
  * @returns One `TokenCharSpan` per visible token, in order.
  */
 export function allTokenCharSpans(
@@ -284,26 +290,29 @@ export function allTokenCharSpans(
 	tokenRecency: Float32Array,
 	decodeToken: (id: number) => string,
 	maskSentinel: number,
+	text: string,
 ): TokenCharSpan[] {
-	const spans: TokenCharSpan[] = [];
-	let charPos = 0;
-
+	const pieces: TokenPiece[] = [];
 	for (let i = 0; i < ids.length; i++) {
 		const id = ids[i]!;
 		if (id === maskSentinel) continue;
+		pieces.push({ index: i, tokenId: id, text: decodeToken(id) });
+	}
 
-		const text = decodeToken(id);
-		const len = text.length;
-		if (len > 0) {
+	const spans: TokenCharSpan[] = [];
+	const pieceSpans = alignTokenPieces(text, pieces);
+	for (let k = 0; k < pieceSpans.length; k++) {
+		const piece = pieces[k]!;
+		const span = pieceSpans[k]!;
+		if (span.end > span.start) {
 			spans.push({
-				start: charPos,
-				end: charPos + len,
-				tokenId: id,
-				index: i,
-				recency: tokenRecency[i] ?? 0,
+				start: span.start,
+				end: span.end,
+				tokenId: piece.tokenId,
+				index: piece.index,
+				recency: tokenRecency[piece.index] ?? 0,
 			});
 		}
-		charPos += len;
 	}
 
 	return spans;

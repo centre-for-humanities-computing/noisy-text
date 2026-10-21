@@ -276,13 +276,13 @@ describe('allTokenCharSpans', () => {
 	it('returns empty for empty input', () => {
 		const ids = new Int32Array(0);
 		const recency = new Float32Array(0);
-		expect(allTokenCharSpans(ids, recency, decode, 99)).toEqual([]);
+		expect(allTokenCharSpans(ids, recency, decode, 99, '')).toEqual([]);
 	});
 
 	it('emits one span per visible token', () => {
 		const ids = new Int32Array([1, 2, 3]);
 		const recency = new Float32Array([0, 0, 0]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t2t3');
 		expect(spans).toHaveLength(3);
 		expect(spans.map((s) => s.tokenId)).toEqual([1, 2, 3]);
 	});
@@ -291,7 +291,7 @@ describe('allTokenCharSpans', () => {
 		// ids [1, 2, 3] → "t1t2t3" (each 2 chars)
 		const ids = new Int32Array([1, 2, 3]);
 		const recency = new Float32Array([0, 0, 0]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t2t3');
 		expect(spans[0]).toMatchObject({ start: 0, end: 2 });
 		expect(spans[1]).toMatchObject({ start: 2, end: 4 });
 		expect(spans[2]).toMatchObject({ start: 4, end: 6 });
@@ -300,7 +300,7 @@ describe('allTokenCharSpans', () => {
 	it('skips mask sentinel positions', () => {
 		const ids = new Int32Array([1, 99, 3]);
 		const recency = new Float32Array([0, 0, 0]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t3');
 		expect(spans).toHaveLength(2);
 		expect(spans.map((s) => s.tokenId)).toEqual([1, 3]);
 	});
@@ -308,7 +308,7 @@ describe('allTokenCharSpans', () => {
 	it('skips empty-decoded tokens', () => {
 		const ids = new Int32Array([1, 0, 3]);
 		const recency = new Float32Array([0, 0, 0]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t3');
 		expect(spans).toHaveLength(2);
 		// "t1" then "t3": positions 0-2 and 2-4.
 		expect(spans[1]).toMatchObject({ start: 2, end: 4 });
@@ -317,7 +317,7 @@ describe('allTokenCharSpans', () => {
 	it('carries recency per token', () => {
 		const ids = new Int32Array([1, 2]);
 		const recency = new Float32Array([0.5, 1]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t2');
 		expect(spans[0]!.recency).toBe(0.5);
 		expect(spans[1]!.recency).toBe(1);
 	});
@@ -325,7 +325,7 @@ describe('allTokenCharSpans', () => {
 	it('preserves original position index', () => {
 		const ids = new Int32Array([1, 99, 3]);
 		const recency = new Float32Array([0, 0, 0]);
-		const spans = allTokenCharSpans(ids, recency, decode, 99);
+		const spans = allTokenCharSpans(ids, recency, decode, 99, 't1t3');
 		expect(spans[0]!.index).toBe(0);
 		expect(spans[1]!.index).toBe(2);
 	});
@@ -393,5 +393,71 @@ describe('alignTokenPieces', () => {
 			{ start: 0, end: 2 },
 			{ start: 3, end: 5 },
 		]);
+	});
+});
+
+describe('allTokenCharSpans (WordPiece-style decoder)', () => {
+	/** Raw vocab: `##` prefix marks WordPiece continuations. */
+	const vocab = ['play', '##ing', 'dog', 'fast'];
+	const MASK = 99;
+
+	function decodeToken(id: number): string {
+		const raw = vocab[id] ?? '';
+		return raw.startsWith('##') ? raw.slice(2) : raw;
+	}
+
+	/** Whole-sequence decode: strips `##`, joins non-`##` pieces with a space. */
+	function decodeAll(ids: readonly number[]): string {
+		let text = '';
+		let first = true;
+		for (const id of ids) {
+			if (id === MASK) continue;
+			const raw = vocab[id] ?? '';
+			const isCont = raw.startsWith('##');
+			if (!first && !isCont) text += ' ';
+			text += isCont ? raw.slice(2) : raw;
+			first = false;
+		}
+		return text;
+	}
+
+	it('aligns spans to the whole-sequence decode', () => {
+		const ids = new Int32Array([0, 1, 2]);
+		const recency = new Float32Array([0, 0, 1]);
+		const text = decodeAll([0, 1, 2]);
+		const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text);
+		expect(text).toBe('playing dog');
+		expect(spans).toHaveLength(3);
+		for (const s of spans) {
+			expect(text.slice(s.start, s.end)).toBe(decodeToken(s.tokenId));
+		}
+		expect(spans[0]).toMatchObject({ start: 0, end: 4 });
+		expect(spans[1]).toMatchObject({ start: 4, end: 7 });
+		expect(spans[2]).toMatchObject({ start: 8, end: 11 });
+	});
+
+	it('skips mask sentinels without shifting later spans', () => {
+		const ids = new Int32Array([0, MASK, 2]);
+		const recency = new Float32Array([0, 0, 0]);
+		const text = decodeAll([0, MASK, 2]);
+		const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text);
+		expect(text).toBe('play dog');
+		expect(spans).toHaveLength(2);
+		for (const s of spans) {
+			expect(text.slice(s.start, s.end)).toBe(decodeToken(s.tokenId));
+		}
+		expect(spans[0]).toMatchObject({ start: 0, end: 4 });
+		expect(spans[1]).toMatchObject({ start: 5, end: 8 });
+	});
+
+	it('maps recency and index to the original token positions', () => {
+		const ids = new Int32Array([0, MASK, 1, 2]);
+		const recency = new Float32Array([0.5, 0, 1, 0]);
+		const text = decodeAll([0, MASK, 1, 2]);
+		const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text);
+		expect(spans).toHaveLength(3);
+		expect(spans[0]).toMatchObject({ tokenId: 0, index: 0, recency: 0.5 });
+		expect(spans[1]).toMatchObject({ tokenId: 1, index: 2, recency: 1 });
+		expect(spans[2]).toMatchObject({ tokenId: 2, index: 3, recency: 0 });
 	});
 });
