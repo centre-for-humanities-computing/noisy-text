@@ -5,7 +5,9 @@ import {
 	recencyAt,
 	tokenCharRanges,
 	allTokenCharSpans,
+	alignTokenPieces,
 } from './diff.js';
+import type { TokenPiece } from './diff.js';
 import type { Trajectory } from './types.js';
 
 /** Build a minimal Trajectory from a 2D array of rows for testing. */
@@ -326,5 +328,70 @@ describe('allTokenCharSpans', () => {
 		const spans = allTokenCharSpans(ids, recency, decode, 99);
 		expect(spans[0]!.index).toBe(0);
 		expect(spans[1]!.index).toBe(2);
+	});
+});
+
+describe('alignTokenPieces', () => {
+	function pieces(texts: string[]): TokenPiece[] {
+		return texts.map((text, i) => ({ index: i, tokenId: i, text }));
+	}
+
+	it('aligns exact concatenation', () => {
+		const spans = alignTokenPieces('abc', pieces(['a', 'b', 'c']));
+		expect(spans).toEqual([
+			{ start: 0, end: 1 },
+			{ start: 1, end: 2 },
+			{ start: 2, end: 3 },
+		]);
+	});
+
+	it('aligns space-joined BERT-style pieces', () => {
+		const spans = alignTokenPieces('hello world', pieces(['hello', 'world']));
+		expect(spans).toEqual([
+			{ start: 0, end: 5 },
+			{ start: 6, end: 11 },
+		]);
+	});
+
+	it('aligns ## continuation pieces', () => {
+		const spans = alignTokenPieces('playing', pieces(['play', 'ing']));
+		expect(spans).toEqual([
+			{ start: 0, end: 4 },
+			{ start: 4, end: 7 },
+		]);
+	});
+
+	it('aligns pieces across punctuation cleanup', () => {
+		const spans = alignTokenPieces('hello, world', pieces(['hello', ',', 'world']));
+		expect(spans).toEqual([
+			{ start: 0, end: 5 },
+			{ start: 5, end: 6 },
+			{ start: 7, end: 12 },
+		]);
+	});
+
+	it('aligns GPT-2-style leading-space pieces', () => {
+		const spans = alignTokenPieces('hello world', pieces(['hello', ' world']));
+		expect(spans).toEqual([
+			{ start: 0, end: 5 },
+			{ start: 5, end: 11 },
+		]);
+	});
+
+	it('keeps empty pieces at the cursor', () => {
+		const spans = alignTokenPieces('abc', pieces(['a', '', 'bc']));
+		expect(spans).toEqual([
+			{ start: 0, end: 1 },
+			{ start: 1, end: 1 },
+			{ start: 1, end: 3 },
+		]);
+	});
+
+	it('falls back to indexOf for unexpected intervening characters', () => {
+		const spans = alignTokenPieces('abXcd', pieces(['ab', 'cd']));
+		expect(spans).toEqual([
+			{ start: 0, end: 2 },
+			{ start: 3, end: 5 },
+		]);
 	});
 });

@@ -167,6 +167,88 @@ export function tokenCharRanges(
 	return ranges;
 }
 
+/** One token's decoded text, with its position in the token sequence. */
+export interface TokenPiece {
+	/** Position index in the token sequence. */
+	index: number;
+	/** The token id at this position. */
+	tokenId: number;
+	/** The text this token renders in isolation (e.g. `tok.decode([id])`). */
+	text: string;
+}
+
+/** A character span $[start, end)$ in the decoded prose string. */
+export interface PieceSpan {
+	/** Start index (inclusive) in the decoded string. */
+	start: number;
+	/** End index (exclusive) in the decoded string. */
+	end: number;
+}
+
+/**
+ * Align each piece's isolated text to its span in the decoded prose string.
+ *
+ * Decoding tokens one at a time omits the separators a whole-sequence
+ * decode inserts (WordPiece puts a space before every non-`##` piece), so
+ * per-token lengths never sum to the full decoded length. Instead of
+ * summing lengths, a greedy cursor scans the decoded text: each piece is
+ * matched at the cursor, which then advances past the matched text.
+ *
+ * Matching rules, in order (the cursor never moves backwards):
+ *
+ * 1. Exact match at the cursor — covers `##` continuations and GPT-2-style
+ *    pieces whose leading space is part of the piece text.
+ * 2. Whitespace-skip match — skip whitespace after the cursor, then match.
+ *    Covers WordPiece separators inserted by the whole-sequence decode.
+ * 3. `indexOf` fallback — search forward from the cursor for intervening
+ *    cleanup artifacts the skip rule cannot handle. If not found, the
+ *    piece gets an empty span at the cursor and the cursor stays put.
+ *
+ * Empty pieces never match anything and never move the cursor.
+ *
+ * @param text - The whole-sequence decoded string.
+ * @param pieces - The pieces in token order; `text` should decode from
+ *   exactly these pieces (mask sentinels already filtered out).
+ * @returns One `PieceSpan` per piece, aligned to `text`. Pieces that
+ *   cannot be located get an empty span at the current cursor.
+ */
+export function alignTokenPieces(text: string, pieces: readonly TokenPiece[]): PieceSpan[] {
+	const spans: PieceSpan[] = [];
+	let cursor = 0;
+
+	for (const piece of pieces) {
+		const { text: pieceText } = piece;
+		let start: number;
+		let end: number;
+
+		if (pieceText.length > 0 && text.startsWith(pieceText, cursor)) {
+			start = cursor;
+			end = cursor + pieceText.length;
+		} else {
+			let skip = cursor;
+			while (skip < text.length && /\s/.test(text[skip]!)) skip++;
+			if (skip > cursor && pieceText.length > 0 && text.startsWith(pieceText, skip)) {
+				start = skip;
+				end = skip + pieceText.length;
+			} else {
+				const found = pieceText.length > 0 ? text.indexOf(pieceText, cursor) : -1;
+				if (found >= 0) {
+					start = found;
+					end = found + pieceText.length;
+				} else {
+					start = cursor;
+					end = cursor;
+				}
+			}
+		}
+
+		spans.push({ start, end });
+		if (end > cursor) cursor = end;
+	}
+
+	return spans;
+}
+
 /** A per-token character span in the decoded prose string. */
 export interface TokenCharSpan {
 	/** Start index (inclusive) in the decoded string. */
