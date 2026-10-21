@@ -1,7 +1,7 @@
 ---
 description: Read-only reviewer for ONE slice commit; writes a small findings JSON. Use from /review in per-slice mode.
 mode: subagent
-model: openrouter/deepseek/deepseek-v4.1-flash-1017
+model: openrouter/z-ai/glm-5.3-flash
 temperature: 0.2
 permission:
   edit:
