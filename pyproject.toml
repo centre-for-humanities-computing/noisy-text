@@ -1,0 +1,12 @@
+[project]
+name = "noisy-text"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "huggingface-hub>=2.2.0",
+    "numpy>=2.5.4",
+    "safetensors>=0.8.0",
+    "torch>=2.14.1",
+]

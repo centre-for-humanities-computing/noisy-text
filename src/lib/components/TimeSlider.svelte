@@ -56,6 +56,7 @@
 		step="1"
 		value={t}
 		aria-label="Time step"
+		data-testid="time-slider"
 		disabled={disabled || T === 0}
 		oninput={(e) => ontchange(parseInt(e.currentTarget.value, 10))}
 	/>

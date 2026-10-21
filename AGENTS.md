@@ -24,19 +24,24 @@ Do not load these docs in full by default. Delegate exploration to the
 npm run dev              # dev server, http://localhost:5173
 npm run build            # static output in build/
 npm run preview          # serve the built site
-npm run check            # svelte-check typecheck — NOT run by CI; run it yourself
+npm run check            # svelte-check typecheck
 npm run lint             # eslint
 npx prettier --check .   # CI enforces; npm run format fixes
 npm run test             # vitest, node environment (no jsdom)
+npm run e2e              # Playwright smoke, local only (build + preview on :4173)
+node scripts/slice-check.mjs --budget 400   # per-slice gate: check/lint/format/test + size
 npx vitest run src/lib/engine/trajectory.test.ts   # single file
 npx vitest run -t "is deterministic for the same seed"  # single test by name
 ```
 
-CI (Node 22, push/PR to `main`) runs `lint` → `prettier --check` → `build` →
-`test`. Type errors only surface via `npm run check`.
+CI (Node 22, push/PR to `main`) runs `check` → `lint` → `prettier --check` →
+`build` → `test`. E2E is not in CI (browser download cost).
 
-Per-issue verification order: `npm run check` → `npm run lint` →
-`npm run format` → `npm run test`.
+Per-slice verification: `node scripts/slice-check.mjs --budget <slice budget>`
+(runs `npm run check` → `lint` → `format` → `test`, stages, and reports the
+changed-line count; exit 2 means split the slice). Per round, before pushing,
+run `npm run test` once more and, if the plan has `## Smoke steps`,
+`npm run e2e` (first time: `npx playwright install chromium`).
 
 ## Non-negotiables
 
@@ -64,8 +69,14 @@ These are load-bearing; breaking them silently breaks the math.
 - `strict` + `noUncheckedIndexedAccess`; no `any`, no `@ts-ignore` without a
   comment saying why. `console` only via `warn`/`error`.
 - Tests live beside code as `foo.test.ts`; no snapshot tests for math.
+- **Slices are commits.** One idea per commit: behavioral ≤400 changed lines
+  (target ≤250), mechanical ≤150, never mixed. Each commit carries `Slice:` and
+  `Kind:` trailers; over-budget slices split into `S<k>a`, `S<k>b`, …
+- **Algorithmic code gets a seeded randomized differential test** against a
+  naive reference implementation in the same slice (selection/heaps,
+  union-find, indexing, kernels, quantization) — not only hand-picked cases.
 - Conventional commits with issue number (`feat(#7): ...`); bump
-  `package.json` once per issue (round-1 commit) per SemVer
+  `package.json` once per issue (final mechanical slice of round 1) per SemVer
   (breaking → major, `feat` → minor, otherwise patch — `CONVENTIONS.md`);
   one issue per session.
 
@@ -75,17 +86,22 @@ These are load-bearing; breaking them silently breaks the math.
 before `/implement` and decide the merge; `/implement` commits and opens the
 PR itself. Every task starts in a fresh session. Use the slash commands
 `/refine`, `/plan`, `/implement`, `/review`; artifacts live in
-`.ai/<issue-number>-<slug>/round-N/`. Review reports are PR comments marked
-`<!-- noisy-text-review: round=N -->` (the `round-N/review.md` staging file is
-gitignored). Repeated plan → implement → review rounds run on the same branch
-and PR: a non-approve review verdict leads to a revision plan for the next
-round, with no round cap; after `approve with nits`, `/plan <issue> next`
-starts an explicit revision round. `package.json` is bumped once per issue. `/plan` creates or checks out the issue branch;
+`.ai/<issue-number>-<slug>/round-N/`. The reviewer writes `review.json`;
+`scripts/review-pack.mjs` validates it and generates the `review.md` comment
+body and a local `review.html`, and the reviewer posts the comment. Review
+reports are PR comments marked `<!-- noisy-text-review: round=N -->` (the
+generated files are gitignored). Repeated plan → implement → review rounds run
+on the same branch and PR: a non-approve review verdict leads to a revision
+plan for the next round, with no round cap; after `approve with nits`,
+`/plan <issue> next` starts an explicit revision round. One commit per slice
+(`Slice:`/`Kind:` trailers), on the same branch and PR; `package.json` is
+bumped once per issue. `/plan` enforces a round-1 size gate (≤1200 changed
+lines unless `large` is passed) and creates or checks out the issue branch;
 `/implement` refuses to run on a different branch. `/plan` and `/review` run on
-the read-only `plan` agent; the `plan-writer` and `reviewer` subagents perform
-the only writes (the `.ai/` artifacts). Refined issues live on GitHub, not in
-`.ai/`; `/refine` is the escape hatch when a review shows the issue scope
-itself is wrong. See `.ai/README.md` and `.opencode/command/`.
+the read-only `plan` agent; the `plan-writer`, `reviewer`, and `slice-reviewer`
+subagents perform the only writes (the `.ai/` artifacts). Refined issues live
+on GitHub, not in `.ai/`; `/refine` is the escape hatch when a review shows the
+issue scope itself is wrong. See `.ai/README.md` and `.opencode/command/`.
 
 ## Context discipline
 
