@@ -15,6 +15,8 @@
 		variant?: 'primary' | 'quiet';
 		/** Accessible name of the radiogroup (each picker passes its own). */
 		ariaLabel?: string;
+		/** Optional prefix for per-option `data-testid` attributes. */
+		testIdPrefix?: string;
 	}
 
 	let {
@@ -24,6 +26,7 @@
 		onchange,
 		variant = 'primary',
 		ariaLabel = 'Options',
+		testIdPrefix,
 	}: Props = $props();
 
 	/** Index of the currently focused card (for roving tabindex). */
@@ -78,6 +81,7 @@
 			role="radio"
 			aria-checked={opt.id === value}
 			tabindex={i === focusedIndex ? 0 : -1}
+			data-testid={testIdPrefix ? `${testIdPrefix}-${opt.id}` : undefined}
 			{disabled}
 			onclick={() => select(opt.id)}
 			onkeydown={(e) => onCardKeydown(e, i)}

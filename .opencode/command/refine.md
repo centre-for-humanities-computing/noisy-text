@@ -1,7 +1,7 @@
 ---
 description: Refine a draft issue into concrete, session-sized GitHub issue text
 agent: plan
-model: openrouter/deepseek/deepseek-v4.1-flash
+model: openrouter/deepseek/deepseek-v4.1-flash-1017
 ---
 
 You are refining a conceptual draft issue for the noisy-text repository into

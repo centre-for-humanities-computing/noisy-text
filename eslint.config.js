@@ -54,6 +54,25 @@ export default tseslint.config(
 		},
 	},
 	{
-		ignores: ['build/', '.svelte-kit/', 'dist/', 'node_modules/'],
+		files: ['scripts/**/*.mjs'],
+		languageOptions: {
+			globals: {
+				console: 'readonly',
+				process: 'readonly',
+			},
+		},
+	},
+	{
+		ignores: [
+			'build/',
+			'.svelte-kit/',
+			'dist/',
+			'node_modules/',
+			'test-results/',
+			'playwright-report/',
+			'.venv/',
+			'.agents/',
+			'.claude/',
+		],
 	},
 );

@@ -451,10 +451,16 @@
 			{/if}
 		</div>
 
-		<textarea bind:value={text} placeholder="Type or paste text here…" rows={8}></textarea>
+		<textarea
+			bind:value={text}
+			placeholder="Type or paste text here…"
+			rows={8}
+			data-testid="input-text"
+		></textarea>
 
 		<button
 			class="noise-btn"
+			data-testid="noise-button"
 			disabled={tokenizerStore.status !== 'ready' || text.trim().length === 0}
 			onclick={() => {
 				viewStore.mode = 'explore';
@@ -498,7 +504,7 @@
 						></div>
 					</div>
 				{/if}
-				<div class="tokens-area" class:computing={isComputing}>
+				<div class="tokens-area" class:computing={isComputing} data-testid="output">
 					{#if viewStore.display === 'chips'}
 						<TokenChips
 							tokens={displayTokens.tokens}

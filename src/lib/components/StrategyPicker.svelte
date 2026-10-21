@@ -12,4 +12,12 @@
 	let { value, options, disabled, onchange }: Props = $props();
 </script>
 
-<CardPicker {value} {options} {disabled} {onchange} variant="primary" ariaLabel="Noise strategy" />
+<CardPicker
+	{value}
+	{options}
+	{disabled}
+	{onchange}
+	variant="primary"
+	ariaLabel="Noise strategy"
+	testIdPrefix="strategy"
+/>

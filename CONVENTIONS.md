@@ -89,8 +89,23 @@ Schedules are independent of strategies. Any pairing must work.
   `npx vitest run src/lib/engine/trajectory.test.ts`.
 - Property tests for math: every strategy gets a test verifying its
   stationary-distribution claim empirically over a small vocab.
+- Algorithmic code (selection/heaps, union-find, indexing, kernels,
+  quantization) gets a seeded randomized differential test against a naive
+  reference implementation in the same slice, not only hand-picked cases.
 - Snapshot tests are banned for anything math-related (they hide drift).
 - Don't test trivial getters or constructors.
+
+## End-to-end smoke tests
+
+- Playwright, local only: `npm run e2e` builds and previews on port 4173.
+  Install the browser once with `npx playwright install chromium`. CI does not
+  run E2E.
+- Every issue that changes user-visible behavior adds `e2e/<slug>.spec.ts`
+  with 3–5 smoke steps, each written as `action → observable result`.
+- Select elements with stable `data-testid` attributes, not CSS classes or
+  visible text. Add a test id in the same slice as the UI change.
+- Strategies that need remote assets are skipped until a fixture exists; do
+  not weaken assertions to make the suite green.
 
 ## Caching and persistence
 
@@ -125,17 +140,30 @@ Current pins worth knowing:
 
 - Conventional commits: `feat`, `fix`, `refactor`, `docs`, `test`, `chore`.
 - Reference issue numbers: `feat(#7): implement mask strategy`.
-- One logical change per commit.
+- One slice per commit, one idea per slice. Behavioral slices are ≤400 changed
+  lines (target ≤250); mechanical slices are ≤150. Never mix the two.
+- Body of 3–5 lines for the reviewer: what the slice does, why, and how it was
+  verified. End with trailers on their own lines:
+
+  ```
+  Slice: S<k>/<total>
+  Kind: behavioral|mechanical
+  ```
+
+  A split slice uses `Slice: S<k>a/<total>`. Mechanical slices cover moves,
+  renames, reindentation, barrels (`index.ts`), docs, types-only files, and
+  the version bump.
 
 ## Versioning
 
-`package.json` follows SemVer and is bumped once per issue, in the round-1
-commit (see `.ai/README.md` for the round layout):
+`package.json` follows SemVer and is bumped once per issue, in the final
+mechanical slice of round 1 (see `.ai/README.md` for the round layout):
 
 - breaking change (`feat!` / `BREAKING CHANGE:`) → major
 - `feat` → minor
 - `fix`, `perf`, `refactor`, `docs`, `test`, `chore` → patch
 
-The bump must match the commit type; when an issue mixes types, use the highest.
+The bump must match the issue's highest commit type; when an issue mixes types,
+use the highest. It is committed as `chore(#<n>): bump version to <x.y.z>`.
 Later review-round commits on the same issue do not bump again. History is
 inconsistent — follow this table, not precedent.
