@@ -281,8 +281,10 @@ recency}`) — one span per located token, with `start`/`end` character
 - Alignment goes through `alignTokenPieces`: a greedy cursor matches each
   token's isolated decode against the whole-sequence decode — exact match
   at the cursor, then an `indexOf` fallback — because per-token decode
-  lengths do not sum for WordPiece, whose whole-sequence decode inserts a
-  space before non-first pieces. A WordPiece `##` continuation prefix is
+  lengths do not sum for WordPiece, whose whole-sequence decode joins pieces
+  with spaces and drops the `##` and its preceding space from continuations
+  (only non-continuation pieces after the first gain a separator). A
+  WordPiece `##` continuation prefix is
   stripped from the isolated decode before matching, but only for
   tokenizers marked `wordPiece` and only for continuations after the
   first visible piece: the whole-sequence decode keeps `##` on the first

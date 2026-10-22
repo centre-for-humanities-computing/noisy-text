@@ -127,21 +127,22 @@ export interface PieceSpan {
  * Align each piece's isolated text to its span in the decoded prose string.
  *
  * Decoding tokens one at a time omits the separators a whole-sequence
- * decode inserts (WordPiece puts a space before every non-`##` piece), so
- * per-token lengths never sum to the full decoded length. Instead of
- * summing lengths, a greedy cursor scans the decoded text: each piece is
- * matched at the cursor, which then advances past the matched text.
+ * decode inserts (WordPiece's whole-sequence decode inserts spaces between
+ * non-continuation pieces), so per-token lengths never sum to the full
+ * decoded length. Instead of summing lengths, a greedy cursor scans the
+ * decoded text: each piece is matched at the cursor, which then advances
+ * past the matched text.
  *
  * Matching rules, in order (the cursor never moves backwards):
  *
  * 1. Exact match at the cursor — covers GPT-2-style pieces whose leading
- *    space is part of the piece text, and WordPiece separators inserted
- *    by the whole-sequence decode (the skipped region is all whitespace,
- *    so a non-empty piece that matches after it matches at that first
- *    non-whitespace character, which `indexOf` finds from the cursor).
- * 2. `indexOf` fallback — search forward from the cursor for intervening
- *    cleanup artifacts. If not found, the piece gets an empty span at
- *    the cursor and the cursor stays put.
+ *    space is part of the piece text.
+ * 2. `indexOf` fallback — search forward from the cursor for WordPiece
+ *    separators inserted by the whole-sequence decode and for cleanup
+ *    artifacts; a non-empty piece that matches after a whitespace-only gap
+ *    matches at that first non-whitespace character, which `indexOf` finds
+ *    from the cursor. If not found, the piece gets an empty span at the
+ *    cursor and the cursor stays put.
  *
  * Empty pieces never match anything and never move the cursor. Piece text
  * must already be normalized: a WordPiece `##` continuation prefix in a
