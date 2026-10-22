@@ -171,14 +171,15 @@ for (const fixture of FIXTURES) {
 			if (i > 0) {
 				expect(s.start).toBeGreaterThanOrEqual(noisedSpans[i - 1]!.end);
 			}
-			// Every surviving span still renders its own token's text. For
-			// WordPiece, a continuation whose predecessor got masked is now
-			// the first visible piece, and the whole-sequence decode keeps
-			// `##` on the first token — so it legitimately gains the prefix.
+			// Every surviving span still renders its own token's text. Only
+			// the first visible piece can gain the `##` prefix: it is a
+			// continuation whose predecessor was masked, and the
+			// whole-sequence decode keeps `##` on the first token. Later
+			// continuations are always stripped.
 			const expected = tokenTextById.get(s.tokenId);
 			expect(expected).toBeDefined();
 			const rendered = noisedText.slice(s.start, s.end);
-			expect(rendered === expected! || rendered === `##${expected}`).toBe(true);
+			expect(rendered === expected! || (i === 0 && rendered === `##${expected}`)).toBe(true);
 		}
 
 		expect(errors).toEqual([]);
