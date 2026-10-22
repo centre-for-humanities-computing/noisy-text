@@ -24,12 +24,27 @@ export const PRIORITY_PATHS = [
 
 const isExcluded = (path) => path.startsWith('.ai/') || path === 'package-lock.json';
 
+// Every bullet whose value may wrap onto indented continuation lines.
+const PLAN_FIELDS = new Map([
+	['Kind', 'kind'],
+	['Budget', 'budget'],
+	['Files', 'files'],
+	['Tests', 'tests'],
+	['Covers', 'covers'],
+	['Commit', 'commit'],
+	['Reviewer note', 'reviewerNote'],
+]);
+
 /**
  * Parse the `## Slices` section of a round plan.
  *
+ * Continuation lines are joined to the active bullet: a trailing `-` is a
+ * soft-wrap hyphen and is dropped, otherwise the pieces join with one space.
+ *
  * @param {string} markdown
  * @returns {{ id: string, idea: string, kind: string, budget: number,
- *   files: string, tests: string, reviewerNote: string, entry: string }[]}
+ *   files: string, tests: string, covers: string, commit: string,
+ *   reviewerNote: string, entry: string }[]}
  */
 export function parsePlanSlices(markdown) {
 	const slices = [];
@@ -52,9 +67,11 @@ export function parsePlanSlices(markdown) {
 				id: heading[1],
 				idea: heading[2].trim(),
 				kind: '',
-				budget: 0,
+				budget: '',
 				files: '',
 				tests: '',
+				covers: '',
+				commit: '',
 				reviewerNote: '',
 				entry: line,
 			};
@@ -73,38 +90,27 @@ export function parsePlanSlices(markdown) {
 		current.entry += `\n${line}`;
 		const bullet = /^-\s+(Kind|Budget|Files|Tests|Covers|Commit|Reviewer note):\s*(.*)$/.exec(line);
 		if (bullet) {
-			const key = bullet[1];
-			const value = bullet[2].trim();
-			if (key === 'Kind') {
-				current.kind = value;
-				field = null;
-			} else if (key === 'Budget') {
-				const number = /\d+/.exec(value);
-				current.budget = number ? Number(number[0]) : 0;
-				field = null;
-			} else if (key === 'Files') {
-				current.files = value;
-				field = 'files';
-			} else if (key === 'Tests') {
-				current.tests = value;
-				field = 'tests';
-			} else if (key === 'Reviewer note') {
-				current.reviewerNote = value;
-				field = 'reviewerNote';
-			} else {
-				field = null;
-			}
+			field = PLAN_FIELDS.get(bullet[1]) ?? null;
+			if (field) current[field] = bullet[2].trim();
 			continue;
 		}
 
 		if (line.trim() === '') {
 			field = null;
 		} else if (field && /^\s+\S/.test(line)) {
-			current[field] = `${current[field]} ${line.trim()}`.trim();
+			const value = current[field];
+			const next = line.trim();
+			current[field] = value.endsWith('-')
+				? `${value.slice(0, -1)}${next}`
+				: `${value} ${next}`.trim();
 		}
 	}
 
-	for (const slice of slices) slice.entry = slice.entry.replace(/\s+$/, '');
+	for (const slice of slices) {
+		const number = /\d+/.exec(slice.budget);
+		slice.budget = number ? Number(number[0]) : 0;
+		slice.entry = slice.entry.replace(/\s+$/, '');
+	}
 	return slices;
 }
 

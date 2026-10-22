@@ -9,8 +9,10 @@ Intro.
 
 ### S1 — Do the first thing
 
-- Kind: behavioral
-- Budget: 120 changed lines
+- Kind: behav-
+  ioral
+- Budget: 12-
+  0 changed lines
 - Files: \`src/a.ts\` (create), \`src/b.ts\` (modify) — a
   wrapped continuation.
 - Tests: \`src/a.test.ts\` — covers it.
@@ -54,9 +56,12 @@ describe('parsePlanSlices', () => {
 
 	it('does not parse headings outside or inside the slice list', () => {
 		expect(parsePlanSlices('## Coverage\n\n### S1 — Nope\n')).toEqual([]);
-		const ids = parsePlanSlices(PLAN).map((slice) => slice.id);
+		const slices = parsePlanSlices(PLAN);
+		const ids = slices.map((slice) => slice.id);
 		expect(ids).not.toContain('Not a slice heading');
 		expect(ids).toHaveLength(2);
+		expect(slices[1]?.kind).toBe('mechanical');
+		expect(slices[1]?.entry).not.toContain('Not a slice heading');
 	});
 });
 
