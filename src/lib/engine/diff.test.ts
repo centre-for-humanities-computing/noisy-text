@@ -600,9 +600,10 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 });
 describe('alignTokenPieces (differential vs naive prefix-length reference)', () => {
 	/**
-	 * Stub whole-sequence decode with cleanup disabled: strips `##` and
-	 * joins non-`##` pieces with a single space. Empty pieces emit nothing
-	 * and no separator; a whitespace piece emits its space without a
+	 * Stub whole-sequence decode with cleanup disabled: keeps `##` on the
+	 * first visible piece, strips it from later continuations, and joins
+	 * non-`##` pieces with a single space. Empty pieces emit nothing and
+	 * no separator; a whitespace piece emits its space without a
 	 * separator. Prefix decoding is prefix-consistent because there is no
 	 * cleanup. The stub intentionally models no cleanup: punctuation
 	 * cleanup is covered by the hand-picked `hello, world` case above, not
@@ -616,7 +617,7 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 				first = false;
 				continue;
 			}
-			const isCont = raw.startsWith('##');
+			const isCont = raw.startsWith('##') && !first;
 			const isSpacePiece = raw === ' ';
 			if (!first && !isCont && !isSpacePiece) text += ' ';
 			text += isCont ? raw.slice(2) : raw;
@@ -635,7 +636,7 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 		const spans: { start: number; end: number }[] = [];
 		for (let k = 0; k < rawTokens.length; k++) {
 			const raw = rawTokens[k]!;
-			const isCont = raw.startsWith('##');
+			const isCont = raw.startsWith('##') && k > 0;
 			const pieceText = isCont ? raw.slice(2) : raw;
 			const prefix = decodeStub(rawTokens.slice(0, k));
 			let start = prefix.length;
@@ -698,6 +699,7 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 		const prng = seedrandom.alea('align-token-spans-masks' + '\0');
 		const CASES = 200;
 		const MASK = 99;
+		let sawFirstVisibleContinuation = false;
 
 		for (let c = 0; c < CASES; c++) {
 			const rawTokens: string[] = [];
@@ -711,8 +713,7 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 					let w = randomWord(prng);
 					// An empty piece never immediately follows a mask sentinel.
 					if (w === '' && isMask[isMask.length - 1]) w = randomWord(prng) || 'a';
-					const isCont =
-						w.length > 0 && rawTokens.length > 0 && !isMask[rawTokens.length - 1] && prng() < 0.4;
+					const isCont = w.length > 0 && rawTokens.length > 0 && prng() < 0.4;
 					rawTokens.push(isCont ? '##' + w : w);
 					isMask.push(false);
 					// An occasional whitespace piece forces multi-space runs.
@@ -736,6 +737,7 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 
 			const visible = rawTokens.filter((_, i) => !isMask[i]!);
 			const text = decodeStub(visible);
+			if (visible.length > 0 && visible[0]!.startsWith('##')) sawFirstVisibleContinuation = true;
 
 			const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text, true);
 			// The mask skip must be load-bearing: decodeToken is never called
@@ -751,11 +753,15 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 			});
 			const naive = naiveSpans(visible);
 			const keptIdx: number[] = [];
+			const keptPieceText: string[] = [];
 			const expected: { start: number; end: number }[] = [];
 			visibleIdx.forEach((orig, k) => {
 				const e = naive[k]!;
 				if (e.end > e.start) {
 					keptIdx.push(orig);
+					const raw = rawTokens[orig]!;
+					const isCont = raw.startsWith('##') && k > 0;
+					keptPieceText.push(isCont ? raw.slice(2) : raw);
 					expected.push(e);
 				}
 			});
@@ -766,8 +772,7 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 			for (let k = 0; k < expected.length; k++) {
 				const s = spans[k]!;
 				const orig = keptIdx[k]!;
-				const raw = rawTokens[orig]!;
-				const pieceText = raw.startsWith('##') ? raw.slice(2) : raw;
+				const pieceText = keptPieceText[k]!;
 				expect([s.start, s.end]).toEqual([expected[k]!.start, expected[k]!.end]);
 				expect(s.index).toBe(orig);
 				expect(s.tokenId).toBe(BASE_ID + orig);
@@ -781,5 +786,9 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 				expect(isMask[s.index]!).toBe(false);
 			}
 		}
+		// Pin the first-visible `##` rule as actually exercised, not merely
+		// available: at least one case must promote a continuation to the
+		// first visible position.
+		expect(sawFirstVisibleContinuation).toBe(true);
 	});
 });
