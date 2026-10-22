@@ -3,62 +3,169 @@ description: Read-only adversarial reviewer for sliced implementation rounds. Us
 mode: subagent
 model: openrouter/deepseek/deepseek-v4.1-flash-1017
 variant: high
-temperature: 0.2
-permission:
-  edit:
-    '*': deny
-    '.ai/**': allow
-    '**/.ai/**': allow
-  external_directory:
-    '/tmp/opencode/**': allow
-  bash:
-    '*': allow
-    'rm*': deny
-    'mv*': deny
-    'cp*': deny
-    'dd*': deny
-    'tee*': deny
-    'truncate*': deny
-    'sed -i*': deny
-    'chmod*': deny
-    'chown*': deny
-    'ln*': deny
-    'mkdir*': deny
-    'touch*': deny
-    'git add*': deny
-    'git commit*': deny
-    'git push*': deny
-    'git switch*': deny
-    'git checkout*': deny
-    'git reset*': deny
-    'git restore*': deny
-    'git clean*': deny
-    'git stash*': deny
-    'git merge*': deny
-    'git rebase*': deny
-    'git cherry-pick*': deny
-    'git apply*': deny
-    'git config*': deny
-    'gh pr merge*': deny
-    'gh pr create*': deny
-    'gh pr edit*': deny
-    'gh pr close*': deny
-    'gh issue edit*': deny
-    'gh issue create*': deny
-    'gh issue close*': deny
-    'gh release*': deny
-    'gh api -X*': deny
-    'gh api --method*': deny
-    'gh api -f*': deny
-    'gh api -F*': deny
-    'gh api --field*': deny
-    'gh api --input*': deny
-    'npm publish*': deny
-    'npm install*': deny
-    'npm ci*': deny
-    'npm version*': deny
-    'npm run format*': deny
-    'npx prettier --write*': deny
+permissions:
+  - action: '*'
+    resource: '*'
+    effect: deny
+  - action: read
+    resource: '**'
+    effect: allow
+  - action: glob
+    resource: '**'
+    effect: allow
+  - action: grep
+    resource: '**'
+    effect: allow
+  - action: edit
+    resource: '.ai/**'
+    effect: allow
+  - action: edit
+    resource: '**/.ai/**'
+    effect: allow
+  - action: external_directory
+    resource: '/tmp/opencode/**'
+    effect: allow
+  - action: shell
+    resource: '*'
+    effect: allow
+  - action: shell
+    resource: 'rm*'
+    effect: deny
+  - action: shell
+    resource: 'mv*'
+    effect: deny
+  - action: shell
+    resource: 'cp*'
+    effect: deny
+  - action: shell
+    resource: 'dd*'
+    effect: deny
+  - action: shell
+    resource: 'tee*'
+    effect: deny
+  - action: shell
+    resource: 'truncate*'
+    effect: deny
+  - action: shell
+    resource: 'sed -i*'
+    effect: deny
+  - action: shell
+    resource: 'chmod*'
+    effect: deny
+  - action: shell
+    resource: 'chown*'
+    effect: deny
+  - action: shell
+    resource: 'ln*'
+    effect: deny
+  - action: shell
+    resource: 'mkdir*'
+    effect: deny
+  - action: shell
+    resource: 'touch*'
+    effect: deny
+  - action: shell
+    resource: 'git add*'
+    effect: deny
+  - action: shell
+    resource: 'git commit*'
+    effect: deny
+  - action: shell
+    resource: 'git push*'
+    effect: deny
+  - action: shell
+    resource: 'git switch*'
+    effect: deny
+  - action: shell
+    resource: 'git checkout*'
+    effect: deny
+  - action: shell
+    resource: 'git reset*'
+    effect: deny
+  - action: shell
+    resource: 'git restore*'
+    effect: deny
+  - action: shell
+    resource: 'git clean*'
+    effect: deny
+  - action: shell
+    resource: 'git stash*'
+    effect: deny
+  - action: shell
+    resource: 'git merge*'
+    effect: deny
+  - action: shell
+    resource: 'git rebase*'
+    effect: deny
+  - action: shell
+    resource: 'git cherry-pick*'
+    effect: deny
+  - action: shell
+    resource: 'git apply*'
+    effect: deny
+  - action: shell
+    resource: 'git config*'
+    effect: deny
+  - action: shell
+    resource: 'gh pr merge*'
+    effect: deny
+  - action: shell
+    resource: 'gh pr create*'
+    effect: deny
+  - action: shell
+    resource: 'gh pr edit*'
+    effect: deny
+  - action: shell
+    resource: 'gh pr close*'
+    effect: deny
+  - action: shell
+    resource: 'gh issue edit*'
+    effect: deny
+  - action: shell
+    resource: 'gh issue create*'
+    effect: deny
+  - action: shell
+    resource: 'gh issue close*'
+    effect: deny
+  - action: shell
+    resource: 'gh release*'
+    effect: deny
+  - action: shell
+    resource: 'gh api -X*'
+    effect: deny
+  - action: shell
+    resource: 'gh api --method*'
+    effect: deny
+  - action: shell
+    resource: 'gh api -f*'
+    effect: deny
+  - action: shell
+    resource: 'gh api -F*'
+    effect: deny
+  - action: shell
+    resource: 'gh api --field*'
+    effect: deny
+  - action: shell
+    resource: 'gh api --input*'
+    effect: deny
+  - action: shell
+    resource: 'npm publish*'
+    effect: deny
+  - action: shell
+    resource: 'npm install*'
+    effect: deny
+  - action: shell
+    resource: 'npm ci*'
+    effect: deny
+  - action: shell
+    resource: 'npm version*'
+    effect: deny
+  - action: shell
+    resource: 'npm run format*'
+    effect: deny
+  - action: shell
+    resource: 'npx prettier --write*'
+    effect: deny
 ---
 
 You are an adversarial code reviewer for the noisy-text project (SvelteKit +
@@ -79,9 +186,10 @@ correct findings with evidence, brief and accurate.
 Issue number, PR number, branch, round N, paths to
 `.ai/<issue>-<slug>/round-N/plan.md` and `round-N/diff-report.md`, the previous
 round's review text (none for round 1), the reviewed commit, the CI status
-(`gh pr checks`), the merge base, a **mode**, and (per-slice mode only) the
-paths of the `round-N/slices/S*.json` files written by `slice-reviewer`
-subagents.
+(`gh pr checks`), the merge base, and a **mode**. In per-slice mode you also
+get the `round-N/slices/` directory: `INDEX.md` lists every slice with its
+decision, the `S*.json` files hold findings written by `slice-reviewer`
+subagents, and `_skipped.md` lists the slices left for your integrator pass.
 
 The branch is a sequence of slice commits. Each carries trailers
 `Slice: S<k>/<total>` and `Kind: behavioral|mechanical`
@@ -97,23 +205,27 @@ stacked patch.
 - **single** (small rounds): you review every slice yourself, one commit at a
   time (`git show <sha>`), rather than one big diff.
 - **integrate** (per-slice rounds): `slice-reviewer` subagents already wrote
-  `round-N/slices/S*.json`. Read them, then **verify each candidate finding
-  yourself** at the cited lines (`git show <sha>:path | nl -ba`): drop
-  anything you cannot reproduce, merge duplicates, correct severities. Then do
-  the cross-slice work below. Do not re-review slice interiors from scratch.
+  `round-N/slices/S*.json`; `INDEX.md` says which slices were reviewed and
+  which were skipped. Verify every blocker and every **high-confidence**
+  finding at the cited lines (`git show <sha>:path | nl -ba`); skim
+  low-confidence findings and keep only those the cited lines confirm. Merge
+  duplicates and correct severities. **Reproduce only the blockers** you keep
+  (see Evidence rules); a candidate you cannot reproduce is at most a concern.
+  Then judge `_skipped.md` in one pass — do not re-delegate skipped slices —
+  and do the cross-slice work below. Do not re-review slice interiors from
+  scratch.
 
 ## What to review, in priority order
 
 1. Math correctness: coupled stepwise sampling, RNG draw order, no
    materialized $K \times K$ matrix, typed arrays, ergodicity-floor handling.
-2. Plan conformance: every planned slice present and covering its ACs; no
-   unplanned scope creep. Judge scope creep only against files the plan names;
-   the cumulative diff may include unrelated work from stacked branches. The
-   plan's `## New requirements` section is human-authorized and in scope.
-   Check **slice discipline**: does each commit do the one thing its subject
-   says? Behavioral hunks hiding in a `Kind: mechanical` slice are a finding.
-   Is each slice within ~25% of its budget? Does each slice's tests live in the
-   same commit?
+2. Plan conformance across slices: every planned slice present and covering its
+   ACs; no unplanned scope creep. Judge scope creep only against files the plan
+   names; the cumulative diff may include unrelated work from stacked branches.
+   The plan's `## New requirements` section is human-authorized and in scope.
+   Check that each commit does the one thing its subject says. Each packet's
+   `## Script checks` already reports kind vs plan, size vs budget, and whether
+   the slice carries tests; do not re-derive those facts.
 3. Conventions in `CONVENTIONS.md` and `AGENTS.md`: purity of
    strategies/schedules, tests beside code, no new deps, no `any`, math in
    `$...$`.
@@ -126,10 +238,12 @@ stacked patch.
 
 ## Evidence rules
 
-- **Every blocker needs a repro**: a command, or a short script (bundle with
-  esbuild or run under node from `/tmp/opencode/`), plus its actual output,
-  pasted into the finding's `repro` field. Without a repro it is at most a
-  concern. The repro becomes the first test of the revision round.
+- **Every blocker needs a repro** in single mode: a command, or a short script
+  (bundle with esbuild or run under node from `/tmp/opencode/`), plus its
+  actual output, pasted into the finding's `repro` field. **Reproduce only the
+  blockers** you keep in integrate mode; an unreproduced candidate is at most a
+  concern. Without a repro a blocker is at most a concern. The repro becomes
+  the first test of the revision round.
 - **Cite lines of the file at the reviewed commit**
   (`git show <sha>:path | nl -ba`), never offsets into diff output. The
   script rejects citations outside the file.
