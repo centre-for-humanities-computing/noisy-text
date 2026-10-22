@@ -186,9 +186,10 @@ correct findings with evidence, brief and accurate.
 Issue number, PR number, branch, round N, paths to
 `.ai/<issue>-<slug>/round-N/plan.md` and `round-N/diff-report.md`, the previous
 round's review text (none for round 1), the reviewed commit, the CI status
-(`gh pr checks`), the merge base, a **mode**, and (per-slice mode only) the
-paths of the `round-N/slices/S*.json` files written by `slice-reviewer`
-subagents.
+(`gh pr checks`), the merge base, and a **mode**. In per-slice mode you also
+get the `round-N/slices/` directory: `INDEX.md` lists every slice with its
+decision, the `S*.json` files hold findings written by `slice-reviewer`
+subagents, and `_skipped.md` lists the slices left for your integrator pass.
 
 The branch is a sequence of slice commits. Each carries trailers
 `Slice: S<k>/<total>` and `Kind: behavioral|mechanical`
@@ -204,23 +205,27 @@ stacked patch.
 - **single** (small rounds): you review every slice yourself, one commit at a
   time (`git show <sha>`), rather than one big diff.
 - **integrate** (per-slice rounds): `slice-reviewer` subagents already wrote
-  `round-N/slices/S*.json`. Read them, then **verify each candidate finding
-  yourself** at the cited lines (`git show <sha>:path | nl -ba`): drop
-  anything you cannot reproduce, merge duplicates, correct severities. Then do
-  the cross-slice work below. Do not re-review slice interiors from scratch.
+  `round-N/slices/S*.json`; `INDEX.md` says which slices were reviewed and
+  which were skipped. Verify every blocker and every **high-confidence**
+  finding at the cited lines (`git show <sha>:path | nl -ba`); skim
+  low-confidence findings and keep only those the cited lines confirm. Merge
+  duplicates and correct severities. **Reproduce only the blockers** you keep
+  (see Evidence rules); a candidate you cannot reproduce is at most a concern.
+  Then judge `_skipped.md` in one pass — do not re-delegate skipped slices —
+  and do the cross-slice work below. Do not re-review slice interiors from
+  scratch.
 
 ## What to review, in priority order
 
 1. Math correctness: coupled stepwise sampling, RNG draw order, no
    materialized $K \times K$ matrix, typed arrays, ergodicity-floor handling.
-2. Plan conformance: every planned slice present and covering its ACs; no
-   unplanned scope creep. Judge scope creep only against files the plan names;
-   the cumulative diff may include unrelated work from stacked branches. The
-   plan's `## New requirements` section is human-authorized and in scope.
-   Check **slice discipline**: does each commit do the one thing its subject
-   says? Behavioral hunks hiding in a `Kind: mechanical` slice are a finding.
-   Is each slice within ~25% of its budget? Does each slice's tests live in the
-   same commit?
+2. Plan conformance across slices: every planned slice present and covering its
+   ACs; no unplanned scope creep. Judge scope creep only against files the plan
+   names; the cumulative diff may include unrelated work from stacked branches.
+   The plan's `## New requirements` section is human-authorized and in scope.
+   Check that each commit does the one thing its subject says. Each packet's
+   `## Script checks` already reports kind vs plan, size vs budget, and whether
+   the slice carries tests; do not re-derive those facts.
 3. Conventions in `CONVENTIONS.md` and `AGENTS.md`: purity of
    strategies/schedules, tests beside code, no new deps, no `any`, math in
    `$...$`.
@@ -233,10 +238,12 @@ stacked patch.
 
 ## Evidence rules
 
-- **Every blocker needs a repro**: a command, or a short script (bundle with
-  esbuild or run under node from `/tmp/opencode/`), plus its actual output,
-  pasted into the finding's `repro` field. Without a repro it is at most a
-  concern. The repro becomes the first test of the revision round.
+- **Every blocker needs a repro** in single mode: a command, or a short script
+  (bundle with esbuild or run under node from `/tmp/opencode/`), plus its
+  actual output, pasted into the finding's `repro` field. **Reproduce only the
+  blockers** you keep in integrate mode; an unreproduced candidate is at most a
+  concern. Without a repro a blocker is at most a concern. The repro becomes
+  the first test of the revision round.
 - **Cite lines of the file at the reviewed commit**
   (`git show <sha>:path | nl -ba`), never offsets into diff output. The
   script rejects citations outside the file.

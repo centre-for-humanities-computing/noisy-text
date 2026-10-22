@@ -26,6 +26,18 @@ describe('slice-reviewer', () => {
 	});
 });
 
+describe('reviewer', () => {
+	const text = agent('reviewer');
+
+	it('verifies blockers and high-confidence findings only', () => {
+		expect(text).toContain('high-confidence');
+		expect(text).toContain('Reproduce only the blockers');
+		expect(text).toContain('_skipped.md');
+		expect(text).toContain('INDEX.md');
+		expect(text).not.toContain('verify each candidate finding');
+	});
+});
+
 describe('review command', () => {
 	const text = readFileSync(new URL('../.opencode/command/review.md', import.meta.url), 'utf8');
 
