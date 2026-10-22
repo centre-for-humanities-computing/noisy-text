@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { decide, parsePlanSlices, planIdFor, priorityFor, renderIndex } from './slice-pack.mjs';
+import {
+	decide,
+	parsePlanSlices,
+	planIdFor,
+	priorityFor,
+	renderIndex,
+	renderPacket,
+	renderSkipped,
+} from './slice-pack.mjs';
 
 const PLAN = `# Plan
 
@@ -139,5 +147,68 @@ describe('renderIndex', () => {
 		expect(index).toContain(
 			'- `S2` `def5678` mechanical +1/-1 = 2 — docs: second — skip: mechanical slice',
 		);
+	});
+});
+
+describe('renderPacket', () => {
+	it('embeds the plan entry, reviewer note, checks, and the fenced diff', () => {
+		const plan = parsePlanSlices(PLAN)[0];
+		const packet = renderPacket({
+			slice: 'S1a',
+			short: 'abc1234',
+			subject: 'feat: first',
+			kind: 'behavioral',
+			added: 10,
+			removed: 5,
+			total: 15,
+			paths: ['src/a.ts', 'src/a.test.ts'],
+			decision: { review: true, reason: '15 lines' },
+			plan,
+			diff: 'diff --git a/src/a.ts b/src/a.ts\n+hello',
+			context: 10,
+			packet: true,
+		});
+		expect(packet).toContain('## Plan entry');
+		expect(packet).toContain(plan.entry);
+		expect(packet).toContain('line one and\n  line two.');
+		expect(packet).toContain('Review focus: correctness; test adequacy');
+		expect(packet).toContain('Tests in commit: src/a.test.ts');
+		expect(packet).toContain('Kind matches plan: PASS');
+		expect(packet).toContain('`````diff\n');
+		expect(packet).toContain('+hello');
+		expect(packet).toContain('## Diff (-U10)');
+	});
+});
+
+describe('renderSkipped', () => {
+	it('lists every skipped slice with its reason', () => {
+		const skipped = renderSkipped([
+			{
+				slice: 'S2',
+				short: 'def5678',
+				subject: 'docs: second',
+				kind: 'mechanical',
+				added: 1,
+				removed: 1,
+				total: 2,
+				paths: [],
+				decision: { review: false, reason: 'mechanical slice' },
+			},
+			{
+				slice: 'S3',
+				short: 'fed9876',
+				subject: 'docs: third',
+				kind: 'mechanical',
+				added: 2,
+				removed: 0,
+				total: 2,
+				paths: [],
+				decision: { review: false, reason: '2 lines < 60' },
+			},
+		]);
+		expect(skipped).toContain(
+			'`S2` `def5678` mechanical +1/-1 = 2 — docs: second — mechanical slice',
+		);
+		expect(skipped).toContain('`S3` `fed9876` mechanical +2/-0 = 2 — docs: third — 2 lines < 60');
 	});
 });

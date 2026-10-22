@@ -234,6 +234,85 @@ export function renderIndex(entries) {
 	return lines.join('\n');
 }
 
+const isTestPath = (path) => /(\.test\.|\.spec\.)[cm]?[jt]sx?$/.test(path);
+
+/**
+ * The diff of one slice commit only, with the given context.
+ *
+ * @param {string} sha
+ * @param {number} [context]
+ * @returns {string}
+ */
+export function diffFor(sha, context = 10) {
+	return execFileSync('git', ['show', '--format=', '--no-renames', `-U${context}`, sha], {
+		encoding: 'utf8',
+		maxBuffer: 512 * 1024 * 1024,
+	}).replace(/\s+$/, '');
+}
+
+/**
+ * Render one self-contained packet for a slice reviewer.
+ *
+ * @param {ReturnType<typeof collectSlices>[number] & {
+ *   plan: ReturnType<typeof parsePlanSlices>[number],
+ *   decision: { review: boolean, reason: string },
+ *   diff: string, context: number, packet: boolean }} entry
+ * @returns {string}
+ */
+export function renderPacket(entry) {
+	const { plan, decision } = entry;
+	const testPaths = entry.paths.filter(isTestPath);
+	const priorities = priorityFor(entry.paths);
+	const budgetLimit = plan.budget > 0 ? Math.ceil(plan.budget * 1.25) : null;
+	const budgetOk = budgetLimit === null || entry.total <= budgetLimit;
+	return [
+		`# Slice ${entry.slice} — ${entry.subject}`,
+		'',
+		`- Commit: \`${entry.short}\` — ${entry.subject}`,
+		`- Kind: ${entry.kind || 'unknown'} (plan: ${plan.kind || 'unknown'})`,
+		`- Size: +${entry.added}/-${entry.removed} = ${entry.total} lines; plan budget ${plan.budget}`,
+		`- Tests in commit: ${testPaths.length ? testPaths.join(', ') : 'none'}`,
+		'- Review focus: correctness; test adequacy',
+		`- Priority: ${priorities.length ? priorities.map((hit) => `${hit.label} (${hit.path})`).join(', ') : 'none'}`,
+		`- Decision: ${decision.review ? 'review' : 'skip'} — ${decision.reason}`,
+		'',
+		'## Plan entry',
+		'',
+		plan.entry,
+		'',
+		'## Script checks',
+		'',
+		`- Kind matches plan: ${entry.kind === plan.kind ? 'PASS' : 'CHECK'} (commit ${entry.kind || 'unknown'}, plan ${plan.kind || 'unknown'})`,
+		`- Size within budget: ${budgetOk ? 'PASS' : 'CHECK'} (${entry.total} lines, budget ${plan.budget}${budgetLimit === null ? '' : `, 1.25x = ${budgetLimit}`})`,
+		`- Tests in slice: ${testPaths.length ? 'PASS' : 'CHECK'} (${testPaths.length ? testPaths.join(', ') : 'none'})`,
+		'',
+		`## Diff (-U${entry.context})`,
+		'',
+		'`````diff',
+		entry.diff,
+		'`````',
+		'',
+	].join('\n');
+}
+
+/**
+ * Render the one-pass note for slices that were skipped.
+ *
+ * @param {(ReturnType<typeof collectSlices>[number] & {
+ *   decision: { review: boolean, reason: string } })[]} entries
+ * @returns {string}
+ */
+export function renderSkipped(entries) {
+	const lines = ['# Skipped slices', '', 'These are reviewed together in the integrator pass.', ''];
+	for (const entry of entries) {
+		lines.push(
+			`- \`${entry.slice}\` \`${entry.short}\` ${entry.kind || 'unknown'} +${entry.added}/-${entry.removed} = ${entry.total} — ${entry.subject} — ${entry.decision.reason}`,
+		);
+	}
+	lines.push('');
+	return lines.join('\n');
+}
+
 function main() {
 	const argv = process.argv.slice(2);
 	const value = (name, fallback) => {
@@ -262,17 +341,27 @@ function main() {
 			console.error(`no plan entry for slice ${commit.slice} (${commit.short})`);
 			process.exit(1);
 		}
+		const decision = decide({ kind: commit.kind, total: commit.total, paths: commit.paths });
 		return {
 			...commit,
 			plan: planSlice,
-			decision: decide({ kind: commit.kind, total: commit.total, paths: commit.paths }),
+			decision,
+			context,
+			diff: decision.review ? diffFor(commit.sha, context) : '',
+			packet: decision.review,
 		};
 	});
 
 	mkdirSync(out, { recursive: true });
+	for (const entry of entries.filter((candidate) => candidate.packet)) {
+		writeFileSync(join(out, `${entry.slice}.md`), renderPacket(entry));
+	}
+	const skipped = entries.filter((entry) => !entry.decision.review);
+	if (skipped.length) writeFileSync(join(out, '_skipped.md'), renderSkipped(skipped));
 	writeFileSync(join(out, 'INDEX.md'), renderIndex(entries));
 	process.stdout.write(
-		`wrote ${join(out, 'INDEX.md')}: ${entries.length} entries, context ${context}\n`,
+		`wrote ${join(out, 'INDEX.md')}: ${entries.length} entries ` +
+			`(${entries.length - skipped.length} packets, ${skipped.length} skipped)\n`,
 	);
 }
 
