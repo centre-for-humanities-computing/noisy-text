@@ -76,3 +76,14 @@ return only its path and the number of findings:
 	"testGaps": ["..."]
 }
 ```
+
+## Inputs
+
+The task supplies, in this order:
+
+- slice id and commit
+- plan entry
+- script checks
+- the commit diff
+- the output JSON path, last: this is where the object from `## Output` is
+  written
