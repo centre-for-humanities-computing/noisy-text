@@ -2,6 +2,7 @@
 description: Read-only adversarial reviewer for sliced implementation rounds. Use when reviewing a branch/PR against its plan and repo conventions.
 mode: subagent
 model: openrouter/deepseek/deepseek-v4.1-flash-1017
+variant: high
 temperature: 0.2
 permission:
   edit:

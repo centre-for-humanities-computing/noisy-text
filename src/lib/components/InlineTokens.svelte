@@ -41,14 +41,18 @@
 </script>
 
 {#if spans.length === 0}
-	<p class="inline-text">{text}</p>
+	<p class="inline-text" data-testid="prose-text">{text}</p>
 {:else}
-	<p class="inline-text">
+	<p class="inline-text" data-testid="prose-text">
 		{#each segments(text, spans) as seg, i (i)}
 			{#if seg.span}
 				<span
 					class="taper"
 					style="--r: {seg.span.recency}"
+					data-testid="prose-token"
+					data-start={seg.span.start}
+					data-end={seg.span.end}
+					data-token-id={seg.span.tokenId}
 					role="button"
 					tabindex={0}
 					aria-label="token {seg.text}"

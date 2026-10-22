@@ -12,7 +12,18 @@ Non-obvious API notes for dependencies we rely on.
 - **`tokenizer.model.convert_ids_to_tokens(ids)`** — returns raw subword
   strings (e.g. `Ġ`, `##ing`). Used for chip rendering.
 - **`tokenizer.decode(ids, { skip_special_tokens: false })`** — decodes
-  ids back to text.
+  ids back to text. `decode` joins pieces with separators and applies
+  `clean_up_tokenization_spaces`. For WordPiece, a single-id decode
+  omits the space the whole-sequence decode inserts before non-first
+  pieces and retains the `##` continuation prefix, so per-token decoded
+  lengths may not sum to the decoded text length. GPT-2's byte-level
+  decoder already carries each piece's leading space in its isolated
+  decode, so its lengths do sum except for non-ASCII pieces whose
+  UTF-8 bytes are split across token boundaries (those decode to U+FFFD
+  in isolation; pieces that decode to a complete character align
+  normally). Offsets must be aligned to the
+  decoded text (see `alignTokenPieces` in `src/lib/engine/diff.ts`),
+  not summed.
 - **Vocab size** — `tokenizer.model.vocab` is a `string[]` on
   `TokenizerModel`; we just read `.length`.
 

@@ -1,7 +1,7 @@
 ---
 description: Implement a confirmed round plan slice by slice, open PR, write diff report
 agent: build
-model: openrouter/z-ai/glm-5.3-flash
+model: openrouter/deepseek/deepseek-v4.1-flash-1017
 ---
 
 Issue: $ARGUMENTS (number, optionally followed by the literal `fix`). Work only

@@ -5,6 +5,7 @@ import { loadHfTokenizer } from './hf-tokenizer.js';
 export const TOKENIZERS: Record<string, TokenizerInfo> = {
 	gpt2: {
 		id: 'gpt2',
+		wordPiece: false,
 		label: 'GPT-2 (BPE)',
 		description: '50 257-token BPE tokenizer used by GPT-2 and GPT-3.',
 		plainName: 'GPT-2 subwords',
@@ -16,6 +17,7 @@ export const TOKENIZERS: Record<string, TokenizerInfo> = {
 	},
 	'bert-base-uncased': {
 		id: 'bert-base-uncased',
+		wordPiece: true,
 		label: 'BERT Base Uncased (WordPiece)',
 		description: '30 522-token WordPiece tokenizer; lowercase + accent stripping.',
 		plainName: 'BERT wordpieces',

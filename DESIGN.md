@@ -269,18 +269,35 @@ Grounded in the current codebase (`src/routes/+page.svelte`, `src/lib/**`).
 
 ### 10.2 Prose change highlighting via token-boundary character spans
 
-- Use `recencyAt` (token-level, already correct) to determine which tokens
-  changed and with what recency.
-- Map each token to its character span in the decoded prose string by decoding
-  tokens individually and tracking cumulative character length. Adjacent tokens
-  with the same recency are merged into a single span.
-- `InlineTokens.svelte` accepts the decoded text plus an array of `CharRange`
-  objects (`{start, end, recency}`), and renders the text with `<span>`
-  wrappers around changed regions.
+- Use `recencyAt` (token-level) to determine which tokens changed and with
+  what recency.
+- `allTokenCharSpans` (in `src/lib/engine/diff.ts`) maps each visible,
+  non-mask token to a `TokenCharSpan` (`{start, end, tokenId, index,
+recency}`) — one span per located token, with `start`/`end` character
+  offsets into the decoded prose string. Mask sentinel positions are
+  skipped (they are invisible in prose mode); tokens that decode to the
+  empty string or cannot be located in the decoded text are omitted, and
+  their characters stay as plain text.
+- Alignment goes through `alignTokenPieces`: a greedy cursor matches each
+  token's isolated decode against the whole-sequence decode — exact match
+  at the cursor, then an `indexOf` fallback — because per-token decode
+  lengths do not sum for WordPiece, whose whole-sequence decode joins pieces
+  with spaces and drops the `##` and its preceding space from continuations
+  (only non-continuation pieces after the first gain a separator). A
+  WordPiece `##` continuation prefix is
+  stripped from the isolated decode before matching, but only for
+  tokenizers marked `wordPiece` and only for continuations after the
+  first visible piece: the whole-sequence decode keeps `##` on the first
+  token, so the first visible continuation keeps it too. GPT-2 byte-level
+  decodes already carry their leading space and are never stripped
+  (tokens like `##` decode literally).
+- `InlineTokens.svelte` accepts the decoded text plus the `TokenCharSpan`
+  array, and renders the text with `<span>` wrappers around the token
+  spans; gaps between spans render as plain text. Spans are not merged:
+  each token remains individually hoverable.
 - This approach uses token boundaries to constrain character spans, avoiding
   the false positives that arise from pure character-level diffs when token
-  replacements shift character positions. Mask sentinel tokens are skipped
-  (they are invisible in prose mode).
+  replacements shift character positions.
 
 ### 10.3 Taper / recency computation
 
