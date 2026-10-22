@@ -1,5 +1,15 @@
-// Review-packet helpers: parse a round plan and decide which slices to review.
+#!/usr/bin/env node
+// Builds one review packet per slice commit from the round plan and git.
 // No dependencies. See .opencode/command/review.md for how the packets are used.
+//
+//   node scripts/slice-pack.mjs --plan <plan.md> [--base <ref>] [--head <ref>]
+//     [--out <dir>] [--context <n>]
+//
+// Exit 1 on usage errors or a commit whose slice has no plan entry.
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // Directories where a slice is worth a full review even when it is small.
 export const PRIORITY_PATHS = [
@@ -11,6 +21,8 @@ export const PRIORITY_PATHS = [
 	{ prefix: 'src/lib/workers/', label: 'workers' },
 	{ prefix: 'src/lib/stores/', label: 'stores' },
 ];
+
+const isExcluded = (path) => path.startsWith('.ai/') || path === 'package-lock.json';
 
 /**
  * Parse the `## Slices` section of a round plan.
@@ -143,3 +155,125 @@ export function decide({ kind, total, paths }) {
 	if (total < 60) return { review: false, reason: `${total} lines < 60` };
 	return { review: true, reason: `${total} lines` };
 }
+
+/**
+ * Read slice commits in `base..head`, with the changed-line count and paths.
+ *
+ * @param {{ base: string, head: string }} range
+ * @returns {{ sha: string, short: string, subject: string, slice: string,
+ *   kind: string, added: number, removed: number, total: number, paths: string[] }[]}
+ */
+export function collectSlices({ base, head }) {
+	const git = (...args) =>
+		execFileSync('git', args, { encoding: 'utf8', maxBuffer: 512 * 1024 * 1024 });
+	const raw = git(
+		'log',
+		'--reverse',
+		'--format=%H%x1f%h%x1f%s%x1f%(trailers:key=Slice,valueonly,separator=)%x1f%(trailers:key=Kind,valueonly,separator=)%x1e',
+		`${base}..${head}`,
+	);
+
+	const slices = [];
+	for (const record of raw.split('\x1e')) {
+		const line = record.trim();
+		if (!line) continue;
+		const [sha, short, subject, rawSlice, kind] = line.split('\x1f').map((x) => x.trim());
+		if (!sha || !rawSlice) continue;
+		const slice = rawSlice.split('/')[0];
+		if (slice === 'report') continue;
+
+		let added = 0;
+		let removed = 0;
+		const paths = [];
+		const numstat = git('show', '--numstat', '--format=', '--no-renames', sha);
+		for (const stat of numstat.split('\n')) {
+			const [a, d, path] = stat.split('\t');
+			if (!path || a === '-' || isExcluded(path)) continue;
+			added += Number(a);
+			removed += Number(d);
+			paths.push(path);
+		}
+		slices.push({
+			sha,
+			short,
+			subject,
+			slice,
+			kind,
+			added,
+			removed,
+			total: added + removed,
+			paths,
+		});
+	}
+	return slices;
+}
+
+/**
+ * Render the index that tells `/review` which slices to delegate.
+ *
+ * @param {ReturnType<typeof collectSlices> & {
+ *   decision: { review: boolean, reason: string }, packet?: boolean }[]} entries
+ * @returns {string}
+ */
+export function renderIndex(entries) {
+	const reviewed = entries.filter((entry) => entry.decision.review).length;
+	const lines = [
+		'# Slice review index',
+		'',
+		`- Entries: ${entries.length} (review ${reviewed}, skip ${entries.length - reviewed})`,
+		'',
+	];
+	for (const entry of entries) {
+		const decision = entry.decision.review ? 'review' : 'skip';
+		const packet = entry.decision.review && entry.packet ? ` → \`${entry.slice}.md\`` : '';
+		lines.push(
+			`- \`${entry.slice}\` \`${entry.short}\` ${entry.kind || 'unknown'} +${entry.added}/-${entry.removed} = ${entry.total} — ${entry.subject} — ${decision}: ${entry.decision.reason}${packet}`,
+		);
+	}
+	lines.push('');
+	return lines.join('\n');
+}
+
+function main() {
+	const argv = process.argv.slice(2);
+	const value = (name, fallback) => {
+		const index = argv.indexOf(name);
+		return index >= 0 ? argv[index + 1] : fallback;
+	};
+	const planPath = value('--plan');
+	const out = value('--out');
+	if (!planPath || !out) {
+		console.error(
+			'usage: node scripts/slice-pack.mjs --plan <plan.md> --out <dir> ' +
+				'[--base <ref>] [--head <ref>] [--context <n>]',
+		);
+		process.exit(1);
+	}
+	const base = value('--base', 'HEAD');
+	const head = value('--head', 'HEAD');
+	const context = Number(value('--context', '10'));
+
+	const plan = parsePlanSlices(readFileSync(planPath, 'utf8'));
+	const byId = new Map(plan.map((slice) => [slice.id, slice]));
+	const entries = collectSlices({ base, head }).map((commit) => {
+		const planId = planIdFor(commit.slice);
+		const planSlice = planId ? byId.get(planId) : undefined;
+		if (!planSlice) {
+			console.error(`no plan entry for slice ${commit.slice} (${commit.short})`);
+			process.exit(1);
+		}
+		return {
+			...commit,
+			plan: planSlice,
+			decision: decide({ kind: commit.kind, total: commit.total, paths: commit.paths }),
+		};
+	});
+
+	mkdirSync(out, { recursive: true });
+	writeFileSync(join(out, 'INDEX.md'), renderIndex(entries));
+	process.stdout.write(
+		`wrote ${join(out, 'INDEX.md')}: ${entries.length} entries, context ${context}\n`,
+	);
+}
+
+if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) main();

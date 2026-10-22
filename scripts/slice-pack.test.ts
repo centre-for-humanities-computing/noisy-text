@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decide, parsePlanSlices, planIdFor, priorityFor } from './slice-pack.mjs';
+import { decide, parsePlanSlices, planIdFor, priorityFor, renderIndex } from './slice-pack.mjs';
 
 const PLAN = `# Plan
 
@@ -102,5 +102,42 @@ describe('decide', () => {
 	it('uses the 60-line threshold', () => {
 		expect(decide({ kind: 'behavioral', total: 59, paths: [] }).review).toBe(false);
 		expect(decide({ kind: 'behavioral', total: 60, paths: [] }).review).toBe(true);
+	});
+});
+
+describe('renderIndex', () => {
+	it('renders one line per entry with the decision and packet link', () => {
+		const index = renderIndex([
+			{
+				slice: 'S1',
+				short: 'abc1234',
+				subject: 'feat: first',
+				kind: 'behavioral',
+				added: 10,
+				removed: 5,
+				total: 15,
+				paths: [],
+				decision: { review: true, reason: '15 lines' },
+				packet: true,
+			},
+			{
+				slice: 'S2',
+				short: 'def5678',
+				subject: 'docs: second',
+				kind: 'mechanical',
+				added: 1,
+				removed: 1,
+				total: 2,
+				paths: [],
+				decision: { review: false, reason: 'mechanical slice' },
+			},
+		]);
+		expect(index).toContain('- Entries: 2 (review 1, skip 1)');
+		expect(index).toContain(
+			'- `S1` `abc1234` behavioral +10/-5 = 15 — feat: first — review: 15 lines → `S1.md`',
+		);
+		expect(index).toContain(
+			'- `S2` `def5678` mechanical +1/-1 = 2 — docs: second — skip: mechanical slice',
+		);
 	});
 });
