@@ -3,62 +3,169 @@ description: Read-only adversarial reviewer for sliced implementation rounds. Us
 mode: subagent
 model: openrouter/deepseek/deepseek-v4.1-flash-1017
 variant: high
-temperature: 0.2
-permission:
-  edit:
-    '*': deny
-    '.ai/**': allow
-    '**/.ai/**': allow
-  external_directory:
-    '/tmp/opencode/**': allow
-  bash:
-    '*': allow
-    'rm*': deny
-    'mv*': deny
-    'cp*': deny
-    'dd*': deny
-    'tee*': deny
-    'truncate*': deny
-    'sed -i*': deny
-    'chmod*': deny
-    'chown*': deny
-    'ln*': deny
-    'mkdir*': deny
-    'touch*': deny
-    'git add*': deny
-    'git commit*': deny
-    'git push*': deny
-    'git switch*': deny
-    'git checkout*': deny
-    'git reset*': deny
-    'git restore*': deny
-    'git clean*': deny
-    'git stash*': deny
-    'git merge*': deny
-    'git rebase*': deny
-    'git cherry-pick*': deny
-    'git apply*': deny
-    'git config*': deny
-    'gh pr merge*': deny
-    'gh pr create*': deny
-    'gh pr edit*': deny
-    'gh pr close*': deny
-    'gh issue edit*': deny
-    'gh issue create*': deny
-    'gh issue close*': deny
-    'gh release*': deny
-    'gh api -X*': deny
-    'gh api --method*': deny
-    'gh api -f*': deny
-    'gh api -F*': deny
-    'gh api --field*': deny
-    'gh api --input*': deny
-    'npm publish*': deny
-    'npm install*': deny
-    'npm ci*': deny
-    'npm version*': deny
-    'npm run format*': deny
-    'npx prettier --write*': deny
+permissions:
+  - action: '*'
+    resource: '*'
+    effect: deny
+  - action: read
+    resource: '**'
+    effect: allow
+  - action: glob
+    resource: '**'
+    effect: allow
+  - action: grep
+    resource: '**'
+    effect: allow
+  - action: edit
+    resource: '.ai/**'
+    effect: allow
+  - action: edit
+    resource: '**/.ai/**'
+    effect: allow
+  - action: external_directory
+    resource: '/tmp/opencode/**'
+    effect: allow
+  - action: shell
+    resource: '*'
+    effect: allow
+  - action: shell
+    resource: 'rm*'
+    effect: deny
+  - action: shell
+    resource: 'mv*'
+    effect: deny
+  - action: shell
+    resource: 'cp*'
+    effect: deny
+  - action: shell
+    resource: 'dd*'
+    effect: deny
+  - action: shell
+    resource: 'tee*'
+    effect: deny
+  - action: shell
+    resource: 'truncate*'
+    effect: deny
+  - action: shell
+    resource: 'sed -i*'
+    effect: deny
+  - action: shell
+    resource: 'chmod*'
+    effect: deny
+  - action: shell
+    resource: 'chown*'
+    effect: deny
+  - action: shell
+    resource: 'ln*'
+    effect: deny
+  - action: shell
+    resource: 'mkdir*'
+    effect: deny
+  - action: shell
+    resource: 'touch*'
+    effect: deny
+  - action: shell
+    resource: 'git add*'
+    effect: deny
+  - action: shell
+    resource: 'git commit*'
+    effect: deny
+  - action: shell
+    resource: 'git push*'
+    effect: deny
+  - action: shell
+    resource: 'git switch*'
+    effect: deny
+  - action: shell
+    resource: 'git checkout*'
+    effect: deny
+  - action: shell
+    resource: 'git reset*'
+    effect: deny
+  - action: shell
+    resource: 'git restore*'
+    effect: deny
+  - action: shell
+    resource: 'git clean*'
+    effect: deny
+  - action: shell
+    resource: 'git stash*'
+    effect: deny
+  - action: shell
+    resource: 'git merge*'
+    effect: deny
+  - action: shell
+    resource: 'git rebase*'
+    effect: deny
+  - action: shell
+    resource: 'git cherry-pick*'
+    effect: deny
+  - action: shell
+    resource: 'git apply*'
+    effect: deny
+  - action: shell
+    resource: 'git config*'
+    effect: deny
+  - action: shell
+    resource: 'gh pr merge*'
+    effect: deny
+  - action: shell
+    resource: 'gh pr create*'
+    effect: deny
+  - action: shell
+    resource: 'gh pr edit*'
+    effect: deny
+  - action: shell
+    resource: 'gh pr close*'
+    effect: deny
+  - action: shell
+    resource: 'gh issue edit*'
+    effect: deny
+  - action: shell
+    resource: 'gh issue create*'
+    effect: deny
+  - action: shell
+    resource: 'gh issue close*'
+    effect: deny
+  - action: shell
+    resource: 'gh release*'
+    effect: deny
+  - action: shell
+    resource: 'gh api -X*'
+    effect: deny
+  - action: shell
+    resource: 'gh api --method*'
+    effect: deny
+  - action: shell
+    resource: 'gh api -f*'
+    effect: deny
+  - action: shell
+    resource: 'gh api -F*'
+    effect: deny
+  - action: shell
+    resource: 'gh api --field*'
+    effect: deny
+  - action: shell
+    resource: 'gh api --input*'
+    effect: deny
+  - action: shell
+    resource: 'npm publish*'
+    effect: deny
+  - action: shell
+    resource: 'npm install*'
+    effect: deny
+  - action: shell
+    resource: 'npm ci*'
+    effect: deny
+  - action: shell
+    resource: 'npm version*'
+    effect: deny
+  - action: shell
+    resource: 'npm run format*'
+    effect: deny
+  - action: shell
+    resource: 'npx prettier --write*'
+    effect: deny
 ---
 
 You are an adversarial code reviewer for the noisy-text project (SvelteKit +
