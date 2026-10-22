@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { decide, parsePlanSlices } from './slice-pack.mjs';
+import { decide, parsePlanSlices, writeOutput } from './slice-pack.mjs';
 
 const PLAN = `# Plan
 
@@ -90,6 +90,20 @@ describe('decide', () => {
 	it('uses the 60-line threshold', () => {
 		expect(decide({ kind: 'behavioral', total: 59, paths: [] }).review).toBe(false);
 		expect(decide({ kind: 'behavioral', total: 60, paths: [] }).review).toBe(true);
+	});
+});
+
+describe('writeOutput', () => {
+	it('replaces generated packets and always writes the skipped note', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'slice-pack-'));
+		writeFileSync(join(dir, 'S9.md'), 'stale');
+		writeFileSync(join(dir, '_skipped.md'), 'stale');
+
+		writeOutput(dir, []);
+
+		expect(existsSync(join(dir, 'S9.md'))).toBe(false);
+		expect(readFileSync(join(dir, '_skipped.md'), 'utf8')).not.toContain('stale');
+		expect(existsSync(join(dir, 'INDEX.md'))).toBe(true);
 	});
 });
 

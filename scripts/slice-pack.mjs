@@ -8,7 +8,7 @@
 // Exit 2 on usage errors; exit 1 when the range has no slice commits or a
 // commit whose slice has no plan entry.
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -320,6 +320,34 @@ export function renderSkipped(entries) {
 	return lines.join('\n');
 }
 
+/**
+ * Write the packets for one run, replacing the files a previous run generated.
+ *
+ * Only generated names are removed (`INDEX.md`, `_skipped.md`, `S*.md`), so
+ * unrelated files in `out` survive. The skipped note is always written, even
+ * when nothing was skipped, so a re-run cannot leave a stale one behind.
+ *
+ * @param {string} out
+ * @param {(ReturnType<typeof collectSlices>[number] & {
+ *   decision: { review: boolean, reason: string }, packet?: boolean })[]} entries
+ */
+export function writeOutput(out, entries) {
+	mkdirSync(out, { recursive: true });
+	for (const name of readdirSync(out)) {
+		if (name === 'INDEX.md' || name === '_skipped.md' || /^S[^/]*\.md$/.test(name)) {
+			unlinkSync(join(out, name));
+		}
+	}
+	for (const entry of entries.filter((candidate) => candidate.packet)) {
+		writeFileSync(join(out, `${entry.slice}.md`), renderPacket(entry));
+	}
+	writeFileSync(
+		join(out, '_skipped.md'),
+		renderSkipped(entries.filter((entry) => !entry.decision.review)),
+	);
+	writeFileSync(join(out, 'INDEX.md'), renderIndex(entries));
+}
+
 function main() {
 	const argv = process.argv.slice(2);
 	const value = (name, fallback) => {
@@ -364,13 +392,8 @@ function main() {
 		};
 	});
 
-	mkdirSync(out, { recursive: true });
-	for (const entry of entries.filter((candidate) => candidate.packet)) {
-		writeFileSync(join(out, `${entry.slice}.md`), renderPacket(entry));
-	}
+	writeOutput(out, entries);
 	const skipped = entries.filter((entry) => !entry.decision.review);
-	if (skipped.length) writeFileSync(join(out, '_skipped.md'), renderSkipped(skipped));
-	writeFileSync(join(out, 'INDEX.md'), renderIndex(entries));
 	process.stdout.write(
 		`wrote ${join(out, 'INDEX.md')}: ${entries.length} entries ` +
 			`(${entries.length - skipped.length} packets, ${skipped.length} skipped)\n`,
