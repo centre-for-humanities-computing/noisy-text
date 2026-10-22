@@ -88,9 +88,13 @@ PR itself. Every task starts in a fresh session. Use the slash commands
 `/refine`, `/plan`, `/implement`, `/review`; artifacts live in
 `.ai/<issue-number>-<slug>/round-N/`. The reviewer writes `review.json`;
 `scripts/review-pack.mjs` validates it and generates the `review.md` comment
-body and a local `review.html`, and the reviewer posts the comment. Review
-reports are PR comments marked `<!-- noisy-text-review: round=N -->` (the
-generated files are gitignored). Repeated plan → implement → review rounds run
+body and a local `review.html`, and the reviewer posts the comment. In
+per-slice mode, `/review` builds one self-contained packet per slice with
+`scripts/slice-pack.mjs`; slices under 60 changed lines without a
+review-priority path are reviewed in the integrator pass, and the integrating
+reviewer verifies only blockers and high-confidence findings. Review reports
+are PR comments marked `<!-- noisy-text-review: round=N -->` (the generated
+files are gitignored). Repeated plan → implement → review rounds run
 on the same branch and PR: a non-approve review verdict leads to a revision
 plan for the next round, with no round cap; after `approve with nits`,
 `/plan <issue> next` starts an explicit revision round. One commit per slice

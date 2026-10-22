@@ -26,7 +26,11 @@ These files are read rendered, raw, and in diffs. Write for all three:
     review.json      # /review — reviewer's structured report; gitignored
     review.md        # generated comment body by scripts/review-pack.mjs; gitignored
     review.html      # generated local reading view; gitignored
-    slices/S<k>.json # per-slice reviewer findings (per-slice mode); gitignored
+    slices/          # per-slice review packets (per-slice mode); gitignored
+      INDEX.md       # one line per slice: size, decision, packet link
+      S<k>.md        # self-contained packet: plan entry, facts, diff
+      S<k>.json      # slice-reviewer findings
+      _skipped.md    # slices left to the integrator pass
 ```
 
 - `<issue-number>-<slug>` matches the git branch name
@@ -49,9 +53,17 @@ These files are read rendered, raw, and in diffs. Write for all three:
   back.
 - `round-N/review.md` is posted with `gh pr comment --body-file`; the generated
   files are gitignored.
-- In per-slice mode, `round-N/slices/S<k>.json` holds each `slice-reviewer`
-  subagent's findings. The integrating reviewer verifies them before folding
-  them into `review.json`; skipped mechanical slices have no JSON file.
+- In per-slice mode, `/review` runs `scripts/slice-pack.mjs` to write
+  `round-N/slices/INDEX.md`, one self-contained `S<k>.md` packet per slice
+  commit (plan entry, script facts, diff), and `_skipped.md`. Each packet is
+  passed inline to a `slice-reviewer`, which writes `S<k>.json`.
+- A slice under 60 changed lines is skipped unless it touches a review-priority
+  path; `Kind: mechanical` slices are skipped unless they touch one too.
+  Skipped slices have no packet or JSON and appear in `_skipped.md` for one
+  integrator pass.
+- The integrating reviewer verifies only blockers and high-confidence findings
+  before folding them into `review.json`; low-confidence candidates survive
+  only when the cited lines confirm them.
 
 ## Diff report
 
