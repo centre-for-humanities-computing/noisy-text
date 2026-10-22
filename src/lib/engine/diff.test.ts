@@ -591,7 +591,7 @@ describe('allTokenCharSpans (WordPiece-style decoder)', () => {
 
 		const laterIds = new Int32Array([1, 0]);
 		// The whole-sequence decode strips the later `##` piece to ''.
-		const laterText = 'dog';
+		const laterText = decodeWord(vocabBert, [1, 0]);
 		const laterSpans = allTokenCharSpans(laterIds, recency, decodeToken, 99, laterText, true);
 		// The later `##` piece strips to '' and is omitted; `dog` keeps its span.
 		expect(laterSpans.map((s) => laterText.slice(s.start, s.end))).toEqual(['dog']);
