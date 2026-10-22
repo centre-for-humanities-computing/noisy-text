@@ -1,3 +1,8 @@
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { decide, parsePlanSlices } from './slice-pack.mjs';
 
@@ -85,5 +90,40 @@ describe('decide', () => {
 	it('uses the 60-line threshold', () => {
 		expect(decide({ kind: 'behavioral', total: 59, paths: [] }).review).toBe(false);
 		expect(decide({ kind: 'behavioral', total: 60, paths: [] }).review).toBe(true);
+	});
+});
+
+describe('CLI guards', () => {
+	const repoRoot = fileURLToPath(new URL('..', import.meta.url));
+	const script = fileURLToPath(new URL('./slice-pack.mjs', import.meta.url));
+
+	function run(args: string[], plan: string, out: string) {
+		return spawnSync(process.execPath, [script, '--plan', plan, '--out', out, ...args], {
+			cwd: repoRoot,
+			encoding: 'utf8',
+		});
+	}
+
+	function fixture() {
+		const dir = mkdtempSync(join(tmpdir(), 'slice-pack-'));
+		const plan = join(dir, 'plan.md');
+		writeFileSync(plan, '## Slices\n');
+		return { plan, out: join(dir, 'out') };
+	}
+
+	it('requires --base before reading the plan', () => {
+		const { plan, out } = fixture();
+		const result = run([], plan, out);
+		expect(result.status).toBe(2);
+		expect(result.stderr).toContain('--base');
+		expect(existsSync(join(out, 'INDEX.md'))).toBe(false);
+	});
+
+	it('rejects an empty commit range without writing output', () => {
+		const { plan, out } = fixture();
+		const result = run(['--base', 'HEAD', '--head', 'HEAD'], plan, out);
+		expect(result.status).toBe(1);
+		expect(result.stderr).toContain('no slice commits');
+		expect(existsSync(join(out, 'INDEX.md'))).toBe(false);
 	});
 });

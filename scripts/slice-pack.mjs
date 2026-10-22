@@ -2,10 +2,11 @@
 // Builds one review packet per slice commit from the round plan and git.
 // No dependencies. See .opencode/command/review.md for how the packets are used.
 //
-//   node scripts/slice-pack.mjs --plan <plan.md> [--base <ref>] [--head <ref>]
-//     [--out <dir>] [--context <n>]
+//   node scripts/slice-pack.mjs --plan <plan.md> --base <ref> --out <dir>
+//     [--head <ref>] [--context <n>]
 //
-// Exit 1 on usage errors or a commit whose slice has no plan entry.
+// Exit 2 on usage errors; exit 1 when the range has no slice commits or a
+// commit whose slice has no plan entry.
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -327,20 +328,25 @@ function main() {
 	};
 	const planPath = value('--plan');
 	const out = value('--out');
-	if (!planPath || !out) {
+	const base = value('--base');
+	if (!planPath || !out || !base) {
 		console.error(
-			'usage: node scripts/slice-pack.mjs --plan <plan.md> --out <dir> ' +
-				'[--base <ref>] [--head <ref>] [--context <n>]',
+			'usage: node scripts/slice-pack.mjs --plan <plan.md> --base <ref> --out <dir> ' +
+				'[--head <ref>] [--context <n>]',
 		);
-		process.exit(1);
+		process.exit(2);
 	}
-	const base = value('--base', 'HEAD');
 	const head = value('--head', 'HEAD');
 	const context = Number(value('--context', '10'));
 
 	const plan = parsePlanSlices(readFileSync(planPath, 'utf8'));
 	const byId = new Map(plan.map((slice) => [slice.id, slice]));
-	const entries = collectSlices({ base, head }).map((commit) => {
+	const commits = collectSlices({ base, head });
+	if (commits.length === 0) {
+		console.error(`no slice commits in ${base}..${head}`);
+		process.exit(1);
+	}
+	const entries = commits.map((commit) => {
 		const planId = planIdFor(commit.slice);
 		const planSlice = planId ? byId.get(planId) : undefined;
 		if (!planSlice) {
