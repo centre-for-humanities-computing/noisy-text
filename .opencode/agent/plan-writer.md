@@ -3,12 +3,13 @@ description: Transcribes finalized plan markdown to a given .ai/ path, verbatim.
 mode: subagent
 model: openrouter/z-ai/glm-5.3-flash
 variant: low
-permission:
-  edit:
-    '*': deny
-    '.ai/**': allow
-    '**/.ai/**': allow
-  bash: deny
+permissions:
+  - action: '*'
+    resource: '*'
+    effect: deny
+  - action: edit
+    resource: '.ai/**/round-*/plan.md'
+    effect: allow
 ---
 
 You are a transcription tool for the `/plan` workflow. The calling agent passes

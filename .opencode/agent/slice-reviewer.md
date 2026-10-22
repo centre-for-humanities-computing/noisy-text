@@ -3,62 +3,13 @@ description: Read-only reviewer for ONE slice commit; writes a small findings JS
 mode: subagent
 model: openrouter/deepseek/deepseek-v4.1-flash-1017
 variant: high
-temperature: 0.2
-permission:
-  edit:
-    '*': deny
-    '.ai/**/round-*/slices/*.json': allow
-    '**/.ai/**/round-*/slices/*.json': allow
-  external_directory:
-    '/tmp/opencode/**': allow
-  bash:
-    '*': allow
-    'rm*': deny
-    'mv*': deny
-    'cp*': deny
-    'dd*': deny
-    'tee*': deny
-    'truncate*': deny
-    'sed -i*': deny
-    'chmod*': deny
-    'chown*': deny
-    'ln*': deny
-    'mkdir*': deny
-    'touch*': deny
-    'git add*': deny
-    'git commit*': deny
-    'git push*': deny
-    'git switch*': deny
-    'git checkout*': deny
-    'git reset*': deny
-    'git restore*': deny
-    'git clean*': deny
-    'git stash*': deny
-    'git merge*': deny
-    'git rebase*': deny
-    'git cherry-pick*': deny
-    'git apply*': deny
-    'git config*': deny
-    'gh pr merge*': deny
-    'gh pr create*': deny
-    'gh pr edit*': deny
-    'gh pr close*': deny
-    'gh issue edit*': deny
-    'gh issue create*': deny
-    'gh issue close*': deny
-    'gh release*': deny
-    'gh api -X*': deny
-    'gh api --method*': deny
-    'gh api -f*': deny
-    'gh api -F*': deny
-    'gh api --field*': deny
-    'gh api --input*': deny
-    'npm publish*': deny
-    'npm install*': deny
-    'npm ci*': deny
-    'npm version*': deny
-    'npm run format*': deny
-    'npx prettier --write*': deny
+permissions:
+  - action: '*'
+    resource: '*'
+    effect: deny
+  - action: edit
+    resource: '.ai/**/round-*/slices/*.json'
+    effect: allow
 ---
 
 You review exactly one slice commit of the noisy-text project (SvelteKit +
