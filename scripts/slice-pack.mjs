@@ -153,10 +153,8 @@ export function priorityFor(paths) {
 export function decide({ kind, total, paths }) {
 	const hits = priorityFor(paths);
 	if (hits.length) {
-		return {
-			review: true,
-			reason: `priority path: ${hits.map((hit) => hit.label).join(', ')}`,
-		};
+		const labels = [...new Set(hits.map((hit) => hit.label))];
+		return { review: true, reason: `priority path: ${labels.join(', ')}` };
 	}
 	if (kind === 'mechanical') return { review: false, reason: 'mechanical slice' };
 	if (total < 60) return { review: false, reason: `${total} lines < 60` };
@@ -218,8 +216,8 @@ export function collectSlices({ base, head }) {
 /**
  * Render the index that tells `/review` which slices to delegate.
  *
- * @param {ReturnType<typeof collectSlices> & {
- *   decision: { review: boolean, reason: string }, packet?: boolean }[]} entries
+ * @param {(ReturnType<typeof collectSlices>[number] & {
+ *   decision: { review: boolean, reason: string }, packet?: boolean })[]} entries
  * @returns {string}
  */
 export function renderIndex(entries) {

@@ -72,9 +72,13 @@ describe('parsePlanSlices', () => {
 
 describe('decide', () => {
 	it('reviews priority paths even when mechanical or tiny', () => {
-		expect(decide({ kind: 'mechanical', total: 5, paths: ['src/lib/engine/x.ts'] })).toMatchObject({
-			review: true,
-		});
+		expect(
+			decide({
+				kind: 'mechanical',
+				total: 5,
+				paths: ['src/lib/engine/x.ts', 'src/lib/engine/y.ts'],
+			}),
+		).toEqual({ review: true, reason: 'priority path: engine' });
 		expect(decide({ kind: 'behavioral', total: 5, paths: ['src/lib/schedules/x.ts'] }).review).toBe(
 			true,
 		);
