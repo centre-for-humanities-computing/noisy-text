@@ -64,22 +64,37 @@ human's local reading view). No command reads them back.
 5. **Choose the mode.**
    - **single**: ≤ 3 slice commits **and** ≤ 600 changed lines in the range.
      Delegate once to the `reviewer` subagent (mode `single`).
-   - **per-slice**: otherwise. Create the output directory first (the
-     `slice-reviewer` subagents cannot create it):
+   - **per-slice**: otherwise. Create the output directory and build one
+     packet per slice commit, then read the index (the `slice-reviewer`
+     subagents cannot create the directory or run scripts):
 
      ```bash
      mkdir -p ".ai/<issue-number>-<slug>/round-N/slices"
+     node scripts/slice-pack.mjs \
+       --plan ".ai/<issue-number>-<slug>/round-N/plan.md" \
+       --base "$BASE" --head "$REVIEWED" \
+       --out ".ai/<issue-number>-<slug>/round-N/slices"
      ```
 
-     For each slice commit, delegate to a `slice-reviewer` subagent (Task tool,
-     subagent_type `slice-reviewer`) with the slice id, commit sha, that slice's
-     entry from `round-N/plan.md`, `CONVENTIONS.md`, and the output path
-     `.ai/<issue-number>-<slug>/round-N/slices/S<k>.json`. Launch them in
-     parallel, at most 6 at a time. Skip `Kind: mechanical` slices unless the
-     diff touches more than barrels, types, docs, or the version; those get a
-     one-line skim by the integrating reviewer. Skipped slices produce no JSON
-     file. Then delegate once to the `reviewer` subagent (mode `integrate`) with
-     only the slice files that were actually written.
+     Read `slices/INDEX.md`. Each `review` line points at a packet
+     `slices/S<k>.md`. For every such line, delegate to a `slice-reviewer`
+     subagent (Task tool, subagent_type `slice-reviewer`). Read the packet file
+     yourself and pass its content inline; the subagent has no read or shell
+     tools. The prompt is a fixed first line, identical for every call, then
+     `PACKET` and the packet, then `OUTPUT` and the JSON path last:
+
+     ```text
+     Review the slice packet below. It is your only input.
+     PACKET
+     <packet content>
+     OUTPUT
+     .ai/<issue-number>-<slug>/round-N/slices/S<k>.json
+     ```
+
+     Do not pass a path for the reviewer to open. Launch at most 6 in parallel.
+     Skipped slices need no subagent: they are listed in `slices/_skipped.md`.
+     Then delegate once to the `reviewer` subagent (mode `integrate`) with the
+     slice JSON paths and `slices/_skipped.md`.
 
    - Revision rounds (N > 1) are normally `single`: the range is a few
      fix-slices.

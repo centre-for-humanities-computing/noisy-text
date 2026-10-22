@@ -25,3 +25,21 @@ describe('slice-reviewer', () => {
 		expect(text).not.toMatch(/Read the (repo|file)/);
 	});
 });
+
+describe('review command', () => {
+	const text = readFileSync(new URL('../.opencode/command/review.md', import.meta.url), 'utf8');
+
+	it('builds packets and delivers them inline', () => {
+		expect(text).toContain('scripts/slice-pack.mjs');
+		expect(text).toContain('_skipped.md');
+		expect(text).toContain('pass its content inline');
+		expect(text).toContain('Do not pass a path for the reviewer to open');
+		expect(text).not.toContain('Skip `Kind: mechanical` slices unless');
+		const packet = text.lastIndexOf('PACKET');
+		const content = text.lastIndexOf('<packet content>');
+		const output = text.lastIndexOf('OUTPUT');
+		expect(packet).toBeGreaterThan(-1);
+		expect(content).toBeGreaterThan(packet);
+		expect(output).toBeGreaterThan(content);
+	});
+});
