@@ -13,8 +13,9 @@ function valid(): Record<string, unknown> {
 	};
 }
 
-function rejects(value: unknown): void {
-	expect(() => parseWordVocab(value)).toThrow(/^parseWordVocab: /);
+function rejects(value: unknown, reason?: string): void {
+	const expected = reason === undefined ? /^parseWordVocab: / : `parseWordVocab: ${reason}`;
+	expect(() => parseWordVocab(value)).toThrow(expected);
 }
 
 describe('parseWordVocab', () => {
@@ -38,35 +39,35 @@ describe('parseWordVocab', () => {
 	});
 
 	it('rejects non-objects and arrays', () => {
-		rejects(null);
-		rejects([]);
-		rejects('vocab');
-		rejects(42);
-		rejects(undefined);
+		rejects(null, 'expected a JSON object');
+		rejects([], 'expected a JSON object');
+		rejects('vocab', 'expected a JSON object');
+		rejects(42, 'expected a JSON object');
+		rejects(undefined, 'expected a JSON object');
 	});
 
 	it('rejects a missing or wrongly typed version', () => {
 		const missing = valid();
 		delete missing.version;
-		rejects(missing);
-		rejects({ ...valid(), version: '1' });
-		rejects({ ...valid(), version: Number.NaN });
+		rejects(missing, '"version" must be a finite number');
+		rejects({ ...valid(), version: '1' }, '"version" must be a finite number');
+		rejects({ ...valid(), version: Number.NaN }, '"version" must be a finite number');
 	});
 
 	it('rejects a missing or empty source', () => {
 		const missing = valid();
 		delete missing.source;
-		rejects(missing);
-		rejects({ ...valid(), source: '' });
-		rejects({ ...valid(), source: 0 });
+		rejects(missing, '"source" must be a non-empty string');
+		rejects({ ...valid(), source: '' }, '"source" must be a non-empty string');
+		rejects({ ...valid(), source: 0 }, '"source" must be a non-empty string');
 	});
 
 	it('rejects a missing or empty license', () => {
 		const missing = valid();
 		delete missing.license;
-		rejects(missing);
-		rejects({ ...valid(), license: '' });
-		rejects({ ...valid(), license: null });
+		rejects(missing, '"license" must be a non-empty string');
+		rejects({ ...valid(), license: '' }, '"license" must be a non-empty string');
+		rejects({ ...valid(), license: null }, '"license" must be a non-empty string');
 	});
 
 	it('rejects missing, empty or non-array words', () => {
