@@ -13,9 +13,8 @@ function valid(): Record<string, unknown> {
 	};
 }
 
-function rejects(value: unknown, reason?: string): void {
-	const expected = reason === undefined ? /^parseWordVocab: / : `parseWordVocab: ${reason}`;
-	expect(() => parseWordVocab(value)).toThrow(expected);
+function rejects(value: unknown, reason: string): void {
+	expect(() => parseWordVocab(value)).toThrow(`parseWordVocab: ${reason}`);
 }
 
 describe('parseWordVocab', () => {
@@ -71,26 +70,32 @@ describe('parseWordVocab', () => {
 	});
 
 	it('rejects missing, empty or non-array words', () => {
-		rejects({ ...valid(), words: [] });
-		rejects({ ...valid(), words: 'abc' });
-		rejects({ ...valid(), words: null });
+		rejects({ ...valid(), words: [] }, '"words" must be a non-empty array');
+		rejects({ ...valid(), words: 'abc' }, '"words" must be a non-empty array');
+		rejects({ ...valid(), words: null }, '"words" must be a non-empty array');
 	});
 
 	it('rejects duplicate, empty, whitespace or non-string words', () => {
-		rejects({ ...valid(), words: ['a', 'a'], ranks: [0, 1] });
-		rejects({ ...valid(), words: ['a', ''], ranks: [0, 1] });
-		rejects({ ...valid(), words: ['a', 'b c'], ranks: [0, 1] });
-		rejects({ ...valid(), words: ['a', 'b\tc'], ranks: [0, 1] });
-		rejects({ ...valid(), words: ['a', 7], ranks: [0, 1] });
+		rejects({ ...valid(), words: ['a', 'a'], ranks: [0, 1] }, 'duplicate word "a"');
+		rejects({ ...valid(), words: ['a', ''], ranks: [0, 1] }, '"words[1]" must be non-empty');
+		rejects(
+			{ ...valid(), words: ['a', 'b c'], ranks: [0, 1] },
+			'"words[1]" must not contain whitespace',
+		);
+		rejects(
+			{ ...valid(), words: ['a', 'b\tc'], ranks: [0, 1] },
+			'"words[1]" must not contain whitespace',
+		);
+		rejects({ ...valid(), words: ['a', 7], ranks: [0, 1] }, '"words[1]" must be a string');
 	});
 
 	it('rejects missing, non-integer, out-of-range or duplicate ranks', () => {
-		rejects({ ...valid(), ranks: undefined });
-		rejects({ ...valid(), ranks: [0, 1] });
-		rejects({ ...valid(), ranks: [0, 1, 2, 3] });
-		rejects({ ...valid(), ranks: [0, 1.5, 2] });
-		rejects({ ...valid(), ranks: [0, 1, 3] });
-		rejects({ ...valid(), ranks: [0, 1, -1] });
-		rejects({ ...valid(), ranks: [0, 1, 1] });
+		rejects({ ...valid(), ranks: undefined }, '"ranks" must be an array');
+		rejects({ ...valid(), ranks: [0, 1] }, '"ranks" must have the same length as "words"');
+		rejects({ ...valid(), ranks: [0, 1, 2, 3] }, '"ranks" must have the same length as "words"');
+		rejects({ ...valid(), ranks: [0, 1.5, 2] }, '"ranks[1]" must be an integer');
+		rejects({ ...valid(), ranks: [0, 1, 3] }, '"ranks[2]" must be in [0, 2]');
+		rejects({ ...valid(), ranks: [0, 1, -1] }, '"ranks[2]" must be in [0, 2]');
+		rejects({ ...valid(), ranks: [0, 1, 1] }, 'duplicate rank 1');
 	});
 });
