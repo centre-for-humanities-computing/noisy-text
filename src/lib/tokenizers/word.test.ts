@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import seedrandom from 'seedrandom';
 
-import { normalizeWordText, segmentWordText } from './word.js';
+import { createWordTokenizer, normalizeWordText, segmentWordText } from './word.js';
+import type { TokenizerInfo } from './types.js';
 
 const LETTER = /\p{L}/u;
 
@@ -189,3 +190,172 @@ describe('segmentWordText', () => {
 		}
 	});
 });
+
+const INFO: TokenizerInfo = {
+	id: 'test-word',
+	label: 'Test word',
+	description: 'Word-level test tokenizer.',
+	plainName: 'test words',
+	gloss: 'Splits on words.',
+	wordPiece: false,
+	tooltip: { text: 'Test tokenizer.' },
+};
+
+describe('createWordTokenizer', () => {
+	it('rejects an empty vocabulary and duplicates', () => {
+		expect(() => createWordTokenizer(INFO, [])).toThrow(/vocabulary must not be empty/);
+		expect(() => createWordTokenizer(INFO, ['a', 'b', 'a'])).toThrow(/duplicate word "a"/);
+	});
+
+	it('assigns static ids and grows the effective size with distinct OOV tokens', () => {
+		const t = createWordTokenizer(INFO, ['hello', 'world']);
+		const staticOnly = t.encode('hello');
+		expect(Array.from(staticOnly.ids)).toEqual([0]);
+		expect(staticOnly.vocabSize).toBe(2);
+		expect(t.encode('hello').vocabSize).toBe(2);
+
+		const withOov = t.encode('hello there');
+		// hello, space, there → static 0, OOV 2, OOV 3.
+		expect(Array.from(withOov.ids)).toEqual([0, 2, 3]);
+		expect(withOov.vocabSize).toBe(4);
+		expect(t.idsToTokens(withOov.ids)).toEqual(['hello', ' ', 'there']);
+
+		// Existing OOV ids are reused, not reallocated.
+		const again = t.encode('there hello');
+		expect(Array.from(again.ids)).toEqual([3, 2, 0]);
+		expect(again.vocabSize).toBe(4);
+	});
+
+	it('returns an empty token and skips unknown ids', () => {
+		const t = createWordTokenizer(INFO, ['hello']);
+		expect(t.idsToTokens(Int32Array.from([99]))).toEqual(['']);
+		expect(t.decode(Int32Array.from([0, 99]))).toBe('hello');
+		expect(t.decode(new Int32Array(0))).toBe('');
+	});
+
+	it('round-trips multi-paragraph prose (AC1)', () => {
+		const t = createWordTokenizer(INFO, ['the', 'fox', 'she', 'said']);
+		const prose = [
+			'The Quick Brown Fox jumps over the lazy dog.',
+			'',
+			'“Don’t stop,” she said. “Well-known advice, isn’t it?”',
+			'Café Über — naïve.',
+		].join('\r\n');
+		const encoded = t.encode(prose);
+		expect(t.decode(encoded.ids)).toBe(normalizeWordText(prose));
+	});
+
+	it('round-trips and reuses OOV words (AC2)', () => {
+		const t = createWordTokenizer(INFO, ['the']);
+		const text = 'Zorblat Café well-known';
+		const first = t.encode(text);
+		expect(t.idsToTokens(first.ids)).toEqual(['Zorblat', ' ', 'Café', ' ', 'well-known']);
+		expect(t.decode(first.ids)).toBe(text);
+
+		const second = t.encode(text);
+		expect(Array.from(second.ids)).toEqual(Array.from(first.ids));
+		expect(second.vocabSize).toBe(first.vocabSize);
+	});
+
+	it('keeps every token verbatim and in order in the whole decode (AC4)', () => {
+		const t = createWordTokenizer(INFO, ['hello', 'world']);
+		const ids = t.encode('Hello, world!\n“Well-known” café.').ids;
+		const whole = t.decode(ids);
+		let cursor = 0;
+		for (let i = 0; i < ids.length; i++) {
+			const piece = t.decode(ids.subarray(i, i + 1));
+			expect(piece.length, `token ${i} is empty`).toBeGreaterThan(0);
+			const at = whole.indexOf(piece, cursor);
+			expect(
+				at,
+				`token ${i} ${JSON.stringify(piece)} in ${JSON.stringify(whole)}`,
+			).toBeGreaterThanOrEqual(cursor);
+			cursor = at + piece.length;
+		}
+	});
+
+	it('matches a naive OOV allocator on 500 generated strings (AC3)', () => {
+		const words = ['the', 'quick', 'brown', 'fox', 'jumps', 'well-known', 'café', "don't"];
+		const t = createWordTokenizer(INFO, words);
+		const staticIds = new Map(words.map((word, id) => [word, id]));
+		const naiveOov = new Map<string, number>();
+		const naiveOovTokens: string[] = [];
+		const prng = seedrandom.alea('word-oov' + '\0');
+
+		for (let caseIndex = 0; caseIndex < 500; caseIndex++) {
+			const length = Math.floor(prng() * 26);
+			let sample = '';
+			for (let i = 0; i < length; i++) {
+				sample += FRAGMENTS[Math.floor(prng() * FRAGMENTS.length)]!;
+			}
+
+			const expectedIds = segmentWordText(normalizeWordText(sample)).map((token) => {
+				const staticId = staticIds.get(token);
+				if (staticId !== undefined) return staticId;
+				let id = naiveOov.get(token);
+				if (id === undefined) {
+					id = words.length + naiveOovTokens.length;
+					naiveOov.set(token, id);
+					naiveOovTokens.push(token);
+				}
+				return id;
+			});
+
+			const encoded = t.encode(sample);
+			expect(Array.from(encoded.ids), `case ${caseIndex}: ${JSON.stringify(sample)}`).toEqual(
+				expectedIds,
+			);
+			expect(encoded.vocabSize).toBe(words.length + naiveOovTokens.length);
+			expect(t.decode(encoded.ids), `decode case ${caseIndex}`).toBe(
+				naiveDecode(expectedIds, words, naiveOovTokens),
+			);
+		}
+	});
+});
+
+/** Independent decode reference for the differential test. */
+function naiveDecode(
+	ids: number[],
+	words: readonly string[],
+	oovTokens: readonly string[],
+): string {
+	const closing = new Set([
+		'.',
+		',',
+		';',
+		':',
+		'!',
+		'?',
+		')',
+		']',
+		'}',
+		'%',
+		'…',
+		'”',
+		'’',
+		'»',
+		'›',
+		"'",
+		'"',
+	]);
+	const opening = new Set(['(', '[', '{', '“', '‘', '«', '‹', "'", '"']);
+	let out = '';
+	for (let i = 0; i < ids.length; i++) {
+		const id = ids[i]!;
+		const token = id < words.length ? words[id]! : oovTokens[id - words.length]!;
+		if (i > 0) {
+			const prev = ids[i - 1]!;
+			const prevToken = prev < words.length ? words[prev]! : oovTokens[prev - words.length]!;
+			const attached =
+				prevToken === ' ' ||
+				prevToken === '\n' ||
+				token === ' ' ||
+				token === '\n' ||
+				closing.has(token) ||
+				opening.has(prevToken);
+			if (!attached) out += ' ';
+		}
+		out += token;
+	}
+	return out;
+}
