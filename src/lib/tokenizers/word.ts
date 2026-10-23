@@ -156,8 +156,10 @@ export function createWordTokenizer(info: TokenizerInfo, words: readonly string[
 	 * normalized input already contains a space wherever {@link needsSpace}
 	 * would insert one. In particular it fails when a closing mark is
 	 * immediately followed by a letter (`a,b`), a letter is immediately
-	 * followed by an opening mark (`a(b`), or a standalone joiner is adjacent
-	 * to a word (`’tis`); all three decode with an extra space.
+	 * followed by an opening mark (`a(b`), or a standalone joiner begins a
+	 * word (`’tis` → `’ tis`); all three decode with an extra space. A
+	 * trailing standalone joiner (`word’`), a spaced one (`a ’ b`) and an
+	 * internal one (`Don’t`) round-trip.
 	 */
 	function decode(ids: Int32Array): string {
 		let out = '';

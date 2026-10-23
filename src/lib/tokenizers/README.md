@@ -64,8 +64,9 @@
   when the normalized input already contains a space wherever `needsSpace`
   would insert one. It fails when a closing mark is immediately followed by a
   letter (`a,b`), a letter is immediately followed by an opening mark
-  (`a(b`), or a standalone joiner is adjacent to a word (`’tis`); each decodes
-  with an extra space.
+  (`a(b`), or a standalone joiner begins a word (`’tis` → `’ tis`); each
+  decodes with an extra space. A trailing standalone joiner (`word’`), a
+  spaced one (`a ’ b`) and an internal one (`Don’t`) round-trip.
 
 ## Notes
 

@@ -261,7 +261,9 @@ describe('createWordTokenizer', () => {
 			expect(t.decode(t.encode(input).ids)).toBe(decoded);
 			expect(t.decode(t.encode(input).ids)).not.toBe(normalizeWordText(input));
 		}
-		expect(t.decode(t.encode('a, b').ids)).toBe('a, b');
+		for (const text of ['a, b', 'word’', 'a ’ b', 'Don’t']) {
+			expect(t.decode(t.encode(text).ids), text).toBe(normalizeWordText(text));
+		}
 	});
 
 	it('round-trips and reuses OOV words (AC2)', () => {
