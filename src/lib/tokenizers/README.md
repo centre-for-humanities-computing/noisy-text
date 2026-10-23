@@ -23,6 +23,46 @@
 | `gpt2`              | `Xenova/gpt2`              | BPE       |
 | `bert-base-uncased` | `Xenova/bert-base-uncased` | WordPiece |
 
+## Word tokenizer (not yet registered)
+
+`word.ts` and `word-vocab.ts` implement a pure word-level core. It is not in
+`registry.ts` yet, so the picker and the app's loading path are unchanged.
+
+- **Static ids.** `createWordTokenizer(info, words)` gives word `i` the static
+  id $i$, so $K = \text{words.length}$ and static ids are $0 \ldots K-1$.
+  Empty or duplicate vocabularies are rejected.
+- **Effective size.** Any token missing from the static vocabulary gets a
+  per-instance OOV id in first-seen order starting at $K$. Ids are
+  append-only and reused across `encode` calls, so
+  $K_{\text{eff}} = K + |\text{OOV}|$ grows monotonically. `encode` returns
+  `{ ids, vocabSize }`, where `vocabSize` is $K_{\text{eff}}$ for that result.
+  The mask sentinel is $K_{\text{eff}}$, not the static `Tokenizer.vocabSize`;
+  consumers must read it from the encoded result.
+- **Vocabulary files.** `parseWordVocab(value)` validates an already-parsed
+  JSON object `{ version, source, license, words, ranks }` and returns the
+  words ordered by ascending rank. `version` must be a finite number,
+  `source`/`license` non-empty strings, `words` a non-empty array of unique,
+  non-empty strings without whitespace, and `ranks` a permutation of
+  $0 \ldots n-1$. Violations throw `Error('parseWordVocab: <reason>')`.
+- **Normalization.** `normalizeWordText` converts `\r\n` and lone `\r` to
+  `\n`, trims spaces and tabs at each line edge, and collapses internal runs
+  of spaces and tabs to one space, preserving every newline.
+- **Segmentation.** `segmentWordText` treats a maximal run of Unicode letters
+  (category `L`) with internal `'`, `’` or `-` joiners as one verbatim word.
+  Every other code point becomes its own token, including newlines; astral
+  characters are never split.
+- **Decoding.** Tokens are joined with one space, except that a `\n` token
+  emits a bare newline, a `' '` token emits its own space, no space goes
+  before closing punctuation (`. , ; : ! ? ) ] } % … ” ’ » › ' "`), no space
+  goes after opening punctuation (`( [ { “ ‘ « ‹ ' "`), and the first token
+  has no leading space.
+- **Round-trip limits.** Digits, `/_@#`, emoji and unspaced neutral
+  punctuation are separate tokens and gain spaces on decode. Combining marks
+  are not letters and split from their base. Straight quotes appear in both
+  punctuation sets, so they are ambiguous without an explicit space token.
+  Only text compatible with the rules above satisfies
+  `decode(encode(t).ids) === normalizeWordText(t)`.
+
 ## Notes
 
 - `encode` passes `add_special_tokens: false` by default. BERT's
