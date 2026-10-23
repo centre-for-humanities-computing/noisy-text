@@ -9,7 +9,7 @@ function valid(): Record<string, unknown> {
 		source: 'test-fixture',
 		license: 'CC0-1.0',
 		words: ['b', 'a', 'c'],
-		ranks: [1, 2, 0],
+		ranks: [2, 0, 1],
 	};
 }
 
@@ -19,7 +19,12 @@ function rejects(value: unknown, reason: string): void {
 
 describe('parseWordVocab', () => {
 	it('orders words by ascending rank', () => {
-		expect(parseWordVocab(valid())).toEqual(['c', 'b', 'a']);
+		expect(parseWordVocab(valid())).toEqual(['a', 'c', 'b']);
+		expect(parseWordVocab({ ...valid(), words: ['x', 'y', 'z'], ranks: [1, 2, 0] })).toEqual([
+			'z',
+			'x',
+			'y',
+		]);
 	});
 
 	it('does not mutate the input', () => {
@@ -30,7 +35,7 @@ describe('parseWordVocab', () => {
 	});
 
 	it('ignores unknown extra fields', () => {
-		expect(parseWordVocab({ ...valid(), extra: true })).toEqual(['c', 'b', 'a']);
+		expect(parseWordVocab({ ...valid(), extra: true })).toEqual(['a', 'c', 'b']);
 	});
 
 	it('accepts a single-word vocabulary', () => {
