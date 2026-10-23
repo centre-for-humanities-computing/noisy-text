@@ -288,6 +288,45 @@ describe('createWordTokenizer', () => {
 		}
 	});
 
+	it('decodes every punctuation mark against a literal expectation', () => {
+		const t = createWordTokenizer(INFO, ['word']);
+		// Closing marks attach to the preceding word.
+		const closing = [
+			'word.',
+			'word,',
+			'word;',
+			'word:',
+			'word!',
+			'word?',
+			'word)',
+			'word]',
+			'word}',
+			'word%',
+			'word…',
+			'word”',
+			'word’',
+			'word»',
+			'word›',
+			"word'",
+			'word"',
+		];
+		// Opening marks attach to the following word.
+		const opening = [
+			'(word',
+			'[word',
+			'{word',
+			'“word',
+			'‘word',
+			'«word',
+			'‹word',
+			"'word",
+			'"word',
+		];
+		for (const text of [...closing, ...opening]) {
+			expect(t.decode(t.encode(text).ids), text).toBe(text);
+		}
+	});
+
 	it('matches a naive OOV allocator on 500 generated strings (AC3)', () => {
 		const words = ['the', 'quick', 'brown', 'fox', 'jumps', 'well-known', 'café', "don't"];
 		const t = createWordTokenizer(INFO, words);
