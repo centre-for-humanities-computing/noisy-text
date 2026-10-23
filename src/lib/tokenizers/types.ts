@@ -27,19 +27,47 @@ export interface TokenizerInfo {
 	};
 }
 
+/**
+ * Result of encoding a piece of text.
+ *
+ * `vocabSize` is the effective vocabulary size
+ * $K_{\text{eff}} = K + |\text{OOV}|$ for this particular input, not the
+ * tokenizer's static size $K$. Tokenizers with a fixed vocabulary always
+ * report $K_{\text{eff}} = K$; tokenizers that allocate ids for per-input
+ * out-of-vocabulary tokens grow $K_{\text{eff}}$ as they see new tokens.
+ * The mask sentinel is $K_{\text{eff}}$, so it must be read from the result
+ * rather than from {@link Tokenizer.vocabSize}.
+ */
+export interface EncodedText {
+	/**
+	 * Token ids. `Int32Array` because ids are non-negative integers and
+	 * `Int32Array` is the numerics convention for token-id arrays.
+	 */
+	ids: Int32Array;
+	/** Effective vocabulary size $K_{\text{eff}} = K + |\text{OOV}|$. */
+	vocabSize: number;
+}
+
 /** A tokenizer ready for use. */
 export interface Tokenizer {
 	/** Metadata (same object passed at load time). */
 	readonly info: TokenizerInfo;
-	/** Vocabulary size $K$. */
+	/**
+	 * Static vocabulary size $K$; static ids are $0 \ldots K-1$.
+	 *
+	 * The effective size for a given input may be larger after OOV
+	 * allocation; read {@link EncodedText.vocabSize} for that.
+	 */
 	readonly vocabSize: number;
 
 	/**
-	 * Encode text → token ids.
-	 * Returns an `Int32Array` because ids are non-negative integers and
-	 * `Int32Array` is the numerics convention for token-id arrays.
+	 * Encode text → token ids plus the effective vocabulary size.
+	 *
+	 * Returning an object (rather than a bare `Int32Array`) makes any stale
+	 * call site a compile error instead of silently treating the result as
+	 * an id array.
 	 */
-	encode(text: string): Int32Array;
+	encode(text: string): EncodedText;
 
 	/**
 	 * Decode token ids → text.
