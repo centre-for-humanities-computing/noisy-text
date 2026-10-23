@@ -245,6 +245,20 @@ describe('createWordTokenizer', () => {
 		expect(t.decode(encoded.ids)).toBe(normalizeWordText(prose));
 	});
 
+	it('pins the documented round-trip limits for adjacent marks', () => {
+		const t = createWordTokenizer(INFO, ['the']);
+		const cases = [
+			['’tis', '’ tis'],
+			['a,b', 'a, b'],
+			['a(b', 'a (b'],
+		] as const;
+		for (const [input, decoded] of cases) {
+			expect(t.decode(t.encode(input).ids)).toBe(decoded);
+			expect(t.decode(t.encode(input).ids)).not.toBe(normalizeWordText(input));
+		}
+		expect(t.decode(t.encode('a, b').ids)).toBe('a, b');
+	});
+
 	it('round-trips and reuses OOV words (AC2)', () => {
 		const t = createWordTokenizer(INFO, ['the']);
 		const text = 'Zorblat Café well-known';

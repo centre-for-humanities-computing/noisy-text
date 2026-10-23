@@ -60,8 +60,12 @@
   punctuation are separate tokens and gain spaces on decode. Combining marks
   are not letters and split from their base. Straight quotes appear in both
   punctuation sets, so they are ambiguous without an explicit space token.
-  Only text compatible with the rules above satisfies
-  `decode(encode(t).ids) === normalizeWordText(t)`.
+  The round trip `decode(encode(t).ids) === normalizeWordText(t)` holds only
+  when the normalized input already contains a space wherever `needsSpace`
+  would insert one. It fails when a closing mark is immediately followed by a
+  letter (`a,b`), a letter is immediately followed by an opening mark
+  (`a(b`), or a standalone joiner is adjacent to a word (`’tis`); each decodes
+  with an extra space.
 
 ## Notes
 

@@ -148,9 +148,13 @@ export function createWordTokenizer(info: TokenizerInfo, words: readonly string[
 	 *
 	 * Round-trip limits: digits, `/_@#`, emoji and unspaced neutral
 	 * punctuation are separate tokens and gain spaces on decode; combining
-	 * marks are not letters and also split. Only text that satisfies the
-	 * spacing rules above satisfies `decode(encode(t).ids) ===
-	 * normalizeWordText(t)`.
+	 * marks are not letters and also split. The round trip
+	 * `decode(encode(t).ids) === normalizeWordText(t)` holds only when the
+	 * normalized input already contains a space wherever {@link needsSpace}
+	 * would insert one. In particular it fails when a closing mark is
+	 * immediately followed by a letter (`a,b`), a letter is immediately
+	 * followed by an opening mark (`a(b`), or a standalone joiner is adjacent
+	 * to a word (`’tis`); all three decode with an extra space.
 	 */
 	function decode(ids: Int32Array): string {
 		let out = '';
