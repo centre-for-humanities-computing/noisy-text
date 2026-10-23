@@ -207,6 +207,11 @@ describe('createWordTokenizer', () => {
 		expect(() => createWordTokenizer(INFO, ['a', 'b', 'a'])).toThrow(/duplicate word "a"/);
 	});
 
+	it('rejects empty static words', () => {
+		expect(() => createWordTokenizer(INFO, [''])).toThrow(/word at index 0 must not be empty/);
+		expect(() => createWordTokenizer(INFO, ['a', ''])).toThrow(/word at index 1 must not be empty/);
+	});
+
 	it('assigns static ids and grows the effective size with distinct OOV tokens', () => {
 		const t = createWordTokenizer(INFO, ['hello', 'world']);
 		const staticOnly = t.encode('hello');

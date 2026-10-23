@@ -109,6 +109,9 @@ export function createWordTokenizer(info: TokenizerInfo, words: readonly string[
 	const staticIds = new Map<string, number>();
 	for (let i = 0; i < words.length; i++) {
 		const word = words[i]!;
+		if (word.length === 0) {
+			throw new Error(`createWordTokenizer: word at index ${i} must not be empty`);
+		}
 		if (staticIds.has(word)) {
 			throw new Error(`createWordTokenizer: duplicate word "${word}"`);
 		}
