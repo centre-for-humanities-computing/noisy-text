@@ -78,7 +78,8 @@ interface CachedBundle {
 /** Bundle shape stored in IndexedDB (structured-cloneable typed arrays). */
 const MATRIX_STORE = 'matrices';
 
-async function fetchBytes(url: string, onProgress?: ByteProgress): Promise<ArrayBuffer> {
+/** Fetch a URL, streaming progress when the server sends a content length. */
+export async function fetchBytes(url: string, onProgress?: ByteProgress): Promise<ArrayBuffer> {
 	const res = await fetch(url);
 	if (!res.ok) {
 		throw new Error(`Failed to fetch ${url}: HTTP ${res.status}`);
