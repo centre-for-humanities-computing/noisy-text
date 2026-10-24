@@ -256,12 +256,14 @@ describe('createWordTokenizer', () => {
 			['’tis', '’ tis'],
 			['a,b', 'a, b'],
 			['a(b', 'a (b'],
+			['-tis', '- tis'],
+			['word-', 'word -'],
 		] as const;
 		for (const [input, decoded] of cases) {
 			expect(t.decode(t.encode(input).ids)).toBe(decoded);
 			expect(t.decode(t.encode(input).ids)).not.toBe(normalizeWordText(input));
 		}
-		for (const text of ['a, b', 'word’', 'a ’ b', 'Don’t']) {
+		for (const text of ['a, b', 'word’', 'a ’ b', 'Don’t', "'tis", "word'"]) {
 			expect(t.decode(t.encode(text).ids), text).toBe(normalizeWordText(text));
 		}
 	});
