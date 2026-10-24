@@ -202,6 +202,9 @@ export function createWordTokenizer(info: TokenizerInfo, words: readonly string[
 		},
 		decode,
 		idsToTokens,
+		get oovTokens(): readonly string[] {
+			return oovTokens;
+		},
 	};
 }
 

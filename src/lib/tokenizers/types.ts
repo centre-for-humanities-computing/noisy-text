@@ -82,4 +82,11 @@ export interface Tokenizer {
 	 * exactly what the tokenizer emits (e.g. `Ġ`, `##ing`).
 	 */
 	idsToTokens(ids: Int32Array): readonly string[];
+
+	/**
+	 * Append-only per-input table of out-of-vocabulary tokens. Index `i` has
+	 * id `vocabSize + i`. Word-level tokenizers expose this; fixed-vocabulary
+	 * HF tokenizers leave it undefined.
+	 */
+	readonly oovTokens?: readonly string[];
 }

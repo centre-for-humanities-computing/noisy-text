@@ -1,5 +1,7 @@
 import type { Tokenizer, TokenizerInfo } from './types.js';
+import type { WordVocabProgress } from './word-vocab-loader.js';
 import { loadHfTokenizer } from './hf-tokenizer.js';
+import { loadWordTokenizer } from './word-vocab-loader.js';
 
 /** All known tokenizers, keyed by id. */
 export const TOKENIZERS: Record<string, TokenizerInfo> = {
@@ -27,12 +29,32 @@ export const TOKENIZERS: Record<string, TokenizerInfo> = {
 			text: 'WordPiece is a subword tokenizer that builds a vocabulary by greedily splitting words into pieces that maximise training-data likelihood. Word continuations are marked with ## (e.g. "playing" → "play" + "##ing"). BERT\'s vocabulary has 30,522 tokens and lowercases all input.',
 		},
 	},
+	words: {
+		id: 'words',
+		wordPiece: false,
+		label: 'Word vocabulary (50k)',
+		description: '50 000-word GloVe vocabulary; unknown tokens get per-input ids.',
+		plainName: 'Whole words',
+		gloss:
+			'Splits prose into whole words and gives each unknown word or character its own per-input token.',
+		tooltip: {
+			text: 'Uses a 50 000-word GloVe vocabulary. Words in the list keep a fixed id; unknown words and punctuation receive append-only ids for the current input, so the effective vocabulary grows with the text.',
+			math: '$K = 50{,}000$; $K_{\\text{eff}} = K + |\\text{OOV}|$; the mask sentinel is $K_{\\text{eff}}$.',
+		},
+	},
 } as const;
 
-/* Map tokenizer id → HuggingFace model id. */
-const MODEL_NAMES: Readonly<Record<keyof typeof TOKENIZERS, string>> = {
-	gpt2: 'Xenova/gpt2',
-	'bert-base-uncased': 'Xenova/bert-base-uncased',
+/** Loader signature shared by every tokenizer backend. */
+export type TokenizerLoader = (
+	info: TokenizerInfo,
+	onProgress?: (progress: WordVocabProgress) => void,
+) => Promise<Tokenizer>;
+
+/* Map tokenizer id → loader. */
+const LOADERS: Readonly<Record<string, TokenizerLoader>> = {
+	gpt2: (info) => loadHfTokenizer(info, 'Xenova/gpt2'),
+	'bert-base-uncased': (info) => loadHfTokenizer(info, 'Xenova/bert-base-uncased'),
+	words: loadWordTokenizer,
 };
 
 /**
@@ -42,7 +64,10 @@ const MODEL_NAMES: Readonly<Record<keyof typeof TOKENIZERS, string>> = {
  */
 const _cache = new Map<string, Tokenizer>();
 
-export async function loadTokenizer(id: string): Promise<Tokenizer> {
+export async function loadTokenizer(
+	id: string,
+	onProgress?: (progress: WordVocabProgress) => void,
+): Promise<Tokenizer> {
 	const hit = _cache.get(id);
 	if (hit) return hit;
 
@@ -51,12 +76,12 @@ export async function loadTokenizer(id: string): Promise<Tokenizer> {
 		throw new Error(`Unknown tokenizer "${id}". Known: ${Object.keys(TOKENIZERS).join(', ')}`);
 	}
 
-	const modelId = MODEL_NAMES[id as keyof typeof MODEL_NAMES];
-	if (!modelId) {
-		throw new Error(`No model mapping for tokenizer "${id}"`);
+	const loader = LOADERS[id];
+	if (!loader) {
+		throw new Error(`No loader mapping for tokenizer "${id}"`);
 	}
 
-	const tokenizer = await loadHfTokenizer(info, modelId);
+	const tokenizer = await loader(info, onProgress);
 	_cache.set(id, tokenizer);
 	return tokenizer;
 }

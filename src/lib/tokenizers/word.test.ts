@@ -231,6 +231,23 @@ describe('createWordTokenizer', () => {
 		expect(again.vocabSize).toBe(4);
 	});
 
+	it('exposes the append-only OOV table', () => {
+		const t = createWordTokenizer(INFO, ['hello', 'world']);
+		expect(t.oovTokens).toEqual([]);
+
+		const first = t.encode('hello there');
+		expect(t.oovTokens).toEqual([' ', 'there']);
+		expect(t.oovTokens?.length).toBe(first.vocabSize - t.vocabSize);
+
+		const again = t.encode('there hello');
+		expect(t.oovTokens).toEqual([' ', 'there']);
+		expect(again.vocabSize).toBe(first.vocabSize);
+
+		const third = t.encode('quux');
+		expect(t.oovTokens).toEqual([' ', 'there', 'quux']);
+		expect(t.oovTokens?.length).toBe(third.vocabSize - t.vocabSize);
+	});
+
 	it('returns an empty token and skips unknown ids', () => {
 		const t = createWordTokenizer(INFO, ['hello']);
 		expect(t.idsToTokens(Int32Array.from([99]))).toEqual(['']);
