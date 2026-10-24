@@ -256,6 +256,8 @@ describe('createWordTokenizer', () => {
 			['’tis', '’ tis'],
 			['a,b', 'a, b'],
 			['a(b', 'a (b'],
+			['’b', '’ b'],
+			['a“b', 'a “b'],
 			['-tis', '- tis'],
 			['word-', 'word -'],
 		] as const;
@@ -263,7 +265,18 @@ describe('createWordTokenizer', () => {
 			expect(t.decode(t.encode(input).ids)).toBe(decoded);
 			expect(t.decode(t.encode(input).ids)).not.toBe(normalizeWordText(input));
 		}
-		for (const text of ['a, b', 'word’', 'a ’ b', 'Don’t', "'tis", "word'", '"tis', 'a"']) {
+		for (const text of [
+			'a, b',
+			'word’',
+			'a ’ b',
+			'Don’t',
+			"'tis",
+			"word'",
+			'"tis',
+			'a"',
+			'a’b',
+			'a"b',
+		]) {
 			expect(t.decode(t.encode(text).ids), text).toBe(normalizeWordText(text));
 		}
 	});
