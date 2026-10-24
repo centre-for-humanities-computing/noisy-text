@@ -62,9 +62,10 @@
   punctuation sets, so they are ambiguous without an explicit space token.
   The round trip `decode(encode(t).ids) === normalizeWordText(t)` holds only
   when the normalized input already contains a space wherever `needsSpace`
-  would insert one. It fails when a closing mark other than a straight quote
-  is immediately followed by a letter (`a,b`) or a letter is immediately
-  followed by an opening mark other than a straight quote (`a(b`). Standalone
+  would insert one. It fails when a closing mark is immediately followed by a
+  letter, or a letter is immediately followed by an opening mark, unless the
+  mark is a straight quote (`a"b`) or the mark and letter form one word
+  (`a’b`). So `a,b`, `’b`, `a(b` and `a“b` fail. Standalone
   joiners depend on the character: `’` gains a space before a word (`’tis` →
   `’ tis`) and `-` gains a space on either side (`-tis` → `- tis`, `word-` →
   `word -`), while straight quotes (`'`, `"`) belong to both punctuation sets
