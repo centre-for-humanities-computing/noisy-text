@@ -77,7 +77,7 @@
 		if (!traj) return '';
 		const tok = tokenizerStore.tokenizer;
 		if (!tok) return '';
-		const config = activeStrategyConfig(tok.vocabSize);
+		const config = activeStrategyConfig(trajectoryStore.vocabSize);
 		return [
 			tokenizerStore.currentId,
 			strategyStore.currentId,
@@ -101,8 +101,8 @@
 		const req = {
 			tokenizerId: tokenizerStore.currentId,
 			strategyId: strategyStore.currentId,
-			strategyConfig: activeStrategyConfig(tok.vocabSize),
-			vocabSize: tok.vocabSize,
+			strategyConfig: activeStrategyConfig(trajectoryStore.vocabSize),
+			vocabSize: trajectoryStore.vocabSize,
 			rows: traj.rows,
 			T: traj.T,
 			L: traj.length,
@@ -155,11 +155,22 @@
 
 	const encoded = $derived.by(() => {
 		const t = tokenizerStore.tokenizer;
-		if (!t || text.length === 0) return { ids: new Int32Array(0), tokens: [] as readonly string[] };
-		const { ids } = t.encode(text);
+		if (!t || text.length === 0)
+			return { ids: new Int32Array(0), tokens: [] as readonly string[], vocabSize: 0 };
+		const { ids, vocabSize } = t.encode(text);
 		const tokens = t.idsToTokens(ids);
-		return { ids, tokens };
+		return { ids, tokens, vocabSize };
 	});
+
+	/**
+	 * Mask sentinel for the tokens currently displayed: the displayed
+	 * trajectory's own $K_{\text{eff}}$, or the encoded input's when no
+	 * trajectory is shown yet. An older trajectory keeps its own sentinel
+	 * while a replacement is computing.
+	 */
+	const displayVocabSize = $derived(
+		trajectoryStore.trajectory ? trajectoryStore.vocabSize : encoded.vocabSize,
+	);
 
 	// Tokens to display: trajectory at current $t$ if ready, otherwise encoded input.
 	// Sentinel mask ids (=== vocabSize) are replaced with the literal "[MASK]" label
@@ -170,7 +181,7 @@
 		if (!tok) return { ids: new Int32Array(0), tokens: [] as readonly string[] };
 		if (traj && traj.length > 0) {
 			const ids = traj.tokensAt(trajectoryStore.t);
-			return _renderTokens(ids, tok);
+			return _renderTokens(ids, tok, displayVocabSize);
 		}
 		return encoded;
 	});
@@ -184,8 +195,9 @@
 	function _renderTokens(
 		ids: Int32Array,
 		tok: import('$lib/tokenizers/types.js').Tokenizer,
+		vocabSize: number,
 	): { ids: Int32Array; tokens: readonly string[] } {
-		const maskTokenId = tok.vocabSize;
+		const maskTokenId = vocabSize;
 		// Build a copy with mask positions replaced by 0 (a safe real id).
 		const safe = new Int32Array(ids.length);
 		for (let i = 0; i < ids.length; i++) {
@@ -210,7 +222,7 @@
 	const decodedText = $derived.by(() => {
 		const tok = tokenizerStore.tokenizer;
 		if (!tok || displayTokens.ids.length === 0) return '';
-		const maskTokenId = tok.vocabSize;
+		const maskTokenId = displayVocabSize;
 		const filtered = new Int32Array(displayTokens.ids.filter((id) => id !== maskTokenId));
 		if (filtered.length === 0) return '';
 		return tok.decode(filtered);
@@ -220,7 +232,7 @@
 	const tokenSpans = $derived.by(() => {
 		const tok = tokenizerStore.tokenizer;
 		if (!tok || displayTokens.ids.length === 0) return [];
-		const maskTokenId = tok.vocabSize;
+		const maskTokenId = displayVocabSize;
 		return allTokenCharSpans(
 			displayTokens.ids,
 			tokenRecency,
@@ -276,8 +288,8 @@
 			.queryNeighbors({
 				tokenizerId: tokenizerStore.currentId,
 				strategyId: strategyStore.currentId,
-				strategyConfig: activeStrategyConfig(tok.vocabSize),
-				vocabSize: tok.vocabSize,
+				strategyConfig: activeStrategyConfig(trajectoryStore.vocabSize),
+				vocabSize: trajectoryStore.vocabSize,
 				column,
 				betas,
 				limitMode: inspectionStore.limitMode,
@@ -335,14 +347,21 @@
 
 	const statusText = $derived.by(() => {
 		const s = tokenizerStore.status;
-		if (s === 'loading') return 'Loading tokenizer…';
+		if (s === 'loading') {
+			const progress = tokenizerStore.progress;
+			return progress !== null
+				? `Loading tokenizer… ${Math.round(progress * 100)}%`
+				: 'Loading tokenizer…';
+		}
 		if (s === 'error') return `Error: ${tokenizerStore.error ?? 'unknown'}`;
 		if (s === 'ready' && tokenizerStore.tokenizer) {
 			const t = tokenizerStore.tokenizer;
 			const info = strategyStore.info;
 			const strategyLabel = info ? ` · Strategy: ${info.label}` : '';
 			const changedPart = changedCount !== null ? ` · ${changedCount} changed this step` : '';
-			return `${t.info.label} · Vocab: ${t.vocabSize.toLocaleString()} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}${changedPart}`;
+			const oovPart =
+				encoded.vocabSize > t.vocabSize ? ` (+${encoded.vocabSize - t.vocabSize} OOV)` : '';
+			return `${t.info.label} · Vocab: ${encoded.vocabSize.toLocaleString()}${oovPart} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}${changedPart}`;
 		}
 		return 'Select a tokenizer';
 	});
@@ -354,7 +373,7 @@
 	$effect(() => {
 		const t = tokenizerStore.tokenizer;
 		if (t) {
-			strategyStore.selectStrategy(strategyStore.currentId, t.vocabSize);
+			strategyStore.selectStrategy(strategyStore.currentId, encoded.vocabSize);
 		}
 	});
 
@@ -375,11 +394,11 @@
 		const spec = {
 			inputIds: ids,
 			strategyId: strategyStore.currentId,
-			strategyConfig: activeStrategyConfig(tok.vocabSize),
+			strategyConfig: activeStrategyConfig(encoded.vocabSize),
 			scheduleId: scheduleStore.currentId,
 			scheduleConfig: scheduleStore.config,
 			T: scheduleStore.T,
-			vocabSize: tok.vocabSize,
+			vocabSize: encoded.vocabSize,
 			seed: trajectoryStore.seed,
 			tokenizerId: tokenizerStore.currentId,
 		};
@@ -435,8 +454,7 @@
 					value={strategyStore.currentId}
 					options={strategyOptions}
 					disabled={tokenizerStore.status !== 'ready'}
-					onchange={(id) =>
-						strategyStore.selectStrategy(id, tokenizerStore.tokenizer?.vocabSize ?? 0)}
+					onchange={(id) => strategyStore.selectStrategy(id, encoded.vocabSize)}
 				/>
 				{#if strategyCaption}
 					<p class="caption">{strategyCaption}</p>
@@ -577,8 +595,7 @@
 				value={strategyStore.currentId}
 				options={strategyOptions}
 				disabled={tokenizerStore.status !== 'ready'}
-				onchange={(id) =>
-					strategyStore.selectStrategy(id, tokenizerStore.tokenizer?.vocabSize ?? 0)}
+				onchange={(id) => strategyStore.selectStrategy(id, encoded.vocabSize)}
 			/>
 			{#if strategyStore.currentId === 'embedding-knn'}
 				<EmbeddingSourcePicker
@@ -692,7 +709,7 @@
 						// fall back to uniform so the picker never shows a value
 						// with no visible card.
 						if (!v && strategyStore.info?.hidden) {
-							strategyStore.selectStrategy('uniform', tokenizerStore.tokenizer?.vocabSize ?? 0);
+							strategyStore.selectStrategy('uniform', encoded.vocabSize);
 						}
 					}}
 					onlimitmodechange={(m) => (inspectionStore.limitMode = m)}
