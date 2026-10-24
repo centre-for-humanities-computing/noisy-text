@@ -28,9 +28,10 @@ export async function loadHfTokenizer(info: TokenizerInfo, modelId: string): Pro
 		info,
 		vocabSize,
 
-		encode(text: string): Int32Array {
+		encode(text: string) {
 			const encoded = hf.encode(text, { add_special_tokens: false });
-			return Int32Array.from(encoded);
+			// Fixed vocabulary: the effective size equals the static size.
+			return { ids: Int32Array.from(encoded), vocabSize };
 		},
 
 		decode(ids: Int32Array): string {

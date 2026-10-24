@@ -156,7 +156,7 @@
 	const encoded = $derived.by(() => {
 		const t = tokenizerStore.tokenizer;
 		if (!t || text.length === 0) return { ids: new Int32Array(0), tokens: [] as readonly string[] };
-		const ids = t.encode(text);
+		const { ids } = t.encode(text);
 		const tokens = t.idsToTokens(ids);
 		return { ids, tokens };
 	});
