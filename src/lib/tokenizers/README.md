@@ -63,10 +63,13 @@
   The round trip `decode(encode(t).ids) === normalizeWordText(t)` holds only
   when the normalized input already contains a space wherever `needsSpace`
   would insert one. It fails when a closing mark is immediately followed by a
-  letter (`a,b`), a letter is immediately followed by an opening mark
-  (`a(b`), or a standalone joiner begins a word (`’tis` → `’ tis`); each
-  decodes with an extra space. A trailing standalone joiner (`word’`), a
-  spaced one (`a ’ b`) and an internal one (`Don’t`) round-trip.
+  letter (`a,b`) or a letter is immediately followed by an opening mark
+  (`a(b`). Standalone joiners depend on the character: `’` gains a space
+  before a word (`’tis` → `’ tis`) and `-` gains a space on either side
+  (`-tis` → `- tis`, `word-` → `word -`), while `'` belongs to both
+  punctuation sets and round-trips against a word (`'tis`, `word'`). A
+  standalone `’` after a word (`word’`), a spaced joiner (`a ’ b`) and an
+  internal one (`Don’t`) round-trip.
 
 ## Notes
 
