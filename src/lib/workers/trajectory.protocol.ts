@@ -42,6 +42,8 @@ export interface TrajectoryWorkerNeighborsRequest {
 	strategyConfig: Record<string, unknown>;
 	/** Vocabulary size $K$ (needed to instantiate the strategy). */
 	vocabSize: number;
+	/** Append-only OOV table: index `i` has id `Tokenizer.vocabSize + i`. */
+	oovTokens?: readonly string[];
 	/** The hovered token's trajectory column: $x_0, x_1, \ldots, x_t$. */
 	column: Int32Array;
 	/** Schedule $\beta$ values: $\beta_0, \ldots, \beta_{t-1}$ (length = column.length - 1). */
@@ -78,6 +80,8 @@ export interface TrajectoryWorkerUnionGraphRequest {
 	strategyConfig: Record<string, unknown>;
 	/** Vocabulary size $K$; the mask sentinel id is also $K$. */
 	vocabSize: number;
+	/** Append-only OOV table: index `i` has id `Tokenizer.vocabSize + i`. */
+	oovTokens?: readonly string[];
 	/** Full trajectory rows, row-major $(T+1) \times L$ (transferred). */
 	rows: Int32Array;
 	/** Number of noise steps $T$. */

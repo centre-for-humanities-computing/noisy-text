@@ -154,6 +154,8 @@ class TrajectoryStore {
 		strategyId: string;
 		strategyConfig: Record<string, unknown>;
 		vocabSize: number;
+		/** Append-only OOV table: index `i` has id `Tokenizer.vocabSize + i`. */
+		oovTokens?: readonly string[];
 		column: Int32Array;
 		betas: Float32Array;
 		limitMode: 'top-k' | 'top-p';

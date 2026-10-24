@@ -49,6 +49,7 @@ import type { NeighborGraphParams } from '../strategies/neighbor-graph.js';
 import { buildUnionGraph } from '../engine/union-graph.js';
 import { computeForceLayoutLarge } from '../engine/force-layout.js';
 import type { TrajectoryWorkerUnionGraphRequest, UnionGraph } from './trajectory.protocol.js';
+import { tokenLabel } from './token-label.js';
 import {
 	getEmbeddingSource,
 	loadEmbedding,
@@ -508,7 +509,7 @@ async function handleNeighbors(
 			column,
 			betas,
 			{ limitMode, k, p },
-			(id) => tok.idsToTokens(new Int32Array([id]))[0] ?? `#${id}`,
+			(id) => tokenLabel(tok, id, vocabSize, msg.oovTokens),
 		);
 
 		const response: TrajectoryWorkerResponse = {
@@ -616,8 +617,7 @@ async function handleUnionGraph(msg: TrajectoryWorkerUnionGraphRequest): Promise
 
 		const tok = await loadTokenizer(tokenizerId);
 		if (isStale()) return;
-		const labelOf = (id: number): string =>
-			id === vocabSize ? '[MASK]' : (tok.idsToTokens(new Int32Array([id]))[0] ?? `#${id}`);
+		const labelOf = (id: number): string => tokenLabel(tok, id, vocabSize, msg.oovTokens);
 
 		postProgress('neighbors', 0, 1);
 		const built = await buildUnionGraph({
