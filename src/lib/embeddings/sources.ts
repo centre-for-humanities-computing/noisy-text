@@ -39,6 +39,22 @@ export const EMBEDDING_SOURCES: Record<EmbeddingSourceId, EmbeddingSourceInfo> =
 		vocabSize: 50257,
 		fileName: 'gpt2',
 	},
+	'glove-840b-300d': {
+		id: 'glove-840b-300d',
+		label: 'GloVe 840B (300d)',
+		plainName: 'GloVe words',
+		description: 'GloVe 840B 300d static word vectors aligned to the 50k word vocabulary.',
+		gloss: 'Word meaning from GloVe vectors; pairs with the word tokenizer.',
+		tooltip: {
+			text:
+				'GloVe 840B 300d static word vectors, row-for-row aligned with the 50k whole-word vocabulary ' +
+				'(one row per static word id). Pairs with the word tokenizer.',
+		},
+		tokenizerId: 'words',
+		dim: 300,
+		vocabSize: 50_000,
+		fileName: 'glove-840b-300d',
+	},
 };
 
 /**
