@@ -9,7 +9,10 @@
    `wordPiece` flag — `true` when a continuation piece's isolated decode
    carries a `##` prefix that the whole-sequence decode drops after the
    first token (e.g. WordPiece), `false` otherwise (e.g. BPE).
-3. Add the `id → modelId` mapping to `MODEL_NAMES` in `registry.ts`.
+3. Add the tokenizer's loader to the `LOADERS` map in `registry.ts`
+   (`id → loader`). HuggingFace tokenizers wrap
+   `loadHfTokenizer(info, modelId)`; the hosted word tokenizer uses
+   `loadWordTokenizer`.
 4. If the tokenizer needs special handling (non-standard vocab-size
    lookup, custom encode/decode options), extend `hf-tokenizer.ts` with
    a branch keyed on `info.id`. Prefer keeping the adapter generic.
@@ -18,15 +21,17 @@
 
 ## Current tokenizers
 
-| id                  | model                      | algorithm |
-| ------------------- | -------------------------- | --------- |
-| `gpt2`              | `Xenova/gpt2`              | BPE       |
-| `bert-base-uncased` | `Xenova/bert-base-uncased` | WordPiece |
+| id                  | model                      | algorithm  |
+| ------------------- | -------------------------- | ---------- |
+| `gpt2`              | `Xenova/gpt2`              | BPE        |
+| `bert-base-uncased` | `Xenova/bert-base-uncased` | WordPiece  |
+| `words`             | hosted GloVe 50k           | word-level |
 
-## Word tokenizer (not yet registered)
+## Word tokenizer
 
-`word.ts` and `word-vocab.ts` implement a pure word-level core. It is not in
-`registry.ts` yet, so the picker and the app's loading path are unchanged.
+`word.ts` and `word-vocab.ts` implement a pure word-level core. The `words`
+entry in `registry.ts` wraps it with `loadWordTokenizer`, which fetches the
+hosted 50 000-word GloVe vocabulary and caches the parsed list in IndexedDB.
 
 - **Static ids.** `createWordTokenizer(info, words)` gives word `i` the static
   id $i$, so $K = \text{words.length}$ and static ids are $0 \ldots K-1$.
@@ -72,6 +77,20 @@
   and round-trip against a word (`'tis`, `word'`, `"tis`, `a"`). A standalone
   `’` after a word (`word’`), a spaced joiner (`a ’ b`) and an internal one
   (`Don’t`) round-trip.
+
+### Hosting the word vocabulary
+
+1. Download
+   `https://huggingface.co/stanfordnlp/glove/resolve/main/glove.840B.300d.zip`
+   and unzip `glove.840B.300d.txt`.
+2. Run `python3 scripts/export_word_vocab.py --source glove.840B.300d.txt`.
+   It writes `word-vocab-50k.json` (50 000 words, ranked by frequency) and
+   uploads it to `chcaa/noisy-text-embeddings` unless `--no-upload` is passed;
+   in that case upload it with `hf upload`.
+3. Copy the printed sha into `HF_DATASET_REVISION` in
+   `src/lib/embeddings/loader.ts:30` (or set `VITE_WORD_VOCAB_BASE_URL` to a
+   different base). Bumping the shared revision also invalidates the
+   embedding-matrix caches.
 
 ## Notes
 

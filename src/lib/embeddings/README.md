@@ -59,6 +59,8 @@ DB `noisy-text-embeddings`:
 - `rows`, key
   `<source>|<preprocess>|<metric>|<m>@<tag>|<token>` — memoized
   top-$M$ tables `{ ids: Int32Array, dists: Float32Array }`.
+- `vocab`, key `<word-vocab URL>` — parsed word-vocabulary lists
+  (`src/lib/tokenizers/word-vocab-loader.ts`).
 
 `EMBEDDING_CACHE_TAG` is an 8-hex FNV-1a hash of `EMBEDDING_BASE_URL`
 (exported from `loader.ts`). Cache invalidation is structural: the keys
@@ -69,8 +71,8 @@ harmlessly).
 ## Hosting
 
 Bundles are hosted on the HF dataset repo `chcaa/noisy-text-embeddings`
-(flat layout, 8 files: two sources × four files above). Artefacts
-download from
+(flat layout, 8 embedding files: two sources × four files above, plus
+`word-vocab-50k.json`). Artefacts download from
 
 ```
 https://huggingface.co/datasets/chcaa/noisy-text-embeddings/resolve/<revision>/<file>
@@ -80,6 +82,11 @@ The default `EMBEDDING_BASE_URL` pins an immutable commit sha in
 `loader.ts` (`HF_DATASET_REVISION`); the `resolve` endpoint serves it
 with CORS + `Content-Length`. `VITE_EMBEDDING_BASE_URL` overrides the
 default at build time (no trailing slash).
+
+The word tokenizer fetches `word-vocab-50k.json` from the same repo;
+`VITE_WORD_VOCAB_BASE_URL` overrides `EMBEDDING_BASE_URL`. Bumping
+`HF_DATASET_REVISION` invalidates both the embedding-matrix and
+word-vocabulary caches.
 
 ## Re-export runbook
 

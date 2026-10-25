@@ -61,14 +61,17 @@ strategy exposes only `sampleStep(token, beta, rng) -> token` and, optionally,
 - `Trajectory`: the cached sequence of token arrays $x_0, x_1, \ldots, x_T$
   for a given (input, strategy, schedule, seed).
 - `Tokenizer`: encode / decode / vocab size, with a uniform interface across
-  backends.
+  backends. The hosted word tokenizer keeps a static vocabulary $K$ and
+  appends per-input OOV ids, so consumers use
+  $K_{\text{eff}} = K + |\text{OOV}|$ (the mask sentinel is $K_{\text{eff}}$).
 
 Strategies and schedules are kept orthogonal — any strategy can be paired with
 any schedule.
 
 ## Features the user cares about
 
-- Multiple selectable tokenizers (GPT-2 BPE, BERT WordPiece).
+- Multiple selectable tokenizers (GPT-2 BPE, BERT WordPiece, hosted GloVe
+  word vocabulary).
 - Strategies: uniform, absorbing (mask), lexical (edit distance), char-overlap
   (Jaccard), plus identity behind a debug toggle. Semantic noise is future work.
 - Schedules: linear, cosine, constant. Mutual-information-based is future work.
