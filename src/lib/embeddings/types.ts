@@ -56,6 +56,12 @@ export interface EmbeddingMeta {
 	dtype: 'int8';
 	quant: 'per-row-symmetric';
 	nPcs: number;
+	/**
+	 * Lowercase SHA-256 hex of the ordered vocabulary words joined by
+	 * `\n` and UTF-8 encoded. Present only for word-vocabulary sources;
+	 * the worker verifies it against the active tokenizer vocabulary.
+	 */
+	vocabSha?: string;
 }
 
 /**

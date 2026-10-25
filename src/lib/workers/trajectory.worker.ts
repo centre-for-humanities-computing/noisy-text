@@ -38,6 +38,7 @@ import type { CharOverlapMode } from '../strategies/char-overlap-model.js';
 import type { DistanceModel } from '../strategies/distance-model.js';
 import type { WeightFamilyId } from '../strategies/weight-family.js';
 import { NeighborhoodProvider } from '../strategies/neighborhood.js';
+import { verifyVocabSha } from '../embeddings/vocab-sha.js';
 import type { Tokenizer } from '../tokenizers/types.js';
 import type {
 	TrajectoryWorkerRequest,
@@ -189,6 +190,7 @@ async function ensureEmbeddingProvider(
 			`Embedding vocab mismatch for "${sourceId}": matrix has ${matrix.vocabSize} rows, tokenizer has ${strings.length}.`,
 		);
 	}
+	await verifyVocabSha(meta, strings);
 	const classes = classifyTokens(strings, tokenizerId);
 	const predicate = buildTokenPredicate(classes, cfg);
 	// Store the top-$M$ (M = NEIGHBOR_STORE_LIMIT); read-time filtering
