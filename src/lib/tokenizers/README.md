@@ -84,9 +84,9 @@ hosted 50 000-word GloVe vocabulary and caches the parsed list in IndexedDB.
    `https://huggingface.co/stanfordnlp/glove/resolve/main/glove.840B.300d.zip`
    and unzip `glove.840B.300d.txt`.
 2. Run `python3 scripts/export_word_vocab.py --source glove.840B.300d.txt`.
-   It writes `word-vocab-50k.json` (50 000 words, ranked by frequency) and
-   uploads it to `chcaa/noisy-text-embeddings` unless `--no-upload` is passed;
-   in that case upload it with `hf upload`.
+   It writes `dist/word-vocab-50k.json` (50 000 words, ranked by frequency;
+   `--out` overrides) and uploads it to `chcaa/noisy-text-embeddings` unless
+   `--no-upload` is passed; in that case upload it with `hf upload`.
 3. Copy the printed sha into `HF_DATASET_REVISION` in
    `src/lib/embeddings/loader.ts:30` (or set `VITE_WORD_VOCAB_BASE_URL` to a
    different base). Bumping the shared revision also invalidates the
