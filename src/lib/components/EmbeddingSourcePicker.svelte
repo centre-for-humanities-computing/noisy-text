@@ -25,5 +25,6 @@
 	{disabled}
 	variant="quiet"
 	ariaLabel="Embedding source"
+	testIdPrefix="embedding-source"
 	onchange={(id) => onchange(id as EmbeddingSourceId)}
 />
