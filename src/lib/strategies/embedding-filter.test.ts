@@ -25,6 +25,24 @@ describe('classifyTokens', () => {
 		expect(masks[2]! & TOKEN_FLAG.UNUSED).toBeTruthy();
 		expect(masks[3]! & TOKEN_FLAG.SPECIAL).toBeTruthy();
 	});
+
+	it('classifies every non-special word-vocabulary token as word-initial', () => {
+		// `##x` is a legal whole word here, not a BERT continuation.
+		const masks = classifyTokens(['the', 'cat', '##x'], 'words');
+		for (const mask of masks) {
+			expect(mask & TOKEN_FLAG.WORD_INITIAL).toBeTruthy();
+			expect(mask & TOKEN_FLAG.CONTINUATION).toBeFalsy();
+		}
+	});
+
+	it('keeps unused/byte-fallback/special bits for the word tokenizer', () => {
+		const masks = classifyTokens(['', 'unused1', '<0x4F>', '[CLS]'], 'words');
+		expect(masks[0]! & TOKEN_FLAG.SPECIAL).toBeFalsy();
+		expect(masks[0]! & TOKEN_FLAG.CONTINUATION).toBeFalsy();
+		expect(masks[1]! & TOKEN_FLAG.UNUSED).toBeTruthy();
+		expect(masks[2]! & TOKEN_FLAG.BYTE_FALLBACK).toBeTruthy();
+		expect(masks[3]! & TOKEN_FLAG.SPECIAL).toBeTruthy();
+	});
 });
 
 describe('buildTokenPredicate', () => {
@@ -60,6 +78,16 @@ describe('buildTokenPredicate', () => {
 		// Byte-fallback token is neither word-initial nor continuation.
 		expect(wi(2)).toBe(false);
 		expect(cont(2)).toBe(false);
+	});
+
+	it('word-initial accepts every plain word-vocabulary token', () => {
+		const wordClasses = classifyTokens(
+			['the', 'cat', '##x', 'unused1', '<0x4F>', '[CLS]'],
+			'words',
+		);
+		const wi = buildTokenPredicate(wordClasses, { ...base, tokenClass: 'word-initial' });
+		expect([wi(0), wi(1), wi(2)]).toEqual([true, true, true]);
+		expect([wi(3), wi(4), wi(5)]).toEqual([false, false, false]);
 	});
 });
 
