@@ -65,6 +65,10 @@ strategy exposes only `sampleStep(token, beta, rng) -> token` and, optionally,
   appends OOV ids to a per-instance, append-only table in first-seen order, so
   consumers use $K_{\text{eff}} = K + |\text{OOV table}|$ (the mask sentinel is
   $K_{\text{eff}}$).
+- `EmbeddingSource`: a quantized token-embedding matrix paired with one
+  tokenizer. Sources are `bert-base-uncased` and `gpt2` (LM token ids) plus
+  `glove-840b-300d`, whose rows follow the hosted 50k word-vocabulary order;
+  ids beyond that vocabulary have no row and degrade to the uniform floor.
 
 Strategies and schedules are kept orthogonal — any strategy can be paired with
 any schedule.
