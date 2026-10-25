@@ -120,14 +120,16 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("--limit must be positive")
 
     words = read_words(args.source, args.limit)
-    first_twenty = {word.lower() for word in words[:20]}
-    found = first_twenty & COMMON_WORDS
-    if len(found) < 5:
-        print(
-            f"warning: the first 20 words contain only {len(found)} of "
-            f"{sorted(COMMON_WORDS)}; is --source really a GloVe .txt file?",
-            file=sys.stderr,
-        )
+    if len(words) >= 20:
+        first_twenty = {word.lower() for word in words[:20]}
+        missing = sorted(COMMON_WORDS - first_twenty)
+        if len(missing) > len(COMMON_WORDS) - 5:
+            print(
+                f"warning: the first 20 words are missing {len(missing)} of "
+                f"{len(COMMON_WORDS)} common probes: {missing}; "
+                "is --source really a GloVe .txt file?",
+                file=sys.stderr,
+            )
 
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as handle:
