@@ -91,6 +91,30 @@ describe('loadWordTokenizer', () => {
 		);
 	});
 
+	it('keeps tokenizer-construction errors out of the URL prefix', async () => {
+		vi.stubEnv('VITE_WORD_VOCAB_BASE_URL', BASE);
+		stubFetch(body());
+		vi.resetModules();
+		// An empty word list passes parsing but makes the tokenizer constructor
+		// throw, which must not be reported as an asset failure.
+		vi.doMock('./word-vocab.js', () => ({ parseWordVocab: () => [] }));
+		const { loadWordTokenizer: load } = await import('./word-vocab-loader.js');
+
+		let caught: unknown;
+		try {
+			await load(INFO);
+		} catch (error) {
+			caught = error;
+		} finally {
+			vi.doUnmock('./word-vocab.js');
+		}
+
+		expect(caught).toBeInstanceOf(Error);
+		const message = (caught as Error).message;
+		expect(message).toContain('vocabulary must not be empty');
+		expect(message).not.toContain(BASE);
+	});
+
 	it('rejects an invalid vocabulary with a URL-prefixed error', async () => {
 		vi.stubEnv('VITE_WORD_VOCAB_BASE_URL', BASE);
 		stubFetch(JSON.stringify({ version: 1 }));

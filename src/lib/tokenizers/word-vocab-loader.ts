@@ -36,7 +36,8 @@ function wordVocabUrl(): string {
  * A URL-keyed IndexedDB hit skips the fetch. On a miss the file is streamed
  * with byte progress, validated by {@link parseWordVocab}, cached, and wrapped
  * by {@link createWordTokenizer}. Fetch/parse failures are prefixed with the
- * URL so the tokenizer store's error path identifies the asset.
+ * URL so the tokenizer store's error path identifies the asset; tokenizer
+ * construction errors are not, because they are not about the asset.
  */
 export async function loadWordTokenizer(
 	info: TokenizerInfo,
@@ -50,6 +51,7 @@ export async function loadWordTokenizer(
 		return createWordTokenizer(info, cached);
 	}
 
+	let words: readonly string[];
 	try {
 		let reported = false;
 		const bytes = await fetchBytes(url, (loaded, total) => {
@@ -61,11 +63,11 @@ export async function loadWordTokenizer(
 		if (!reported) onProgress?.({ loaded: bytes.byteLength, total: null, fraction: null });
 
 		const parsed = JSON.parse(new TextDecoder().decode(bytes)) as unknown;
-		const words = parseWordVocab(parsed);
+		words = parseWordVocab(parsed);
 		void idbPut(VOCAB_STORE, url, words);
-		return createWordTokenizer(info, words);
 	} catch (error: unknown) {
 		const message = error instanceof Error ? error.message : String(error);
 		throw new Error(`Failed to load word vocabulary from ${url}: ${message}`, { cause: error });
 	}
+	return createWordTokenizer(info, words);
 }
