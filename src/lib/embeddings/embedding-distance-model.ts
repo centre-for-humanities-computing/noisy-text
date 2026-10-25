@@ -41,6 +41,9 @@ export class EmbeddingDistanceModel implements DistanceModel {
 	 * `radius` is ignored (kNN semantics; see the class doc).
 	 */
 	*candidates(token: number, _radius: number): Iterable<number> {
+		// Ids outside the matrix (per-input OOV words) have no row: no
+		// neighbours, so the kernel falls back to the uniform floor.
+		if (token < 0 || token >= this.K) return;
 		const { ids } = this._index.topM(token);
 		for (let i = 0; i < ids.length; i++) {
 			const j = ids[i]!;

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
+import seedrandom from 'seedrandom';
 import { EmbeddingKnnIndex } from './knn-index.js';
+import { dequantizeRow } from './quantized-matrix.js';
+import { metricDistance } from './metric.js';
 import type { QuantizedMatrix, TransformBundle } from './types.js';
 
 /**
@@ -184,6 +187,67 @@ describe('EmbeddingKnnIndex.precomputeRows', () => {
 		expect(computed).toBe(0);
 		expect(cache.puts).toBe(3);
 		expect(second.topM(7).ids.length).toBe(4);
+	});
+});
+
+describe('ids without a row', () => {
+	const K = 24;
+	const d = 4;
+
+	it('returns an empty, memoized table for a seeded sweep of OOV ids', () => {
+		const index = new EmbeddingKnnIndex(lineMatrix(K, d), emptyTransform(d), 'none', 'l2', 5);
+		const prng = seedrandom.alea('oov-sweep' + '\0');
+		for (let n = 0; n < 200; n++) {
+			const token = K + Math.floor(prng() * 1000);
+			const first = index.topM(token);
+			expect(first.ids.length).toBe(0);
+			expect(first.dists.length).toBe(0);
+			// Memoized: the same table (not a fresh empty one) on every lookup.
+			expect(index.topM(token)).toBe(first);
+		}
+	});
+
+	it('treats a non-integer or negative id as having no row', () => {
+		const index = new EmbeddingKnnIndex(lineMatrix(K, d), emptyTransform(d), 'none', 'l2', 5);
+		for (const token of [-1, -5, 1.5, Number.NaN]) {
+			expect(index.topM(token).ids.length).toBe(0);
+		}
+	});
+
+	it('returns Infinity (never NaN) for out-of-range distance queries', () => {
+		const index = new EmbeddingKnnIndex(lineMatrix(K, d), emptyTransform(d), 'none', 'l2', 5);
+		expect(index.distance(K, 3)).toBe(Number.POSITIVE_INFINITY);
+		expect(index.distance(3, K)).toBe(Number.POSITIVE_INFINITY);
+		expect(Number.isNaN(index.distance(K, K + 1))).toBe(false);
+	});
+
+	it('matches a naive brute-force scan for in-range ids (seeded differential)', () => {
+		const K = 24;
+		const d = 4;
+		const prng = seedrandom.alea('knn-differential-rows' + '\0');
+		const codes = new Int8Array(K * d);
+		for (let i = 0; i < codes.length; i++) codes[i] = Math.floor(prng() * 256) - 128;
+		const scales = new Float32Array(K);
+		for (let i = 0; i < K; i++) scales[i] = 0.001 + prng() * 0.02;
+		const matrix: QuantizedMatrix = { codes, scales, vocabSize: K, dim: d };
+
+		const rows: Float32Array[] = [];
+		for (let i = 0; i < K; i++) rows.push(dequantizeRow(matrix, i, new Float32Array(d)));
+
+		const m = 5;
+		const index = new EmbeddingKnnIndex(matrix, emptyTransform(d), 'none', 'l2', m);
+		const idPrng = seedrandom.alea('knn-differential-ids' + '\0');
+		for (let n = 0; n < 100; n++) {
+			const token = Math.floor(idPrng() * K);
+			const ref = rows
+				.map((row, j) => ({ j, dist: metricDistance(rows[token]!, row, 'l2') }))
+				.filter((e) => e.j !== token)
+				.sort((a, b) => a.dist - b.dist)
+				.slice(0, m);
+			const got = index.topM(token);
+			expect(Array.from(got.ids)).toEqual(ref.map((e) => e.j));
+			for (let i = 0; i < m; i++) expect(got.dists[i]!).toBeCloseTo(ref[i]!.dist, 4);
+		}
 	});
 });
 
