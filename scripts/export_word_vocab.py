@@ -12,7 +12,8 @@ Processing stops at ``--limit`` words. The emitted JSON has the shape parsed by
 
 Unless ``--no-upload`` is passed, the file is uploaded to the HF dataset that
 also hosts the embedding bundles. Nothing here runs in CI and no generated
-vocabulary is committed.
+vocabulary is committed: the default output is the gitignored
+``dist/word-vocab-50k.json``.
 
 Usage:
     python3 scripts/export_word_vocab.py --source glove.840B.300d.txt
@@ -28,6 +29,7 @@ import argparse
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Iterator
 
 # Characters allowed between letters in a kept word.
@@ -103,7 +105,11 @@ def upload(path: str, repo: str, revision: str | None) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", default="glove.840B.300d.txt")
-    parser.add_argument("--out", default="word-vocab-50k.json")
+    parser.add_argument(
+        "--out",
+        default="dist/word-vocab-50k.json",
+        help="output JSON path (default: %(default)s, gitignored)",
+    )
     parser.add_argument("--limit", type=int, default=50000)
     parser.add_argument("--repo", default="chcaa/noisy-text-embeddings")
     parser.add_argument("--revision", default=None)
@@ -123,6 +129,7 @@ def main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
 
+    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
     with open(args.out, "w", encoding="utf-8") as handle:
         json.dump(build_payload(words), handle, ensure_ascii=False, separators=(",", ":"))
     print(f"wrote {len(words)} words to {args.out}")
