@@ -12,7 +12,7 @@ import type { Tokenizer } from '../tokenizers/types.js';
  * @param id - Token id to label.
  * @param vocabSize - Effective vocabulary size $K_{\text{eff}}$; the mask
  *   sentinel is `vocabSize`.
- * @param oovTokens - Append-only per-input OOV table; index $i$ has id
+ * @param oovTokens - Append-only per-instance OOV table; index $i$ has id
  *   `tok.vocabSize + i`.
  */
 export function tokenLabel(

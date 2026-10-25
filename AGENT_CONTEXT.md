@@ -62,8 +62,9 @@ strategy exposes only `sampleStep(token, beta, rng) -> token` and, optionally,
   for a given (input, strategy, schedule, seed).
 - `Tokenizer`: encode / decode / vocab size, with a uniform interface across
   backends. The hosted word tokenizer keeps a static vocabulary $K$ and
-  appends per-input OOV ids, so consumers use
-  $K_{\text{eff}} = K + |\text{OOV}|$ (the mask sentinel is $K_{\text{eff}}$).
+  appends OOV ids to a per-instance, append-only table in first-seen order, so
+  consumers use $K_{\text{eff}} = K + |\text{OOV table}|$ (the mask sentinel is
+  $K_{\text{eff}}$).
 
 Strategies and schedules are kept orthogonal — any strategy can be paired with
 any schedule.

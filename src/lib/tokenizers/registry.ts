@@ -33,12 +33,12 @@ export const TOKENIZERS: Record<string, TokenizerInfo> = {
 		id: 'words',
 		wordPiece: false,
 		label: 'Word vocabulary (50k)',
-		description: '50 000-word GloVe vocabulary; unknown tokens get per-input ids.',
+		description: '50 000-word GloVe vocabulary; unknown tokens get per-instance ids.',
 		plainName: 'Whole words',
 		gloss:
-			'Splits prose into whole words and gives each unknown word or character its own per-input token.',
+			'Splits prose into whole words and gives each unknown word or character its own per-instance token.',
 		tooltip: {
-			text: 'Uses a 50 000-word GloVe vocabulary. Words in the list keep a fixed id; unknown words and punctuation receive append-only ids for the current input, so the effective vocabulary grows with the text.',
+			text: 'Uses a 50 000-word GloVe vocabulary. Words in the list keep a fixed id; unknown words and punctuation receive append-only ids for the tokenizer instance, so the effective vocabulary grows as it sees text.',
 			math: '$K = 50{,}000$; $K_{\\text{eff}} = K + |\\text{OOV}|$; the mask sentinel is $K_{\\text{eff}}$.',
 		},
 	},

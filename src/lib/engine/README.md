@@ -29,7 +29,7 @@ ${tokenizerId}:${vocabSize}:${inputHash}:${strategyId}:${strategyConfigJson}:${s
 ```
 
 - `tokenizerId` and `vocabSize` pin the tokenizer and its effective
-  vocabulary size (including per-input OOV ids).
+  vocabulary size (including the instance's append-only OOV table).
 - `inputHash` is FNV-1a 32-bit of the `Int32Array` token ids.
 - Config objects are `JSON.stringify`'d — they must be JSON-serializable.
 - Cache is FIFO with `MAX_CACHE_ENTRIES = 8`.
