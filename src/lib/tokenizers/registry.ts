@@ -60,9 +60,12 @@ const LOADERS: Readonly<Record<string, TokenizerLoader>> = {
 /**
  * Load a tokenizer by its registry id.
  * The returned object is cached; subsequent calls for the same id return
- * the previously loaded instance.
+ * the previously loaded instance. Concurrent calls for an id that is still
+ * loading share the first caller's promise (and its `onProgress` callback);
+ * a failed load is evicted so a later call can retry.
  */
 const _cache = new Map<string, Tokenizer>();
+const _pending = new Map<string, Promise<Tokenizer>>();
 
 export async function loadTokenizer(
 	id: string,
@@ -70,6 +73,9 @@ export async function loadTokenizer(
 ): Promise<Tokenizer> {
 	const hit = _cache.get(id);
 	if (hit) return hit;
+
+	const pending = _pending.get(id);
+	if (pending) return pending;
 
 	const info = TOKENIZERS[id];
 	if (!info) {
@@ -81,7 +87,17 @@ export async function loadTokenizer(
 		throw new Error(`No loader mapping for tokenizer "${id}"`);
 	}
 
-	const tokenizer = await loader(info, onProgress);
-	_cache.set(id, tokenizer);
-	return tokenizer;
+	// Defer the loader into a microtask so the pending entry is stored before
+	// the load can settle; the `finally` then always finds it.
+	const promise = Promise.resolve()
+		.then(() => loader(info, onProgress))
+		.then((tokenizer) => {
+			_cache.set(id, tokenizer);
+			return tokenizer;
+		})
+		.finally(() => {
+			_pending.delete(id);
+		});
+	_pending.set(id, promise);
+	return promise;
 }
