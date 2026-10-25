@@ -90,4 +90,32 @@ describe('tokenizer registry', () => {
 		await expect(first).resolves.toBe(tokenizer);
 		await expect(second).resolves.toBe(tokenizer);
 	});
+
+	it('serves a resolved load from the cache without loading again', async () => {
+		const loader = vi.fn(async () => ({ vocabSize: 1 }) as unknown as Tokenizer);
+		const load = await freshRegistry(loader);
+
+		const first = await load('words');
+		const second = await load('words');
+
+		expect(second).toBe(first);
+		expect(loader).toHaveBeenCalledTimes(1);
+	});
+
+	it('evicts a rejected load so a retry loads again', async () => {
+		const gate = deferred<Tokenizer>();
+		const tokenizer = { vocabSize: 1 } as unknown as Tokenizer;
+		const loader = vi
+			.fn()
+			.mockImplementationOnce(() => gate.promise)
+			.mockResolvedValueOnce(tokenizer);
+		const load = await freshRegistry(loader);
+
+		const failed = load('words');
+		gate.reject(new Error('network down'));
+		await expect(failed).rejects.toThrow('network down');
+
+		await expect(load('words')).resolves.toBe(tokenizer);
+		expect(loader).toHaveBeenCalledTimes(2);
+	});
 });
