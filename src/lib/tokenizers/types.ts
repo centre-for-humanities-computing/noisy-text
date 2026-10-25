@@ -31,12 +31,13 @@ export interface TokenizerInfo {
  * Result of encoding a piece of text.
  *
  * `vocabSize` is the effective vocabulary size
- * $K_{\text{eff}} = K + |\text{OOV}|$ for this particular input, not the
- * tokenizer's static size $K$. Tokenizers with a fixed vocabulary always
- * report $K_{\text{eff}} = K$; tokenizers that allocate ids for per-input
- * out-of-vocabulary tokens grow $K_{\text{eff}}$ as they see new tokens.
- * The mask sentinel is $K_{\text{eff}}$, so it must be read from the result
- * rather than from {@link Tokenizer.vocabSize}.
+ * $K_{\text{eff}} = K + |\text{OOV table}|$ at the time of the encode call,
+ * not the tokenizer's static size $K$. Tokenizers with a fixed vocabulary
+ * always report $K_{\text{eff}} = K$; tokenizers that allocate ids for
+ * out-of-vocabulary tokens append to a per-instance table, so $K_{\text{eff}}$
+ * grows as the instance sees new tokens. The mask sentinel is $K_{\text{eff}}$,
+ * so it must be read from the result rather than from
+ * {@link Tokenizer.vocabSize}.
  */
 export interface EncodedText {
 	/**
@@ -44,7 +45,7 @@ export interface EncodedText {
 	 * `Int32Array` is the numerics convention for token-id arrays.
 	 */
 	ids: Int32Array;
-	/** Effective vocabulary size $K_{\text{eff}} = K + |\text{OOV}|$. */
+	/** Effective vocabulary size $K_{\text{eff}} = K + |\text{OOV table}|$ at encode time. */
 	vocabSize: number;
 }
 
@@ -55,8 +56,8 @@ export interface Tokenizer {
 	/**
 	 * Static vocabulary size $K$; static ids are $0 \ldots K-1$.
 	 *
-	 * The effective size for a given input may be larger after OOV
-	 * allocation; read {@link EncodedText.vocabSize} for that.
+	 * The effective size may be larger after OOV allocation; read
+	 * {@link EncodedText.vocabSize} for the instance's current size.
 	 */
 	readonly vocabSize: number;
 
@@ -82,4 +83,11 @@ export interface Tokenizer {
 	 * exactly what the tokenizer emits (e.g. `Ġ`, `##ing`).
 	 */
 	idsToTokens(ids: Int32Array): readonly string[];
+
+	/**
+	 * Append-only per-instance table of out-of-vocabulary tokens. Index `i` has
+	 * id `vocabSize + i`. Word-level tokenizers expose this; fixed-vocabulary
+	 * HF tokenizers leave it undefined.
+	 */
+	readonly oovTokens?: readonly string[];
 }

@@ -27,7 +27,7 @@ export const HF_DATASET_REPO = 'chcaa/noisy-text-embeddings';
  * Pinned commit sha; replace with the sha printed by the exporter (see
  * README runbook). Overridable at build via `VITE_EMBEDDING_BASE_URL`.
  */
-export const HF_DATASET_REVISION = 'REPLACE_WITH_UPLOAD_SHA';
+export const HF_DATASET_REVISION = 'ee6442dccd151a59050a06f61017088bc5b28c92';
 
 /** Build an HF `resolve` prefix for a dataset repo at a revision. */
 export function hfResolvePrefix(repo: string, revision: string): string {
@@ -78,7 +78,8 @@ interface CachedBundle {
 /** Bundle shape stored in IndexedDB (structured-cloneable typed arrays). */
 const MATRIX_STORE = 'matrices';
 
-async function fetchBytes(url: string, onProgress?: ByteProgress): Promise<ArrayBuffer> {
+/** Fetch a URL, streaming progress when the server sends a content length. */
+export async function fetchBytes(url: string, onProgress?: ByteProgress): Promise<ArrayBuffer> {
 	const res = await fetch(url);
 	if (!res.ok) {
 		throw new Error(`Failed to fetch ${url}: HTTP ${res.status}`);

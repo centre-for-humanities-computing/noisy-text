@@ -83,6 +83,14 @@ describe('TrajectoryCache', () => {
 		expect(k1).not.toBe(k2);
 	});
 
+	it('key varies with vocabSize', () => {
+		const spec1 = makeSpec({ vocabSize: 1000 });
+		const spec2 = makeSpec({ vocabSize: 2000 });
+		const k1 = TrajectoryCache.key(spec1, hashIds(spec1.inputIds));
+		const k2 = TrajectoryCache.key(spec2, hashIds(spec2.inputIds));
+		expect(k1).not.toBe(k2);
+	});
+
 	it('key varies with strategyId', () => {
 		const spec1 = makeSpec({ strategyId: 'identity' });
 		const spec2 = makeSpec({ strategyId: 'mask' });

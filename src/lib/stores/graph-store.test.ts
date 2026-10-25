@@ -1,7 +1,10 @@
 import { describe, it, expect, vi } from 'vitest';
 import { graphStore } from './graph.svelte.js';
 import { trajectoryStore } from './trajectory.svelte.js';
-import type { UnionGraph } from '$lib/workers/trajectory.protocol.js';
+import type {
+	TrajectoryWorkerUnionGraphRequest,
+	UnionGraph,
+} from '$lib/workers/trajectory.protocol.js';
 
 // The store checks the SvelteKit `browser` flag and talks to the worker
 // through the trajectory store. Replace the latter with a fake that records
@@ -65,6 +68,14 @@ describe('graphStore', () => {
 		fake.deliver({ kind: 'union-graph', requestId: latestId(), graph: g });
 		expect(graphStore.status).toBe('ready');
 		expect(graphStore.graph).toBe(g);
+	});
+
+	it('forwards the OOV table to the graph worker', () => {
+		graphStore.request({ ...request('oov-1'), oovTokens: [' ', 'zorblax'] });
+		const posted = fake.posted.at(-1) as unknown as TrajectoryWorkerUnionGraphRequest;
+		expect(posted.kind).toBe('union-graph');
+		expect(posted.vocabSize).toBe(10);
+		expect(posted.oovTokens).toEqual([' ', 'zorblax']);
 	});
 
 	it('drops results from a superseded build', () => {

@@ -35,6 +35,13 @@ class TrajectoryStore {
 	 */
 	trajectory: Trajectory | null = $state.raw(null);
 	/**
+	 * Effective vocabulary size $K_{\text{eff}}$ of the displayed trajectory.
+	 * 0 until a trajectory arrives. Kept separate from the tokenizer's static
+	 * size so an older trajectory keeps its own mask sentinel while a text
+	 * edit is recomputing.
+	 */
+	vocabSize: number = $state(0);
+	/**
 	 * Progress fraction in $[0, 1]$ for the current phase, for progress bar.
 	 * Only meaningful while computing.
 	 */
@@ -85,6 +92,7 @@ class TrajectoryStore {
 		const cached = this._cache.get(key);
 		if (cached) {
 			this.trajectory = cached;
+			this.vocabSize = spec.vocabSize;
 			this.status = 'ready';
 			this.error = null;
 			this.progress = 1;
@@ -146,6 +154,8 @@ class TrajectoryStore {
 		strategyId: string;
 		strategyConfig: Record<string, unknown>;
 		vocabSize: number;
+		/** Append-only OOV table: index `i` has id `Tokenizer.vocabSize + i`. */
+		oovTokens?: readonly string[];
 		column: Int32Array;
 		betas: Float32Array;
 		limitMode: 'top-k' | 'top-p';
@@ -251,6 +261,7 @@ class TrajectoryStore {
 
 				// Cache the result under the spec that triggered it.
 				if (this._pendingSpec) {
+					this.vocabSize = this._pendingSpec.vocabSize;
 					const key = TrajectoryCache.key(this._pendingSpec, hashIds(this._pendingSpec.inputIds));
 					this._cache.set(key, traj);
 					this._pendingSpec = null;
