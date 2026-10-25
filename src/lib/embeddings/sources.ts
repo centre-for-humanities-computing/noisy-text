@@ -69,3 +69,15 @@ export function getEmbeddingSource(id: string): EmbeddingSourceInfo {
 	}
 	return EMBEDDING_SOURCES[id as EmbeddingSourceId];
 }
+
+/**
+ * The embedding source whose vocabulary is indexed by `tokenizerId`, or
+ * `null` when the tokenizer has no paired source. Used by `+page.svelte`
+ * to keep a tokenizer's rows aligned when a strategy needs embeddings.
+ */
+export function sourceForTokenizer(tokenizerId: string): EmbeddingSourceId | null {
+	const match = Object.values(EMBEDDING_SOURCES).find(
+		(source) => source.tokenizerId === tokenizerId,
+	);
+	return match ? match.id : null;
+}

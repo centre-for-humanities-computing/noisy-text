@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { EMBEDDING_SOURCES, getEmbeddingSource } from './sources.js';
+import { EMBEDDING_SOURCES, getEmbeddingSource, sourceForTokenizer } from './sources.js';
 
 describe('EMBEDDING_SOURCES', () => {
 	it('contains exactly the three supported sources (gpt2-lmhead removed)', () => {
@@ -28,5 +28,17 @@ describe('EMBEDDING_SOURCES', () => {
 	it('throws on unknown ids, including the removed gpt2-lmhead', () => {
 		expect(() => getEmbeddingSource('gpt2-lmhead')).toThrow();
 		expect(() => getEmbeddingSource('nope')).toThrow();
+	});
+});
+
+describe('sourceForTokenizer', () => {
+	it('maps registry tokenizer ids to their source', () => {
+		expect(sourceForTokenizer('words')).toBe('glove-840b-300d');
+		expect(sourceForTokenizer('gpt2')).toBe('gpt2');
+		expect(sourceForTokenizer('bert-base-uncased')).toBe('bert-base-uncased');
+	});
+
+	it('returns null for a tokenizer without a source', () => {
+		expect(sourceForTokenizer('nope')).toBeNull();
 	});
 });
