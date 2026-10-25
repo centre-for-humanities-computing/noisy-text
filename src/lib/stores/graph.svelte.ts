@@ -119,6 +119,7 @@ class GraphStore {
 			strategyId: opts.strategyId,
 			strategyConfig: opts.strategyConfig,
 			vocabSize: opts.vocabSize,
+			oovTokens: opts.oovTokens,
 			rows: opts.rows.slice(), // the worker takes ownership of the copy
 			T: opts.T,
 			L: opts.L,
