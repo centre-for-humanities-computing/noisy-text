@@ -70,6 +70,21 @@ describe('loadWordTokenizer', () => {
 		expect(fractions).toEqual([...fractions].sort((a, b) => a - b));
 	});
 
+	it('clamps progress when content-length is smaller than the body', async () => {
+		vi.stubEnv('VITE_WORD_VOCAB_BASE_URL', BASE);
+		// A compressed response can advertise the compressed length while the
+		// decoded body is larger, so raw `loaded / total` would exceed 1.
+		stubFetch(body(), { 'content-length': '5' });
+		const fractions: number[] = [];
+
+		await loadWordTokenizer(INFO, (progress) => {
+			if (progress.fraction !== null) fractions.push(progress.fraction);
+		});
+
+		expect(fractions.length).toBeGreaterThan(0);
+		expect(fractions.every((fraction) => fraction <= 1)).toBe(true);
+	});
+
 	it('reports one null-fraction event without content-length', async () => {
 		vi.stubEnv('VITE_WORD_VOCAB_BASE_URL', BASE);
 		stubFetch(body(), {});

@@ -56,7 +56,7 @@ export async function loadWordTokenizer(
 		let reported = false;
 		const bytes = await fetchBytes(url, (loaded, total) => {
 			reported = true;
-			onProgress?.({ loaded, total, fraction: total > 0 ? loaded / total : null });
+			onProgress?.({ loaded, total, fraction: total > 0 ? Math.min(1, loaded / total) : null });
 		});
 		// A server without `content-length` never invokes the callback; report
 		// one final event so callers can still clear their loading state.
