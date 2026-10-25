@@ -362,7 +362,7 @@
 			const strategyLabel = info ? ` · Strategy: ${info.label}` : '';
 			const changedPart = changedCount !== null ? ` · ${changedCount} changed this step` : '';
 			const oovPart =
-				encoded.vocabSize > t.vocabSize ? ` (+${encoded.vocabSize - t.vocabSize} OOV)` : '';
+				encoded.vocabSize > t.vocabSize ? ` (+${encoded.vocabSize - t.vocabSize} OOV seen)` : '';
 			return `${t.info.label} · Vocab: ${encoded.vocabSize.toLocaleString()}${oovPart} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}${changedPart}`;
 		}
 		return 'Select a tokenizer';

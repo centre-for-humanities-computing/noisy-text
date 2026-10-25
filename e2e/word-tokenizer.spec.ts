@@ -46,7 +46,7 @@ test('word tokenizer renders prose and OOV ids', async ({ page }) => {
 	await page.getByTestId('noise-button').click();
 
 	await waitReady(page);
-	await expect(page.getByTestId('app-status')).toContainText('(+2 OOV)', { timeout: TIMEOUT });
+	await expect(page.getByTestId('app-status')).toContainText('(+2 OOV seen)', { timeout: TIMEOUT });
 
 	const slider = page.getByTestId('time-slider');
 	await expect(slider).toBeEnabled({ timeout: TIMEOUT });
@@ -89,7 +89,7 @@ test('absorbing masks use the growing OOV sentinel', async ({ page }) => {
 	await page.getByTestId('noise-button').click();
 
 	await waitReady(page);
-	await expect(page.getByTestId('app-status')).toContainText('(+2 OOV)', { timeout: TIMEOUT });
+	await expect(page.getByTestId('app-status')).toContainText('(+2 OOV seen)', { timeout: TIMEOUT });
 
 	const slider = page.getByTestId('time-slider');
 	await expect(slider).toBeEnabled({ timeout: TIMEOUT });
@@ -104,7 +104,10 @@ test('absorbing masks use the growing OOV sentinel', async ({ page }) => {
 	await page.getByTestId('input-text').fill('the zorblax quux');
 	await page.getByTestId('noise-button').click();
 
-	await expect(page.getByTestId('app-status')).toContainText('(+3 OOV)', { timeout: TIMEOUT });
+	// `zorblax` was already added to the instance's append-only OOV table and
+	// `quux` extends it, so the status reports the whole table ("seen"): `+3`,
+	// not a count of this input's new entries.
+	await expect(page.getByTestId('app-status')).toContainText('(+3 OOV seen)', { timeout: TIMEOUT });
 	await expect(page.getByTestId('app-status')).toHaveAttribute('data-trajectory-status', 'ready', {
 		timeout: TIMEOUT,
 	});
