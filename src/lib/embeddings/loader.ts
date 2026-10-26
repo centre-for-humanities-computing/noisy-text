@@ -27,7 +27,7 @@ export const HF_DATASET_REPO = 'chcaa/noisy-text-embeddings';
  * Pinned commit sha; replace with the sha printed by the exporter (see
  * README runbook). Overridable at build via `VITE_EMBEDDING_BASE_URL`.
  */
-export const HF_DATASET_REVISION = '6fecdd0bd92e050abd56918acfc7f5c449ab466f'
+export const HF_DATASET_REVISION = '6fecdd0bd92e050abd56918acfc7f5c449ab466f';
 
 /** Build an HF `resolve` prefix for a dataset repo at a revision. */
 export function hfResolvePrefix(repo: string, revision: string): string {
