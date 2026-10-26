@@ -4,6 +4,9 @@ import type { EmbeddingKnnConfig } from './embedding-knn.js';
 import type { DistanceModel } from './distance-model.js';
 import { NeighborhoodProvider } from './neighborhood.js';
 import { STRATEGIES } from './registry.js';
+import { EmbeddingKnnIndex } from '../embeddings/knn-index.js';
+import { EmbeddingDistanceModel } from '../embeddings/embedding-distance-model.js';
+import type { QuantizedMatrix, TransformBundle } from '../embeddings/types.js';
 
 /** Deterministic fake model: every token's candidates are its 2 successors. */
 function fakeModel(K: number): DistanceModel {
@@ -19,6 +22,28 @@ function fakeModel(K: number): DistanceModel {
 			// early-exit ceiling only kicks in past maxDist).
 			return a === b ? 0 : 1;
 		},
+	};
+}
+
+/** Rows on a line (value i per dim) so L2 order == |i - j|. */
+function lineMatrix(K: number, d: number): QuantizedMatrix {
+	const codes = new Int8Array(K * d);
+	const scales = new Float32Array(K);
+	for (let i = 0; i < K; i++) {
+		scales[i] = Math.max(1, i) / 127;
+		for (let j = 0; j < d; j++) codes[i * d + j] = Math.min(127, i);
+	}
+	return { codes, scales, vocabSize: K, dim: d };
+}
+
+function emptyTransform(d: number): TransformBundle {
+	const w = new Float32Array(d * d);
+	for (let i = 0; i < d; i++) w[i * d + i] = 1;
+	return {
+		mean: new Float32Array(d),
+		pcs: new Float32Array(0),
+		eigenvalues: new Float32Array(0),
+		whitening: w,
 	};
 }
 
@@ -93,5 +118,22 @@ describe('createEmbeddingKnn', () => {
 		expect(dist.length).toBe(K);
 		const sum = dist.reduce((a, b) => a + b, 0);
 		expect(sum).toBeCloseTo(1, 5);
+	});
+
+	it('degrades an OOV id to the uniform floor over the effective vocab', () => {
+		const K = 8;
+		const d = 2;
+		const index = new EmbeddingKnnIndex(lineMatrix(K, d), emptyTransform(d), 'none', 'l2', 3);
+		const model = new EmbeddingDistanceModel(index, () => true, 'test-source', 'none', 'l2');
+		const provider = new NeighborhoodProvider(model, Infinity, { maxStored: 50 });
+		// The worker passes K + |OOV| as the strategy vocab size; ids >= K
+		// have no matrix row and must be uniform rather than NaN.
+		const s = createEmbeddingKnn(baseConfig, K + 1, provider);
+
+		const dist = s.getLocalDistribution!(K, 1);
+		expect(dist.length).toBe(K + 1);
+		const sum = dist.reduce((a, b) => a + b, 0);
+		expect(sum).toBeCloseTo(1, 5);
+		for (const p of dist) expect(p).toBeCloseTo(1 / (K + 1), 6);
 	});
 });

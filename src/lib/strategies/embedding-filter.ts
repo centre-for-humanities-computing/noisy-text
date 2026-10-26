@@ -59,9 +59,12 @@ const BYTE_FALLBACK_RE = /^<0x[0-9A-Fa-f]{2}>$/;
  * continuation pieces by *lacking* the `Ġ` prefix (so any non-empty
  * token starting with `Ġ` is word-initial; a token without one is a
  * continuation), while BERT marks continuations explicitly with `##`.
+ * The static word vocabulary stores whole words only — punctuation and
+ * OOV strings get per-instance ids outside the matrix and never appear
+ * here — so every non-special `words` token is word-initial.
  *
  * @param tokens - The $K$ token strings of the source vocabulary.
- * @param tokenizerId - `'gpt2'` or `'bert-base-uncased'`.
+ * @param tokenizerId - `'gpt2'`, `'bert-base-uncased'`, or `'words'`.
  */
 export function classifyTokens(tokens: readonly string[], tokenizerId: string): Uint8Array {
 	const masks = new Uint8Array(tokens.length);
@@ -84,6 +87,10 @@ export function classifyTokens(tokens: readonly string[], tokenizerId: string): 
 				} else {
 					mask |= TOKEN_FLAG.CONTINUATION;
 				}
+			} else if (tokenizerId === 'words') {
+				// Whole words only: a literal `##x` is an ordinary word in this
+				// vocabulary, not a BERT continuation.
+				mask |= TOKEN_FLAG.WORD_INITIAL;
 			} else {
 				if (s.startsWith(BERT_CONTINUATION_PREFIX)) {
 					mask |= TOKEN_FLAG.CONTINUATION;

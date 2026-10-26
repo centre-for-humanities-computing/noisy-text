@@ -33,9 +33,22 @@ for (const [id] of strategies) {
 		await expect(slider).toBeVisible();
 		await expect(slider).toBeEnabled({ timeout: TOKENIZER_TIMEOUT });
 		const max = Number((await slider.getAttribute('max')) ?? '1');
-		for (const frac of [0, 0.5, 1]) {
-			await slider.fill(String(max * frac));
-			await expect(page.getByTestId('output')).not.toBeEmpty();
+		const output = page.getByTestId('output');
+		// Prose view: decoded text is non-empty while any real token survives.
+		for (const frac of [0, 0.5]) {
+			await slider.fill(String(Math.round(max * frac)));
+			await expect(output).not.toBeEmpty();
+		}
+
+		// Terminal step. `absorbing` masks every token and the prose view
+		// filters the mask sentinel out, so the prose view may legitimately be
+		// empty at $t = T$; the Tokens view still renders one chip per token.
+		await slider.fill(String(max));
+		await page.getByRole('radio', { name: 'Tokens', exact: true }).click();
+		await expect(output).not.toBeEmpty();
+		await expect(page.locator('[title^="id: "]').first()).toBeVisible();
+		if (id === 'absorbing') {
+			await expect(output).toContainText('[MASK]');
 		}
 
 		expect(errors).toEqual([]);

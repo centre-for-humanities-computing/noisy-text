@@ -92,6 +92,13 @@ hosted 50 000-word GloVe vocabulary and caches the parsed list in IndexedDB.
    different base). Bumping the shared revision also invalidates the
    embedding-matrix caches.
 
+### Paired embedding source
+
+`embedding-knn` pairs `words` with `glove-840b-300d`, whose matrix rows
+follow this same ranked vocabulary. Selecting the strategy keeps the word
+tokenizer and switches the source; re-export the bundle with
+`scripts/export_word_vectors.py` so its `vocabSha` still matches.
+
 ## Notes
 
 - `encode` passes `add_special_tokens: false` by default. BERT's

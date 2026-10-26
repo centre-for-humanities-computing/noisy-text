@@ -49,6 +49,21 @@ describe('EmbeddingDistanceModel', () => {
 		expect(got).not.toContain(10);
 	});
 
+	it('yields no candidates for ids without an embedding row', () => {
+		const { model } = makeModel(10, 4, 5, () => true);
+		expect(Array.from(model.candidates(10, Infinity))).toEqual([]);
+		expect(Array.from(model.candidates(10 + 7, Infinity))).toEqual([]);
+		expect(Array.from(model.candidates(-1, Infinity))).toEqual([]);
+	});
+
+	it('still yields neighbours for in-range tokens', () => {
+		const { model } = makeModel(10, 4, 5, () => true);
+		const got = Array.from(model.candidates(3, Infinity));
+		expect(got.length).toBe(5);
+		for (const j of got) expect(j).toBeGreaterThanOrEqual(0);
+		for (const j of got) expect(j).toBeLessThan(10);
+	});
+
 	it('distance returns the true distance within maxDist, else maxDist + 1', () => {
 		const { model } = makeModel(10, 2, 9, () => true);
 		// Rows are on a line: L2 distance between row 1 and row 4 is 3·v.

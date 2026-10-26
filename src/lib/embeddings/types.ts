@@ -9,7 +9,7 @@
  */
 
 /** Identifiers of the supported embedding sources. */
-export type EmbeddingSourceId = 'bert-base-uncased' | 'gpt2';
+export type EmbeddingSourceId = 'bert-base-uncased' | 'gpt2' | 'glove-840b-300d';
 
 /** Registry metadata for one embedding source. */
 export interface EmbeddingSourceInfo {
@@ -56,6 +56,13 @@ export interface EmbeddingMeta {
 	dtype: 'int8';
 	quant: 'per-row-symmetric';
 	nPcs: number;
+	/**
+	 * Lowercase SHA-256 hex over the UTF-8 bytes of the ordered vocabulary
+	 * words joined by `\n` with no trailing newline (`vocabCanonicalText`).
+	 * Present only for word-vocabulary sources; the worker verifies it
+	 * against the active tokenizer vocabulary.
+	 */
+	vocabSha?: string;
 }
 
 /**

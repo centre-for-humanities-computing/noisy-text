@@ -23,6 +23,7 @@
 	import { STRATEGIES } from '$lib/strategies/index.js';
 	import { strategyConfigFor } from '$lib/strategies/index.js';
 	import { EMBEDDING_SOURCES } from '$lib/embeddings/index.js';
+	import { sourceForTokenizer } from '$lib/embeddings/sources.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
 	import { recencyAt, allTokenCharSpans } from '$lib/engine/diff.js';
 	import EmbeddingSourcePicker from '$lib/components/EmbeddingSourcePicker.svelte';
@@ -416,6 +417,19 @@
 		if (tokenizerStore.tokenizer) {
 			lexicalStore.markReady();
 			charOverlapStore.markReady();
+		}
+	});
+
+	// With word tokens active there is exactly one valid source (the
+	// vocab-aligned GloVe bundle), so select it before the older
+	// source→tokenizer effect runs; that effect then no-ops because the
+	// selected source already pairs with `words` (no loop).
+	$effect(() => {
+		if (strategyStore.currentId !== 'embedding-knn') return;
+		if (tokenizerStore.currentId !== 'words') return;
+		const want = sourceForTokenizer('words');
+		if (want !== null && embeddingStore.sourceId !== want) {
+			embeddingStore.sourceId = want;
 		}
 	});
 

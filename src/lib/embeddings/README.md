@@ -48,7 +48,11 @@ For a source with base name `<source>`:
   3. `eigenvalues`: $n$ floats,
   4. `whitening`: $d \times d$ floats, row-major.
 - `<source>.meta.json` — `{ source, model, vocabSize, dim, dtype,
-quant, nPcs }`.
+quant, nPcs }`, plus `vocabSha` for word-vocabulary sources: lowercase hex
+  SHA-256 over the UTF-8 bytes of `words.join('\n')` with no trailing
+  newline (the canonical text produced by `vocabCanonicalText` in
+  `vocab-sha.ts` and hashed the same way by
+  `scripts/export_word_vectors.py`).
 
 ## IndexedDB key scheme
 
@@ -71,8 +75,9 @@ harmlessly).
 ## Hosting
 
 Bundles are hosted on the HF dataset repo `chcaa/noisy-text-embeddings`
-(flat layout, 8 embedding files: two sources × four files above, plus
-`word-vocab-50k.json`). Artefacts download from
+(flat layout: one four-file bundle per source — `bert-base-uncased`,
+`gpt2` and `glove-840b-300d` — plus `word-vocab-50k.json`). Artefacts
+download from
 
 ```
 https://huggingface.co/datasets/chcaa/noisy-text-embeddings/resolve/<revision>/<file>
@@ -106,8 +111,28 @@ word-vocabulary caches.
    description, `tokenizerId`, `dim`, `vocabSize`, `fileName`).
 2. Add the source to `SOURCES` in `scripts/export_embeddings.py` and
    run it: `python scripts/export_embeddings.py --source <id> --out <dir>`.
+   Word-vocabulary sources use `scripts/export_word_vectors.py` instead
+   (see below).
 3. Host the four files under the HF dataset repo (see `## Hosting`),
    then pin the new revision.
+
+### Word-vocabulary sources
+
+A source with `tokenizerId: 'words'` must be exported against the same 50k
+vocabulary as `word-vocab-50k.json`: row $i$ is the word with rank $i$.
+`scripts/export_word_vectors.py` streams a GloVe text file, reorders rows
+by rank, and writes `vocabSha` so a misaligned bundle is rejected instead
+of silently noise-ifying the wrong neighbours.
+
+```
+python scripts/export_word_vectors.py \
+  --glove-file glove.840B.300d.txt --vocab dist/word-vocab-50k.json \
+  --out dist/embeddings --repo chcaa/noisy-text-embeddings
+```
+
+Ids at or above the static $K$ (per-input OOV) have no matrix row. The kNN
+index treats them as having no neighbours, so the strategy degrades to the
+uniform floor over $K_{\text{eff}}$ rather than reading out of bounds.
 
 ## Notes
 

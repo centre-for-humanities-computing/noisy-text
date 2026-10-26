@@ -26,6 +26,14 @@ import { metricDistance } from './metric.js';
  * by the worker, is consulted in `precomputeRows` under the key
  * `source|preprocess|metric|m@<tag>|token`, so revisits skip the full
  * scan.
+ *
+ * Ids outside $[0, K)$ have no row in the matrix: per-input OOV words
+ * are mapped beyond the static vocabulary. `topM` returns an empty
+ * neighbour table for them (memoized), so `token-kernel.ts` turns the
+ * empty row into the uniform floor $1/K_{\text{eff}}$ over the effective
+ * vocabulary; `distance` returns $+\infty$ rather than reading memory or
+ * producing NaN. `_rowOf` throws as a last-resort invariant — every
+ * public entry point guards first.
  */
 
 /** Serializable top-$M$ neighbour list for one token. */
@@ -122,6 +130,15 @@ export class EmbeddingKnnIndex {
 	topM(token: number): TopMTable {
 		const cached = this._topM.get(token);
 		if (cached) return cached;
+
+		if (!this._inRange(token)) {
+			// No row exists for OOV ids; the empty table makes the kernel
+			// fall back to the uniform floor. Memoized so repeated OOV
+			// lookups (precomputeRows) stay free.
+			const empty: TopMTable = { ids: new Int32Array(0), dists: new Float32Array(0) };
+			this._topM.set(token, empty);
+			return empty;
+		}
 
 		const { vocabSize: K, dim } = this.matrix;
 		const query = this._rowOf(token);
@@ -308,6 +325,11 @@ export class EmbeddingKnnIndex {
 	 * are shared, so they must not be mutated by callers).
 	 */
 	private _rowOf(token: number): Float32Array {
+		if (!this._inRange(token)) {
+			throw new RangeError(
+				`EmbeddingKnnIndex: token ${token} has no embedding row (K=${this.matrix.vocabSize})`,
+			);
+		}
 		const flat = this._flat;
 		if (flat) return flat.subarray(token * this.matrix.dim, (token + 1) * this.matrix.dim);
 		const memo = this._rows.get(token);
@@ -325,8 +347,18 @@ export class EmbeddingKnnIndex {
 		return out;
 	}
 
-	/** Metric distance between two tokens' transformed rows. */
+	/** Whether `id` addresses a matrix row ($0 \le id < K$). */
+	private _inRange(id: number): boolean {
+		return Number.isInteger(id) && id >= 0 && id < this.matrix.vocabSize;
+	}
+
+	/**
+	 * Metric distance between two tokens' transformed rows. Ids without a
+	 * row return $+\infty$ (never NaN), so callers can treat them as
+	 * infinitely far rather than guarding at every site.
+	 */
 	distance(a: number, b: number): number {
+		if (!this._inRange(a) || !this._inRange(b)) return Number.POSITIVE_INFINITY;
 		return metricDistance(this._rowOf(a), this._rowOf(b), this.metric);
 	}
 
