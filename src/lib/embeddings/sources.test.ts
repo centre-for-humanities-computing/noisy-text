@@ -19,6 +19,10 @@ describe('EMBEDDING_SOURCES', () => {
 
 	it('registers the vocab-aligned GloVe source', () => {
 		const glove = EMBEDDING_SOURCES['glove-840b-300d'];
+		expect(getEmbeddingSource('glove-840b-300d')).toBe(glove);
+		expect(glove.id).toBe('glove-840b-300d');
+		expect(glove.label).toBe('GloVe 840B (300d)');
+		expect(glove.plainName).toBe('GloVe words');
 		expect(glove.tokenizerId).toBe('words');
 		expect(glove.dim).toBe(300);
 		expect(glove.vocabSize).toBe(50_000);
