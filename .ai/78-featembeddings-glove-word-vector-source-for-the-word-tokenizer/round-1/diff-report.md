@@ -60,7 +60,11 @@
 - `node scripts/slice-check.mjs` passed for all ten commits (`check`, `lint`,
   `format`, `test`).
 - Final `npm run test`: pass.
-- Final `npm run e2e`: 11 tests passed in 3.2m, including
-  `e2e/glove-word-vectors.spec.ts` (GloVe source auto-selected, word tokenizer
-  retained, `(+2 OOV seen)`, all rendered ids in `0..41`, no `NaN`/`undefined`,
-  no page/console errors).
+- Final `npm run e2e`: 10 of 11 tests passed in 3.2m — **correction**: the
+  suite was red, not green. `strategy absorbing renders and scrubs`
+  (`e2e/smoke.spec.ts`) failed at $t = T$ because the prose view drops the
+  `[MASK]` sentinel and is legitimately empty there (round-1 review finding
+  R1-N1); the assertion is fixed in round 2, slice S1. The passing
+  `e2e/glove-word-vectors.spec.ts` covered the GloVe source auto-selected, word
+  tokenizer retained, `(+2 OOV seen)`, all rendered ids in `0..41`, no
+  `NaN`/`undefined`, no page/console errors.
