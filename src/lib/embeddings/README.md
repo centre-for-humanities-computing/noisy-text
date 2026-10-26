@@ -48,8 +48,11 @@ For a source with base name `<source>`:
   3. `eigenvalues`: $n$ floats,
   4. `whitening`: $d \times d$ floats, row-major.
 - `<source>.meta.json` — `{ source, model, vocabSize, dim, dtype,
-quant, nPcs }`, plus `vocabSha` for word-vocabulary sources: lowercase
-  SHA-256 of the rank-ordered words joined by `\n`.
+quant, nPcs }`, plus `vocabSha` for word-vocabulary sources: lowercase hex
+  SHA-256 over the UTF-8 bytes of `words.join('\n')` with no trailing
+  newline (the canonical text produced by `vocabCanonicalText` in
+  `vocab-sha.ts` and hashed the same way by
+  `scripts/export_word_vectors.py`).
 
 ## IndexedDB key scheme
 
