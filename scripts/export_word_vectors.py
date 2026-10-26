@@ -31,6 +31,7 @@ import argparse
 import hashlib
 import json
 import os
+import sys
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -75,8 +76,10 @@ def load_glove_rows(path: str, ordered: list[str]) -> "np.ndarray":
         raise ValueError(f"vocabulary has duplicate words ({len(wanted)} unique of {VOCAB_SIZE})")
 
     rows = np.zeros((VOCAB_SIZE, DIM), dtype=np.float32)
-    seen = bytearray(VOCAB_SIZE)
-    found = 0
+    # The real glove.840B.300d.txt repeats some tokens; the first occurrence
+    # wins so a word id always maps to one deterministic row.
+    first_line: dict[int, int] = {}
+    duplicates: list[str] = []
     with open(path, encoding="utf-8") as f:
         for line_no, line in enumerate(f, 1):
             fields = line.rstrip("\n").split(" ")
@@ -92,18 +95,32 @@ def load_glove_rows(path: str, ordered: list[str]) -> "np.ndarray":
                     f"{len(values)} values, expected {DIM}"
                 )
             try:
-                rows[idx] = np.asarray(values, dtype=np.float32)
+                vector = np.asarray(values, dtype=np.float32)
             except ValueError as error:
                 raise ValueError(f"{path}:{line_no}: non-numeric GloVe vector") from error
-            seen[idx] = 1
-            found += 1
+            if idx in first_line:
+                duplicates.append(
+                    f"{path}:{line_no}: duplicate vector for {fields[0]!r} "
+                    f"(first at line {first_line[idx]})"
+                )
+                continue
+            first_line[idx] = line_no
+            rows[idx] = vector
 
-    missing = [word for i, word in enumerate(ordered) if not seen[i]]
+    if duplicates:
+        preview = "\n".join(duplicates[:10])
+        suffix = f"\n(+{len(duplicates) - 10} more)" if len(duplicates) > 10 else ""
+        print(
+            f"warning: skipped {len(duplicates)} duplicate GloVe line(s):\n{preview}{suffix}",
+            file=sys.stderr,
+        )
+
+    missing = [word for i, word in enumerate(ordered) if i not in first_line]
     if missing:
         preview = ", ".join(repr(w) for w in missing[:10])
         suffix = f" (+{len(missing) - 10} more)" if len(missing) > 10 else ""
         raise ValueError(f"{len(missing)} vocabulary words have no GloVe vector: {preview}{suffix}")
-    print(f"matched {found:,} of {VOCAB_SIZE:,} vocabulary words")
+    print(f"matched {len(first_line):,} of {VOCAB_SIZE:,} vocabulary words")
     return rows
 
 
