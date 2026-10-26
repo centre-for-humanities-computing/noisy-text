@@ -17,3 +17,6 @@ test-results/
 playwright-report/
 *.swp
 *:Zone.Identifier
+
+# Python output
+scripts/__pycache__
