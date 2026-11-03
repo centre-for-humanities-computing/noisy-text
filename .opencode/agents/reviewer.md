@@ -35,10 +35,10 @@ permissions:
     resource: 'node /tmp/opencode/*'
     effect: allow
   - action: shell
-    resource: 'node --test'
+    resource: 'npm run check'
     effect: allow
   - action: shell
-    resource: 'node --test *'
+    resource: 'npm run test'
     effect: allow
   # Looking at the branch, without leaving a mark.
   - action: shell

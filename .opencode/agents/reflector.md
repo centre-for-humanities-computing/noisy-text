@@ -58,10 +58,10 @@ permissions:
     effect: allow
   # The only verify gate, and looking at the record without leaving a mark.
   - action: shell
-    resource: 'node --test'
+    resource: 'npm run check'
     effect: allow
   - action: shell
-    resource: 'node --test *'
+    resource: 'npm run test'
     effect: allow
   - action: shell
     resource: 'git rev-parse *'
