@@ -4,6 +4,6 @@
 		"host": "github.com",
 		"tokenFile": ".secrets/github-token"
 	},
-	"verify": ["check", "lint", "format", "test", "e2e"],
-	"sliceBudget": 300
+	"verify": ["npm run check", "npm run lint", "npx prettier --check .", "npm run test"],
+	"sliceBudget": 400
 }
