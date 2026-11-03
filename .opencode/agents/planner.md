@@ -3,81 +3,81 @@ description: Read-only planning agent — reads the territory and the soil, spea
 mode: primary
 permissions:
   # Default-deny: anything not named below is refused.
-  - action: "*"
-    resource: "*"
+  - action: '*'
+    resource: '*'
     effect: deny
   # DCP can prune a long walk or plan; the deny above would otherwise block it.
   - action: compress
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: read
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: glob
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: grep
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: websearch
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: question
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: external_directory
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   - action: edit
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   # The forge, so a comment can be posted and the issue read.
   - action: shell
-    resource: "node scripts/forge.mjs issue get *"
+    resource: 'node scripts/forge.mjs issue get *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs issue comment *"
+    resource: 'node scripts/forge.mjs issue comment *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs pr find *"
+    resource: 'node scripts/forge.mjs pr find *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs pr get *"
+    resource: 'node scripts/forge.mjs pr get *'
     effect: allow
   # Looking around, without leaving a mark. These match the raw command text, so
   # they keep a cheap model in its lane; they are not a sandbox.
   - action: shell
-    resource: "ls"
+    resource: 'ls'
     effect: allow
   - action: shell
-    resource: "ls *"
+    resource: 'ls *'
     effect: allow
   - action: shell
-    resource: "pwd"
+    resource: 'pwd'
     effect: allow
   - action: shell
-    resource: "which *"
+    resource: 'which *'
     effect: allow
   - action: shell
-    resource: "command -v *"
+    resource: 'command -v *'
     effect: allow
   - action: shell
-    resource: "git rev-parse --abbrev-ref HEAD"
+    resource: 'git rev-parse --abbrev-ref HEAD'
     effect: allow
   - action: shell
-    resource: "git status"
+    resource: 'git status'
     effect: allow
   - action: shell
-    resource: "git status *"
+    resource: 'git status *'
     effect: allow
   - action: shell
-    resource: "git log *"
+    resource: 'git log *'
     effect: allow
   - action: shell
-    resource: "git show *"
+    resource: 'git show *'
     effect: allow
   - action: shell
-    resource: "node --version"
+    resource: 'node --version'
     effect: allow
 ---
 

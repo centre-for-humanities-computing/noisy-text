@@ -3,71 +3,71 @@ description: Read-only review agent — reads the invariants and the branch comm
 mode: primary
 permissions:
   # Default-deny: anything not named below is refused.
-  - action: "*"
-    resource: "*"
+  - action: '*'
+    resource: '*'
     effect: deny
   # DCP can prune a long review; the deny above would otherwise block it.
   - action: compress
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: read
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: glob
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: grep
-    resource: "**"
+    resource: '**'
     effect: allow
   # Scratch only: a repro script, its output, and the comment body.
   - action: external_directory
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   - action: edit
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   # Evidence must be checkable against the reviewed commit.
   - action: shell
-    resource: "node scripts/cite-check.mjs *"
+    resource: 'node scripts/cite-check.mjs *'
     effect: allow
   # The repro the reviewer writes, and the only read-only check.
   - action: shell
-    resource: "node /tmp/opencode/*"
+    resource: 'node /tmp/opencode/*'
     effect: allow
   - action: shell
-    resource: "node --test"
+    resource: 'node --test'
     effect: allow
   - action: shell
-    resource: "node --test *"
+    resource: 'node --test *'
     effect: allow
   # Looking at the branch, without leaving a mark.
   - action: shell
-    resource: "git rev-parse --abbrev-ref HEAD"
+    resource: 'git rev-parse --abbrev-ref HEAD'
     effect: allow
   - action: shell
-    resource: "git status"
+    resource: 'git status'
     effect: allow
   - action: shell
-    resource: "git status *"
+    resource: 'git status *'
     effect: allow
   - action: shell
-    resource: "git log *"
+    resource: 'git log *'
     effect: allow
   - action: shell
-    resource: "git show *"
+    resource: 'git show *'
     effect: allow
   - action: shell
-    resource: "git diff *"
+    resource: 'git diff *'
     effect: allow
   # The forge, so the issue and PR can be read and one comment posted.
   - action: shell
-    resource: "node scripts/forge.mjs issue get *"
+    resource: 'node scripts/forge.mjs issue get *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs pr get *"
+    resource: 'node scripts/forge.mjs pr get *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs pr comment *"
+    resource: 'node scripts/forge.mjs pr comment *'
     effect: allow
 ---
 

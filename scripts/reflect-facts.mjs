@@ -49,7 +49,9 @@ function readJson(path) {
 
 export function walkCount(issue) {
 	if (!issue || !Array.isArray(issue.comments)) return null;
-	return issue.comments.some((comment) => /^\s*<!-- walk -->/.test(String(comment?.body ?? ''))) ? 1 : 0;
+	return issue.comments.some((comment) => /^\s*<!-- walk -->/.test(String(comment?.body ?? '')))
+		? 1
+		: 0;
 }
 
 export function reviewRounds(pr) {
@@ -77,7 +79,12 @@ function git(args, cwd) {
 
 function gitMessages(range, cwd) {
 	const out = range ? git(['log', '--format=%B%x00', range], cwd) : null;
-	return out === null ? null : out.split('\0').map((message) => message.trim()).filter(Boolean);
+	return out === null
+		? null
+		: out
+				.split('\0')
+				.map((message) => message.trim())
+				.filter(Boolean);
 }
 
 // Churn uses the symmetric range; the trailers come from the branch side only.
@@ -122,7 +129,7 @@ export function reflectFacts({ cwd = process.cwd(), range, issue, pr, commits } 
 		walk: walkCount(issue),
 		rounds: reviewRounds(pr),
 		slices,
-		churn: lineChurn(range, cwd)
+		churn: lineChurn(range, cwd),
 	});
 }
 
@@ -135,8 +142,11 @@ export function runReflectFacts(argv = [], { cwd = process.cwd() } = {}) {
 	}
 	if (options.help) return { code: 0, stdout: `${usage()}\n`, stderr: '' };
 	const facts = reflectFacts({
-		cwd, range: options.range, issue: readJson(options.issue),
-		pr: readJson(options.pr), commits: readJson(options.commits)
+		cwd,
+		range: options.range,
+		issue: readJson(options.issue),
+		pr: readJson(options.pr),
+		commits: readJson(options.commits),
 	});
 	return { code: 0, stdout: `${facts}\n`, stderr: '' };
 }

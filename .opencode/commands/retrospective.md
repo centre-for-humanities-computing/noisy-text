@@ -23,7 +23,7 @@ before, and on a fresh branch after.
 - If the PR has merged, the branch may be gone: read `main`'s merge or squash
   commit (`git log main -1 --format=%B`). Its diff against the first parent is
   the range; if you cannot name it, say so and accept `unknown`.
-Save what the facts script needs under `/tmp/opencode/`:
+  Save what the facts script needs under `/tmp/opencode/`:
 
 ```bash
 node scripts/forge.mjs issue get <n> --json > /tmp/opencode/issue-<n>.json
@@ -32,6 +32,7 @@ node scripts/forge.mjs pr commits <pr> --json > /tmp/opencode/commits-<pr>.json
 node scripts/reflect-facts.mjs --range <range> --issue /tmp/opencode/issue-<n>.json \
   --pr /tmp/opencode/pr-<pr>.json --commits /tmp/opencode/commits-<pr>.json
 ```
+
 Before the merge, churn is `main...HEAD` and the trailers are read from
 `main..HEAD`; after it, both are `<sha>^..<sha>`. Pass the churn range.
 

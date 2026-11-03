@@ -81,6 +81,7 @@ Then for slice k of n:
    copied from the plan
    (`behavioral` or `mechanical`). Write the message to
    `/tmp/opencode/commit-<n>-<k>.md` and use `git commit -F`.
+
 3. In `step` mode, stop here — including after the last slice — with exactly:
    what grew (one line), one thing to try, and `Continue?`. Do not push. A
    later `/implement <n> step` resumes from the trailers.

@@ -52,7 +52,11 @@ export function parseArgs(argv = []) {
 	return options;
 }
 
-const fail = (message, code = EXIT.fail) => ({ code, stdout: '', stderr: `slice-check: ${message}\n` });
+const fail = (message, code = EXIT.fail) => ({
+	code,
+	stdout: '',
+	stderr: `slice-check: ${message}\n`,
+});
 
 function run(command, args, { cwd, env, inherit = false, shell = false } = {}) {
 	const result = spawnSync(command, args, {
@@ -60,7 +64,7 @@ function run(command, args, { cwd, env, inherit = false, shell = false } = {}) {
 		env,
 		shell,
 		encoding: 'utf8',
-		stdio: inherit ? ['inherit', 'inherit', 'inherit'] : ['ignore', 'pipe', 'pipe']
+		stdio: inherit ? ['inherit', 'inherit', 'inherit'] : ['ignore', 'pipe', 'pipe'],
 	});
 	if (result.error) throw new Error(`${command} could not run: ${result.error.message}`);
 	return result;
@@ -90,10 +94,14 @@ export function runSliceCheck(argv = [], { cwd = process.cwd(), env = process.en
 	if (!Number.isFinite(budget) || budget < 0) {
 		return fail('no budget; pass --budget or set "sliceBudget" in .omhu.json');
 	}
-	if (!Array.isArray(config.verify) || config.verify.some((command) => typeof command !== 'string' || !command.trim())) {
+	if (
+		!Array.isArray(config.verify) ||
+		config.verify.some((command) => typeof command !== 'string' || !command.trim())
+	) {
 		return fail('"verify" in .omhu.json must be a list of commands');
 	}
-	const gate = config.verify.length === 0 ? 'slice-check: no automated gate ("verify" is empty)\n' : '';
+	const gate =
+		config.verify.length === 0 ? 'slice-check: no automated gate ("verify" is empty)\n' : '';
 
 	const index = git(['diff', '--cached', '--quiet'], { cwd, env });
 	if (index.status !== 0) {
@@ -125,7 +133,7 @@ export function runSliceCheck(argv = [], { cwd = process.cwd(), env = process.en
 		return {
 			code: EXIT.budget,
 			stdout: `${gate}${summary}`,
-			stderr: `slice-check: ${churn} changed lines is more than 25% over the ${budget}-line budget\n`
+			stderr: `slice-check: ${churn} changed lines is more than 25% over the ${budget}-line budget\n`,
 		};
 	}
 	return { code: EXIT.ok, stdout: `${gate}${summary}`, stderr: '' };

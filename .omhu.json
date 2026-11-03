@@ -1,15 +1,9 @@
 {
-  "forge": {
-    "kind": "github",
-    "host": "github.com",
-    "tokenFile": ".secrets/github-token"
-  },
-  "verify": [
-    "check",
-    "lint",
-    "format",
-    "test",
-    "e2e"
-  ],
-  "sliceBudget": 300
+	"forge": {
+		"kind": "github",
+		"host": "github.com",
+		"tokenFile": ".secrets/github-token"
+	},
+	"verify": ["check", "lint", "format", "test", "e2e"],
+	"sliceBudget": 300
 }

@@ -3,47 +3,47 @@ description: Cultivating agent — reads the issue drafts, the soil and the code
 mode: primary
 permissions:
   # Default-deny; the compress entry below is DCP pruning a long session.
-  - action: "*"
-    resource: "*"
+  - action: '*'
+    resource: '*'
     effect: deny
   - action: compress
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: read
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: glob
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: grep
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: websearch
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: question
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: external_directory
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   - action: edit
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs issue get *"
+    resource: 'node scripts/forge.mjs issue get *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs issue search *"
+    resource: 'node scripts/forge.mjs issue search *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs issue create *"
+    resource: 'node scripts/forge.mjs issue create *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs issue edit *"
+    resource: 'node scripts/forge.mjs issue edit *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs milestone list *"
+    resource: 'node scripts/forge.mjs milestone list *'
     effect: allow
 ---
 

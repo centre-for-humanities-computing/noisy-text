@@ -3,53 +3,53 @@ description: Dreaming agent — reads the repository, the backlog and the soil, 
 mode: primary
 permissions:
   # Default-deny: anything not named below is refused.
-  - action: "*"
-    resource: "*"
+  - action: '*'
+    resource: '*'
     effect: deny
   # DCP can prune a long dream; the deny above would otherwise block it.
   - action: compress
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: read
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: glob
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: grep
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: question
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: external_directory
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   - action: edit
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   # A named page or one search, not a crawler: the prompt says when to do which.
   - action: webfetch
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: websearch
-    resource: "*"
+    resource: '*'
     effect: allow
   # The forge: read the backlog, create the issue or milestone the human picked.
   - action: shell
-    resource: "node scripts/forge.mjs issue get *"
+    resource: 'node scripts/forge.mjs issue get *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs issue search *"
+    resource: 'node scripts/forge.mjs issue search *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs issue create *"
+    resource: 'node scripts/forge.mjs issue create *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs milestone list *"
+    resource: 'node scripts/forge.mjs milestone list *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs milestone create *"
+    resource: 'node scripts/forge.mjs milestone create *'
     effect: allow
 ---
 

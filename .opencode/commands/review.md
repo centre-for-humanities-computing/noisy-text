@@ -12,7 +12,7 @@ project files. The only writes are scratch under `/tmp/opencode/` and one commen
   so and continue. A violated invariant is a blocker; nothing else is.
 - The branch is `<issue>-<slug>`: `git rev-parse --abbrev-ref HEAD`; the leading
   number is the issue. Read it with `node scripts/forge.mjs issue get <issue>
-  --json` — its latest `<!-- plan: N -->` comment (an old `round=N` counts) and
+--json` — its latest `<!-- plan: N -->` comment (an old `round=N` counts) and
   its acceptance criteria.
 - `node scripts/forge.mjs pr get <pr> --json`. No open PR → STOP. If its `head`
   is not `git rev-parse --abbrev-ref HEAD`, STOP and ask to check out the PR
@@ -55,21 +55,25 @@ three-line list of what could be deleted or simplified. Cite only backticked
 quoted in the finding, never cited; cite the failing repro or a surviving line.
 Prose and fenced output are not citations.
 
-````md
+```md
 <!-- review: round=N -->
+
 Reviewed commit: <sha>
 
 **Verdict:** block | approve
 
 **Blockers**
+
 - <what breaks> `path:start-end` — repro: `node /tmp/opencode/...` gives <output>
 
 **Stewardship notes**
+
 - <concern, unmet criterion, slice budget, or nit>
 
 **What could be deleted or simplified**
+
 - <at most three lines>
-````
+```
 
 Write it to `/tmp/opencode/review-<pr>.md`, then run
 `node scripts/cite-check.mjs <reviewed-commit> /tmp/opencode/review-<pr>.md`.

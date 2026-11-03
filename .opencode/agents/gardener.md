@@ -3,57 +3,57 @@ description: Gardening agent — walks an area and the soil, proposes removals a
 mode: primary
 permissions:
   # Default-deny: anything not named below is refused.
-  - action: "*"
-    resource: "*"
+  - action: '*'
+    resource: '*'
     effect: deny
   # DCP can prune a long tend session; the deny above would otherwise block it.
   - action: compress
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: read
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: glob
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: grep
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: question
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: external_directory
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   - action: edit
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   # The forge: read an issue, and create the Tend issue once the picks are approved.
   - action: shell
-    resource: "node scripts/forge.mjs issue get *"
+    resource: 'node scripts/forge.mjs issue get *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs issue create *"
+    resource: 'node scripts/forge.mjs issue create *'
     effect: allow
   # Looking around, without leaving a mark. These match the raw command text, so
   # they keep a cheap model in its lane; they are not a sandbox.
   - action: shell
-    resource: "ls"
+    resource: 'ls'
     effect: allow
   - action: shell
-    resource: "ls *"
+    resource: 'ls *'
     effect: allow
   - action: shell
-    resource: "git status"
+    resource: 'git status'
     effect: allow
   - action: shell
-    resource: "git status *"
+    resource: 'git status *'
     effect: allow
   - action: shell
-    resource: "git log *"
+    resource: 'git log *'
     effect: allow
   - action: shell
-    resource: "git show *"
+    resource: 'git show *'
     effect: allow
 ---
 

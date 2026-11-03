@@ -3,105 +3,105 @@ description: Reflection agent — reads the present or the record, asks where th
 mode: primary
 permissions:
   # Default-deny: anything not named below is refused.
-  - action: "*"
-    resource: "*"
+  - action: '*'
+    resource: '*'
     effect: deny
   # DCP can prune a long reflection; the deny above would otherwise block it.
   - action: compress
-    resource: "*"
+    resource: '*'
     effect: allow
   - action: read
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: glob
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: grep
-    resource: "**"
+    resource: '**'
     effect: allow
   - action: question
-    resource: "*"
+    resource: '*'
     effect: allow
   # Scratch only: fetched JSON, the journal draft and the commit message.
   - action: external_directory
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   - action: edit
-    resource: "/tmp/opencode/*"
+    resource: '/tmp/opencode/*'
     effect: allow
   # The soil is the only project text this agent may change.
   - action: edit
-    resource: ".omhu/*"
+    resource: '.omhu/*'
     effect: allow
   - action: edit
-    resource: "AGENTS.md"
+    resource: 'AGENTS.md'
     effect: allow
   # The numbers, read through the tested script.
   - action: shell
-    resource: "node scripts/reflect-facts.mjs *"
+    resource: 'node scripts/reflect-facts.mjs *'
     effect: allow
   # The forge, for the issue, PR, commit list and (when asked) an issue edit.
   - action: shell
-    resource: "node scripts/forge.mjs issue get *"
+    resource: 'node scripts/forge.mjs issue get *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs issue edit *"
+    resource: 'node scripts/forge.mjs issue edit *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs pr find *"
+    resource: 'node scripts/forge.mjs pr find *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs pr get *"
+    resource: 'node scripts/forge.mjs pr get *'
     effect: allow
   - action: shell
-    resource: "node scripts/forge.mjs pr commits *"
+    resource: 'node scripts/forge.mjs pr commits *'
     effect: allow
   # The only verify gate, and looking at the record without leaving a mark.
   - action: shell
-    resource: "node --test"
+    resource: 'node --test'
     effect: allow
   - action: shell
-    resource: "node --test *"
+    resource: 'node --test *'
     effect: allow
   - action: shell
-    resource: "git rev-parse *"
+    resource: 'git rev-parse *'
     effect: allow
   - action: shell
-    resource: "git status*"
+    resource: 'git status*'
     effect: allow
   - action: shell
-    resource: "git log *"
+    resource: 'git log *'
     effect: allow
   - action: shell
-    resource: "git show *"
+    resource: 'git show *'
     effect: allow
   - action: shell
-    resource: "git diff*"
+    resource: 'git diff*'
     effect: allow
   # Writing the one reflection commit, and never on main.
   - action: shell
-    resource: "git switch -c reflect-* main"
+    resource: 'git switch -c reflect-* main'
     effect: allow
   - action: shell
-    resource: "git switch -c retrospective-* main"
+    resource: 'git switch -c retrospective-* main'
     effect: allow
   - action: shell
-    resource: "git add .omhu AGENTS.md"
+    resource: 'git add .omhu AGENTS.md'
     effect: allow
   - action: shell
-    resource: "git commit -F /tmp/opencode/*"
+    resource: 'git commit -F /tmp/opencode/*'
     effect: allow
   - action: shell
-    resource: "git push origin *-*"
+    resource: 'git push origin *-*'
     effect: allow
   - action: shell
-    resource: "git push -u origin *-*"
+    resource: 'git push -u origin *-*'
     effect: allow
   - action: shell
-    resource: "git fetch *"
+    resource: 'git fetch *'
     effect: allow
   - action: shell
-    resource: "date +%F"
+    resource: 'date +%F'
     effect: allow
 ---
 
