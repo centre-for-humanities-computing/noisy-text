@@ -20,5 +20,4 @@ dataset revision in `src/lib/embeddings/loader.ts`.
 
 ## Agent workflow
 
-See `AGENTS.md` for how agents work in this repo and `.ai/README.md` for the
-handoff-file conventions.
+See `AGENTS.md` for how agents work in this repo.

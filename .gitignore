@@ -6,12 +6,6 @@ dist/
 .env.*
 !.env.example
 
-# /review staging files — the real review lives as a marked PR comment
-.ai/**/round-*/review.json
-.ai/**/round-*/review.md
-.ai/**/round-*/review.html
-.ai/**/round-*/slices/
-
 # Playwright output
 test-results/
 playwright-report/

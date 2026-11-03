@@ -13,7 +13,6 @@ compute runs in the browser.
 | UX/visual design; implementation notes            | `DESIGN.md` (§10 for code)   |
 | Non-obvious dependency APIs                       | `docs/libraries.md`          |
 | Adding a strategy / schedule / tokenizer / worker | that directory's `README.md` |
-| Workflow phases and `.ai/` handoff files          | `.ai/README.md`              |
 
 Do not load these docs in full by default. Delegate exploration to the
 `explore` subagent and open only the sections you need.
@@ -79,33 +78,6 @@ These are load-bearing; breaking them silently breaks the math.
   `package.json` once per issue (final mechanical slice of round 1) per SemVer
   (breaking → major, `feat` → minor, otherwise patch — `CONVENTIONS.md`);
   one issue per session.
-
-## Workflow and handoffs
-
-`draft → refine → plan → implement → review → merge`. Humans confirm plans
-before `/implement` and decide the merge; `/implement` commits and opens the
-PR itself. Every task starts in a fresh session. Use the slash commands
-`/refine`, `/plan`, `/implement`, `/review`; artifacts live in
-`.ai/<issue-number>-<slug>/round-N/`. The reviewer writes `review.json`;
-`scripts/review-pack.mjs` validates it and generates the `review.md` comment
-body and a local `review.html`, and the reviewer posts the comment. In
-per-slice mode, `/review` builds one self-contained packet per slice with
-`scripts/slice-pack.mjs`; slices under 60 changed lines without a
-review-priority path are reviewed in the integrator pass, and the integrating
-reviewer verifies only blockers and high-confidence findings. Review reports
-are PR comments marked `<!-- noisy-text-review: round=N -->` (the generated
-files are gitignored). Repeated plan → implement → review rounds run
-on the same branch and PR: a non-approve review verdict leads to a revision
-plan for the next round, with no round cap; after `approve with nits`,
-`/plan <issue> next` starts an explicit revision round. One commit per slice
-(`Slice:`/`Kind:` trailers), on the same branch and PR; `package.json` is
-bumped once per issue. `/plan` enforces a round-1 size gate (≤1200 changed
-lines unless `large` is passed) and creates or checks out the issue branch;
-`/implement` refuses to run on a different branch. `/plan` and `/review` run on
-the read-only `plan` agent; the `plan-writer`, `reviewer`, and `slice-reviewer`
-subagents perform the only writes (the `.ai/` artifacts). Refined issues live
-on GitHub, not in `.ai/`; `/refine` is the escape hatch when a review shows the
-issue scope itself is wrong. See `.ai/README.md` and `.opencode/command/`.
 
 ## Context discipline
 
