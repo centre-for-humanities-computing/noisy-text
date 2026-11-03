@@ -114,3 +114,53 @@ issue scope itself is wrong. See `.ai/README.md` and `.opencode/command/`.
 - `grep`/`glob` first; read only the needed range.
 - Don't re-read files already seen in this session; don't paste long outputs.
 - Compress or summarize finished exploration before starting new work.
+
+<!-- omhu:begin -->
+
+## How agents work here
+
+- **Prompts are static text.** No `{{placeholders}}`, no rendering step. Project
+  facts live in `AGENTS.md`; numbers that scripts enforce live in one small JSON
+  config read only by scripts.
+- **The issue is the plan.** Walk notes and plans are marked comments on the
+  forge issue; there are no plan files and no round folders.
+- **No litter.** The durable record is the issue, the PR, the commits with
+  `Plan:` / `Slice:` / `Fixes:` / `Kind:` trailers, and the three soil files.
+- **Soil is edited in place.** `.omhu/MAP.md`, `.omhu/JOURNAL.md`,
+  `.omhu/COMPOST.md` and this file change in the issue's last slice, as a diff
+  you can read.
+- **Short prompts.** Prompts should be as concise as they can be; when a cheap
+  model fails a step, move it into a script or a check rather than into more
+  prose.
+- **Agents are permission shapes, not commands.** `/cultivate` uses `cultivator`,
+  `/dream` uses `dreamer`, `/walk` and `/plan` share `planner`, `/implement` runs
+  as `build`, `/review` uses `reviewer`, `/reflect` and `/retrospective` share
+  `reflector`, and `/tend` uses `gardener`.
+- **Prompts match permissions.** A command's prompt names the shell commands its
+  agent may run, so the first attempt is not a denial; keep the allow list and
+  the prose aligned.
+- **Steps are optional.** `/walk`, `/plan` and `/review` are recommended, and the
+  human picks which ones an issue gets. An agent asked to skip ahead skips, says
+  which step it skipped in one line, and never runs a step nobody asked for.
+- **`/implement` writes the noticed entry, `/retrospective` the rest of the soil.**
+  Every phase opens from the newest artefact's unanswered questions.
+- **Secrets stay out of context.** All forge access goes through
+  `scripts/forge.mjs`; never read or print `.secrets/`.
+- **Long sessions can prune.** The workflow agents allow DCP's `compress` tool
+  after their default-deny rule; commands inherit their agent's permissions.
+
+## Stance
+
+This is a hobby/research project maintained in spare hours by one person.
+
+- Think before coding: state the assumption and the smallest change.
+- Change surgically: touch only what the task needs, not its neighbours.
+- Before planning, state the smallest version that delivers the goal and what it
+  leaves out. Prefer deleting or reusing code to adding it.
+- Do not add tests for states the code cannot reach, differential tests for
+  trivial parsing, guards for impossible input, or docs nobody asked for.
+- Report net lines (added and deleted).
+- If an idea is good but not needed now, add a short entry to `.omhu/COMPOST.md`
+  instead of building it: a sentence or two on one line, no continuation lines.
+
+<!-- omhu:end -->

@@ -20,3 +20,4 @@ playwright-report/
 
 # Python output
 scripts/__pycache__
+.secrets/
