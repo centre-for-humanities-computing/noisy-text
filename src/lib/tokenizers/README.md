@@ -61,6 +61,11 @@ hosted 50 000-word GloVe vocabulary and caches the parsed list in IndexedDB.
   before closing punctuation (`. , ; : ! ? ) ] } % … ” ’ » › ' "`), no space
   goes after opening punctuation (`( [ { “ ‘ « ‹ ' "`), and the first token
   has no leading space.
+- **Prose spans.** Every word, punctuation mark, space and newline is one
+  token, so a token's isolated decode is exactly its text. `alignTokenPieces`
+  matches it directly, and `allTokenCharSpans` leaves only the space `decode`
+  inserts as a plain gap; the space and newline tokens themselves remain
+  hoverable spans (`␣` and `↵` in chips).
 - **Round-trip limits.** Digits, `/_@#`, emoji and unspaced neutral
   punctuation are separate tokens and gain spaces on decode. Combining marks
   are not letters and split from their base. Straight quotes appear in both

@@ -19,3 +19,7 @@ The installer needs to format its files so that debt is not pushed to consumers 
 [workflow] The dead `':!.ai'` staging guard and the `.claude/` ignore are parked, not proven — they return only if something can write there again.
 [workflow] The four-command gate is two commands here: `reflector.md` allows check and test, not lint or prettier — the reviewer's round-2 gap, still open for this agent.
 Facts: 0 walks · 3 review rounds · 4 slices · +3434/−11113
+
+2026-11-04 — implement — slice count and commit shape
+
+Noticed: the issue estimates one or two commits; this is four slices because the copy, unit evidence, e2e evidence and docs are separate kinds and each stays far under budget. If you prefer the issue's shape, S1 and S2 can merge into one ~225-line behavioral commit, leaving three.
