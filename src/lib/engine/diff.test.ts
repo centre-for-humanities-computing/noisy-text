@@ -9,6 +9,8 @@ import {
 import type { TokenPiece } from './diff.js';
 import seedrandom from 'seedrandom';
 import type { Trajectory } from './types.js';
+import { createWordTokenizer } from '../tokenizers/word.js';
+import type { Tokenizer, TokenizerInfo } from '../tokenizers/types.js';
 
 /** Build a minimal Trajectory from a 2D array of rows for testing. */
 function makeTraj(rows: number[][]): Trajectory {
@@ -790,5 +792,193 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 		// available: at least one case must promote a continuation to the
 		// first visible position.
 		expect(sawFirstVisibleContinuation).toBe(true);
+	});
+});
+
+describe('allTokenCharSpans (word tokens)', () => {
+	const INFO: TokenizerInfo = {
+		id: 'words-test',
+		label: 'Words',
+		description: 'test',
+		plainName: 'Words',
+		gloss: 'test',
+		wordPiece: false,
+		tooltip: { text: 'test' },
+	};
+	const VOCAB = ['the', 'quick', 'brown', 'fox', 'jumps', 'over', 'lazy', 'dog', 'a', 'b', 'Don’t'];
+	const MASK = 1_000_000;
+
+	/** Encode, optionally insert a mask, and collect prose spans. */
+	function wordSpans(
+		tok: Tokenizer,
+		input: string,
+		maskAt: number | null = null,
+	): { text: string; tokens: readonly string[]; spans: ReturnType<typeof allTokenCharSpans> } {
+		const encoded = tok.encode(input);
+		const ids = encoded.ids;
+		let withMask = ids;
+		if (maskAt !== null) {
+			withMask = new Int32Array(ids.length + 1);
+			withMask.set(ids.subarray(0, maskAt), 0);
+			withMask[maskAt] = MASK;
+			withMask.set(ids.subarray(maskAt), maskAt + 1);
+		}
+		const text = tok.decode(ids);
+		const recency = new Float32Array(withMask.length);
+		const decodeToken = (id: number): string => tok.decode(new Int32Array([id]));
+		const spans = allTokenCharSpans(withMask, recency, decodeToken, MASK, text, false);
+		return { text, tokens: tok.idsToTokens(ids), spans };
+	}
+
+	function sliceText(text: string, spans: ReturnType<typeof allTokenCharSpans>): string[] {
+		return spans.map((s) => text.slice(s.start, s.end));
+	}
+
+	it('spans attached punctuation despite the inserted space', () => {
+		const tok = createWordTokenizer(INFO, VOCAB);
+		const { text, tokens, spans } = wordSpans(tok, 'a,b');
+		expect(text).toBe('a, b');
+		expect(tokens).toEqual(['a', ',', 'b']);
+		expect(spans.map((s) => [s.start, s.end])).toEqual([
+			[0, 1],
+			[1, 2],
+			[3, 4],
+		]);
+		expect(sliceText(text, spans)).toEqual(tokens);
+	});
+
+	it('keeps a contraction as one token', () => {
+		const tok = createWordTokenizer(INFO, VOCAB);
+		const { text, tokens, spans } = wordSpans(tok, 'Don’t');
+		expect(text).toBe('Don’t');
+		expect(tokens).toEqual(['Don’t']);
+		expect(spans.map((s) => [s.start, s.end])).toEqual([[0, 5]]);
+		expect(sliceText(text, spans)).toEqual(tokens);
+	});
+
+	it('spans the newline token without a surrounding gap', () => {
+		const tok = createWordTokenizer(INFO, VOCAB);
+		const { text, tokens, spans } = wordSpans(tok, 'a\nb');
+		expect(text).toBe('a\nb');
+		expect(tokens).toEqual(['a', '\n', 'b']);
+		expect(spans.map((s) => [s.start, s.end])).toEqual([
+			[0, 1],
+			[1, 2],
+			[2, 3],
+		]);
+		expect(sliceText(text, spans)).toEqual(tokens);
+	});
+
+	it('spans repeated words at their own positions', () => {
+		const tok = createWordTokenizer(INFO, VOCAB);
+		const { text, tokens, spans } = wordSpans(tok, 'the the the');
+		expect(text).toBe('the the the');
+		expect(tokens).toEqual(['the', ' ', 'the', ' ', 'the']);
+		expect(spans.map((s) => [s.start, s.end])).toEqual([
+			[0, 3],
+			[3, 4],
+			[4, 7],
+			[7, 8],
+			[8, 11],
+		]);
+		expect(sliceText(text, spans)).toEqual(tokens);
+	});
+
+	it('skips a mask without shifting the visible indices', () => {
+		const tok = createWordTokenizer(INFO, VOCAB);
+		const maskAt = 1;
+		const ids = tok.encode('the quick').ids;
+		const { text, tokens, spans } = wordSpans(tok, 'the quick', maskAt);
+		expect(text).toBe('the quick');
+		expect(tokens).toEqual(['the', ' ', 'quick']);
+		expect(spans.map((s) => s.index)).toEqual([0, 2, 3]);
+		expect(spans.map((s) => s.tokenId)).toEqual(Array.from(ids));
+		expect(sliceText(text, spans)).toEqual(tokens);
+	});
+});
+
+describe('allTokenCharSpans (word differential vs prefix-length reference)', () => {
+	const INFO: TokenizerInfo = {
+		id: 'words-test',
+		label: 'Words',
+		description: 'test',
+		plainName: 'Words',
+		gloss: 'test',
+		wordPiece: false,
+		tooltip: { text: 'test' },
+	};
+	const VOCAB = ['the', 'quick', 'brown', 'fox', 'jumps', 'over', 'lazy', 'dog', 'a', 'b', 'Don’t'];
+	const MASK = 1_000_000;
+	const CHUNKS = [
+		'the',
+		'quick',
+		'brown',
+		'fox',
+		'jumps',
+		'Don’t',
+		'a',
+		'b',
+		'zed',
+		'42',
+		' ',
+		'  ',
+		'\t',
+		'\n',
+		',',
+		'.',
+		'!',
+		'?',
+		"'",
+		'’',
+		'-',
+		'(',
+		')',
+	];
+
+	/** Build an arbitrary passage from random chunks; normalization may alter it. */
+	function randomText(prng: () => number): string {
+		let text = '';
+		const n = 5 + Math.floor(prng() * 25);
+		for (let i = 0; i < n; i++) {
+			text += CHUNKS[Math.floor(prng() * CHUNKS.length)]!;
+		}
+		return text;
+	}
+
+	it('matches the prefix-length oracle on random word passages', () => {
+		const prng = seedrandom.alea('word-token-spans' + '\0');
+		const tok = createWordTokenizer(INFO, VOCAB);
+		const CASES = 200;
+
+		for (let c = 0; c < CASES; c++) {
+			const input = randomText(prng);
+			const encoded = tok.encode(input);
+			const ids = encoded.ids;
+			const tokens = tok.idsToTokens(ids);
+			const text = tok.decode(ids);
+			const recency = new Float32Array(ids.length);
+			const decodeToken = (id: number): string => tok.decode(new Int32Array([id]));
+			const spans = allTokenCharSpans(ids, recency, decodeToken, MASK, text, false);
+
+			// Oracle: each piece is appended verbatim at the end of its
+			// prefix decode, so its span ends there and starts one token
+			// length before.
+			const expected = Array.from(ids, (_, k) => {
+				const end = tok.decode(ids.subarray(0, k + 1)).length;
+				return [end - tokens[k]!.length, end];
+			});
+
+			expect(
+				spans.map((s) => [s.start, s.end]),
+				`case ${c}: input=${JSON.stringify(input)} text=${JSON.stringify(text)}`,
+			).toEqual(expected);
+			expect(sliceText(text, spans)).toEqual(tokens);
+			expect(spans.map((s) => s.index)).toEqual(Array.from(ids, (_, i) => i));
+			expect(spans.map((s) => s.tokenId)).toEqual(Array.from(ids));
+
+			function sliceText(t: string, s: typeof spans): string[] {
+				return s.map((span) => t.slice(span.start, span.end));
+			}
+		}
 	});
 });
