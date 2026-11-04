@@ -44,7 +44,7 @@ test('embedding-knn keeps the word tokenizer and never reads OOV rows', async ({
 	await expect(status).toContainText('Word vocabulary', { timeout: TIMEOUT });
 	await expect(status).toHaveAttribute('data-trajectory-status', 'ready', { timeout: TIMEOUT });
 	// One shared OOV id for the inter-word spaces and one for `zorblax`.
-	await expect(status).toContainText('(+2 OOV seen)', { timeout: TIMEOUT });
+	await expect(status).toContainText('(+2 OOV)', { timeout: TIMEOUT });
 
 	const slider = page.getByTestId('time-slider');
 	await expect(slider).toBeEnabled({ timeout: TIMEOUT });
