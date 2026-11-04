@@ -30,12 +30,18 @@ permissions:
   - action: shell
     resource: 'node scripts/cite-check.mjs *'
     effect: allow
-  # The repro the reviewer writes, and the only read-only check.
+  # The repro the reviewer writes, and the read-only gate.
   - action: shell
     resource: 'node /tmp/opencode/*'
     effect: allow
   - action: shell
     resource: 'npm run check'
+    effect: allow
+  - action: shell
+    resource: 'npm run lint'
+    effect: allow
+  - action: shell
+    resource: 'npx prettier --check .'
     effect: allow
   - action: shell
     resource: 'npm run test'

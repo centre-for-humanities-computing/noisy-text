@@ -3,7 +3,7 @@
 	"agent": {
 		"plan": {
 			"permission": {
-				"edit": { "*": "deny", ".ai/**": "allow", "**/.ai/**": "allow" }
+				"edit": { "*": "deny" }
 			}
 		},
 		"explore": {

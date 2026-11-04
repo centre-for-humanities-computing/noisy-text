@@ -11,9 +11,10 @@ project files. The only writes are scratch under `/tmp/opencode/` and one commen
 - `AGENTS.md`, then `.omhu/REVIEW_PRIORITIES.md`. If the second is missing, say
   so and continue. A violated invariant is a blocker; nothing else is.
 - The branch is `<issue>-<slug>`: `git rev-parse --abbrev-ref HEAD`; the leading
-  number is the issue. Read it with `node scripts/forge.mjs issue get <issue>
---json` — its latest `<!-- plan: N -->` comment (an old `round=N` counts) and
-  its acceptance criteria.
+  number is the issue. Read it with
+  `node scripts/forge.mjs issue get <issue> --json` — its latest
+  `<!-- plan: N -->` comment (an old `round=N` counts) and its acceptance
+  criteria.
 - `node scripts/forge.mjs pr get <pr> --json`. No open PR → STOP. If its `head`
   is not `git rev-parse --abbrev-ref HEAD`, STOP and ask to check out the PR
   branch; never review or post on another branch.
