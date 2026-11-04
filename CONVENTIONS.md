@@ -157,7 +157,7 @@ Current pins worth knowing:
 ## Versioning
 
 `package.json` follows SemVer and is bumped once per issue, in the final
-mechanical slice of round 1 (see `.ai/README.md` for the round layout):
+mechanical slice of the issue (see `AGENTS.md` for the workflow):
 
 - breaking change (`feat!` / `BREAKING CHANGE:`) → major
 - `feat` → minor

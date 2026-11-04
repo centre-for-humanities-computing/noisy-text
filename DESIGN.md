@@ -1,6 +1,6 @@
 # DESIGN.md — Visual & Interaction Design
 
-> Agent workflow and `.ai/` handoffs live in `AGENTS.md` / `.ai/README.md`.
+> Agent workflow lives in `AGENTS.md`.
 > For implementation work, §10 is the relevant section.
 
 Status: proposal / grounding document for further development.

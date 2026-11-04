@@ -1,0 +1,22 @@
+[
+	".omhu/REVIEW_PRIORITIES.md",
+	".opencode/agents/cultivator.md",
+	".opencode/agents/dreamer.md",
+	".opencode/agents/gardener.md",
+	".opencode/agents/planner.md",
+	".opencode/agents/reflector.md",
+	".opencode/agents/reviewer.md",
+	".opencode/commands/cultivate.md",
+	".opencode/commands/dream.md",
+	".opencode/commands/implement.md",
+	".opencode/commands/plan.md",
+	".opencode/commands/reflect.md",
+	".opencode/commands/retrospective.md",
+	".opencode/commands/review.md",
+	".opencode/commands/tend.md",
+	".opencode/commands/walk.md",
+	"scripts/cite-check.mjs",
+	"scripts/forge.mjs",
+	"scripts/reflect-facts.mjs",
+	"scripts/slice-check.mjs"
+]
