@@ -12,3 +12,10 @@ arithmetic held and only the budget broke — 9,486 lines nobody needs to read,
 in the same branch as a 100-line diff that does. Also, `scripts/forge.mjs`
 carried an uncommitted change in the working tree, so the first slice-check
 would have swept it into S1; it was stashed before `/implement`.
+
+## 2026-11-04 — retro — why the install commit arrived unplanned, and what its 1,170-line format debt says
+
+The installer needs to format its files so that debt is not pushed to consumers — it is not that it would produce formatted files but that it should. The install is exempt only as a bootstrap: the workflow cannot plan itself into existence.
+[workflow] The dead `':!.ai'` staging guard and the `.claude/` ignore are parked, not proven — they return only if something can write there again.
+[workflow] The four-command gate is two commands here: `reflector.md` allows check and test, not lint or prettier — the reviewer's round-2 gap, still open for this agent.
+Facts: 0 walks · 3 review rounds · 4 slices · +3434/−11113

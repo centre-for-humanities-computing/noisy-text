@@ -11,3 +11,5 @@ A line named in an open issue's `**Compost:**` line is scheduled; `/implement` d
 2026-11-03 — Auditing prompts beyond the four known gate sites — 1 — plan 2 on #83
 2026-11-03 — One slice-size number in `AGENTS.md` itself — 1 — plan 2 on #83
 2026-11-03 — Amending `d0c856c` to carry `Plan:` and `Slice:` trailers — 1 — plan 2 on #83
+2026-11-04 — The workflow installer formats the files it writes, so install debt never lands as an unnamed slice — 1 — retro on #83
+2026-11-04 — Restore slice-check's `':!.ai'` staging guard and drop `.prettierignore`'s `.claude/` line — 1 — parked in review 3 on PR #84
