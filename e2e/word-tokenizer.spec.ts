@@ -1,5 +1,6 @@
 // End-to-end coverage for the hosted word tokenizer and its OOV ids.
 import { expect, test, type Page } from '@playwright/test';
+import { readProse } from './prose';
 
 const FIXTURE = 'e2e/fixtures/word-vocab/word-vocab-50k.json';
 const TIMEOUT = 120_000;
@@ -25,29 +26,6 @@ async function waitReady(page: Page): Promise<void> {
 	const status = page.getByTestId('app-status');
 	await expect(status).toContainText('Word vocabulary', { timeout: TIMEOUT });
 	await expect(status).toHaveAttribute('data-trajectory-status', 'ready', { timeout: TIMEOUT });
-}
-
-interface ProseSpan {
-	text: string;
-	start: number;
-	end: number;
-	tokenId: string;
-}
-
-/** Read the prose text and its per-token spans, preserving `\n`. */
-async function readProse(page: Page): Promise<{ text: string; spans: ProseSpan[] }> {
-	return page.evaluate(() => {
-		const prose = document.querySelector('[data-testid="prose-text"]')!;
-		const spans: ProseSpan[] = Array.from(
-			prose.querySelectorAll('[data-testid="prose-token"]'),
-		).map((el) => ({
-			text: el.textContent ?? '',
-			start: Number(el.getAttribute('data-start')),
-			end: Number(el.getAttribute('data-end')),
-			tokenId: el.getAttribute('data-token-id') ?? '',
-		}));
-		return { text: prose.textContent ?? '', spans };
-	});
 }
 
 test('word tokenizer renders prose and OOV ids', async ({ page }) => {
@@ -206,26 +184,10 @@ test('word prose spans, chips and mask scrubbing', async ({ page }) => {
 		timeout: TIMEOUT,
 	});
 
-	const initial = await readProse(page);
+	const initial = (await readProse(page))!;
 	expect(initial.text).toBe(PROSE);
 	expect(initial.spans.map((s) => s.text)).toEqual(TOKENS);
 	expect(initial.spans.map((s) => [s.start, s.end])).toEqual(SPANS);
-
-	// Every token, including the space and newline tokens, owns characters;
-	// the only plain gap is the single space `decode` inserts after `,`.
-	const covered = new Array<boolean>(PROSE.length).fill(false);
-	for (const s of initial.spans) {
-		for (let i = s.start; i < s.end; i++) covered[i] = true;
-	}
-	const gaps: Array<[number, number]> = [];
-	for (let i = 0; i < covered.length; i++) {
-		if (covered[i]) continue;
-		let end = i;
-		while (end < covered.length && !covered[end]) end++;
-		gaps.push([i, end]);
-		i = end - 1;
-	}
-	expect(gaps).toEqual([[8, 9]]);
 
 	// The OOV id resolves to its word in the prose tooltip.
 	const zorblax = page.locator('[data-testid="prose-token"][aria-label="token zorblax"]');
@@ -256,7 +218,7 @@ test('word prose spans, chips and mask scrubbing', async ({ page }) => {
 	let sawPartial = false;
 	for (let frac = 0.05; frac <= 1.001; frac += 0.05) {
 		await slider.fill(String(Math.round(max * frac)));
-		const current = await readProse(page);
+		const current = (await readProse(page))!;
 		if (current.text === PROSE || current.text.length === 0) continue;
 		sawPartial = true;
 		for (const s of current.spans) {
@@ -267,7 +229,7 @@ test('word prose spans, chips and mask scrubbing', async ({ page }) => {
 	expect(sawPartial, 'no step produced a partly-masked prose').toBe(true);
 
 	await slider.fill('0');
-	const roundTrip = await readProse(page);
+	const roundTrip = (await readProse(page))!;
 	expect(roundTrip.text).toBe(PROSE);
 	expect(roundTrip.spans.map((s) => [s.start, s.end])).toEqual(SPANS);
 

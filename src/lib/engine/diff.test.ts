@@ -795,19 +795,24 @@ describe('alignTokenPieces (differential vs naive prefix-length reference)', () 
 	});
 });
 
-describe('allTokenCharSpans (word tokens)', () => {
-	const INFO: TokenizerInfo = {
-		id: 'words-test',
-		label: 'Words',
-		description: 'test',
-		plainName: 'Words',
-		gloss: 'test',
-		wordPiece: false,
-		tooltip: { text: 'test' },
-	};
-	const VOCAB = ['the', 'quick', 'brown', 'fox', 'jumps', 'over', 'lazy', 'dog', 'a', 'b', 'Don’t'];
-	const MASK = 1_000_000;
+const INFO: TokenizerInfo = {
+	id: 'words-test',
+	label: 'Words',
+	description: 'test',
+	plainName: 'Words',
+	gloss: 'test',
+	wordPiece: false,
+	tooltip: { text: 'test' },
+};
+const VOCAB = ['the', 'quick', 'brown', 'fox', 'jumps', 'over', 'lazy', 'dog', 'a', 'b', 'Don’t'];
+const MASK = 1_000_000;
 
+/** Slice each span's text out of the decoded prose. */
+function sliceText(text: string, spans: ReturnType<typeof allTokenCharSpans>): string[] {
+	return spans.map((s) => text.slice(s.start, s.end));
+}
+
+describe('allTokenCharSpans (word tokens)', () => {
 	/** Encode, optionally insert a mask, and collect prose spans. */
 	function wordSpans(
 		tok: Tokenizer,
@@ -828,10 +833,6 @@ describe('allTokenCharSpans (word tokens)', () => {
 		const decodeToken = (id: number): string => tok.decode(new Int32Array([id]));
 		const spans = allTokenCharSpans(withMask, recency, decodeToken, MASK, text, false);
 		return { text, tokens: tok.idsToTokens(ids), spans };
-	}
-
-	function sliceText(text: string, spans: ReturnType<typeof allTokenCharSpans>): string[] {
-		return spans.map((s) => text.slice(s.start, s.end));
 	}
 
 	it('spans attached punctuation despite the inserted space', () => {
@@ -898,17 +899,6 @@ describe('allTokenCharSpans (word tokens)', () => {
 });
 
 describe('allTokenCharSpans (word differential vs prefix-length reference)', () => {
-	const INFO: TokenizerInfo = {
-		id: 'words-test',
-		label: 'Words',
-		description: 'test',
-		plainName: 'Words',
-		gloss: 'test',
-		wordPiece: false,
-		tooltip: { text: 'test' },
-	};
-	const VOCAB = ['the', 'quick', 'brown', 'fox', 'jumps', 'over', 'lazy', 'dog', 'a', 'b', 'Don’t'];
-	const MASK = 1_000_000;
 	const CHUNKS = [
 		'the',
 		'quick',
@@ -975,10 +965,6 @@ describe('allTokenCharSpans (word differential vs prefix-length reference)', () 
 			expect(sliceText(text, spans)).toEqual(tokens);
 			expect(spans.map((s) => s.index)).toEqual(Array.from(ids, (_, i) => i));
 			expect(spans.map((s) => s.tokenId)).toEqual(Array.from(ids));
-
-			function sliceText(t: string, s: typeof spans): string[] {
-				return s.map((span) => t.slice(span.start, span.end));
-			}
 		}
 	});
 });
