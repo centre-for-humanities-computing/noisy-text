@@ -365,7 +365,7 @@
 			const changedPart = changedCount !== null ? ` · ${changedCount} changed this step` : '';
 			const oovPart =
 				encoded.vocabSize > t.vocabSize ? ` (+${encoded.vocabSize - t.vocabSize} OOV)` : '';
-			return `${t.info.label} · Vocab: ${formatCount(encoded.vocabSize)}${oovPart} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}${changedPart}`;
+			return `${t.info.label} · Vocab: ${formatCount(t.vocabSize)}${oovPart} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}${changedPart}`;
 		}
 		return 'Select a tokenizer';
 	});

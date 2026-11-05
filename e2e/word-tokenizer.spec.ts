@@ -202,7 +202,9 @@ test('word prose spans, chips and mask scrubbing', async ({ page }) => {
 	await expect(page.getByTestId('noise-button')).toBeEnabled({ timeout: TIMEOUT });
 	await page.getByTestId('noise-button').click();
 	await waitReady(page);
-	await expect(page.getByTestId('app-status')).toContainText('(+7 OOV)', { timeout: TIMEOUT });
+	await expect(page.getByTestId('app-status')).toContainText('Vocab: 40 (+7 OOV)', {
+		timeout: TIMEOUT,
+	});
 
 	const initial = await readProse(page);
 	expect(initial.text).toBe(PROSE);
