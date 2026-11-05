@@ -23,3 +23,10 @@ Facts: 0 walks · 3 review rounds · 4 slices · +3434/−11113
 2026-11-04 — implement — slice count and commit shape
 
 Noticed: the issue estimates one or two commits; this is four slices because the copy, unit evidence, e2e evidence and docs are separate kinds and each stays far under budget. If you prefer the issue's shape, S1 and S2 can merge into one ~225-line behavioral commit, leaving three.
+
+## 2026-11-05 — retro — what let the status double-count through, and what would have caught it before review?
+
+"I don't know, honestly." S1's message claimed `50 000` while the code passed the effective size, and the e2e pinned only `(+n OOV)`, so nothing failed.
+Commit-subject accuracy "is not that important" — the worry is overoptimizing. Round 2's tidy notes are "later": many things to tidy, they do no harm.
+[workflow] Missing issue numbers in subjects drew a review note; the human would rather not overoptimize commit prose.
+Facts: 1 walk · 2 review rounds · 1 slice · +341/−30

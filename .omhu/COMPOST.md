@@ -17,3 +17,4 @@ A line named in an open issue's `**Compost:**` line is scheduled; `/implement` d
 2026-11-04 — A second e2e spec for word prose; extend the existing word-tokenizer spec instead — 1 — plan 1 on #79
 2026-11-04 — New UI controls, casing flags, typography changes or a different prose-rendering approach (§4.1 versus §10.2) — 1 — plan 1 on #79
 2026-11-04 — Grouping the Tokens: count or other status numbers — 1 — plan 1 on #79
+2026-11-05 — Tidy the word-tokenizer e2e leftovers: a throwing `readProse` helper, drop the redundant timeout, pin `Vocab: 40` in the first word test — 1 — review 2 on PR #86
