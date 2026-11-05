@@ -273,6 +273,11 @@
 		const traj = trajectoryStore.trajectory;
 		if (!tok || !traj) return;
 
+		// Word whitespace is frozen, so its inspector would only repeat the
+		// same token; skip it. Punctuation stays inspectable.
+		const displayed = displayTokens.tokens[index];
+		if (tokenizerStore.currentId === 'words' && (displayed === ' ' || displayed === '\n')) return;
+
 		hover = { tokenId, x: rect.left, y: rect.top, status: 'loading', graph: null };
 
 		// Trajectory column for this position: $x_0, \ldots, x_t$. The rows
