@@ -405,6 +405,7 @@
 			vocabSize: encoded.vocabSize,
 			seed: trajectoryStore.seed,
 			tokenizerId: tokenizerStore.currentId,
+			oovTokens: tokenizerStore.tokenizer?.oovTokens ?? [],
 		};
 		untrack(() => trajectoryStore.request(spec));
 	});

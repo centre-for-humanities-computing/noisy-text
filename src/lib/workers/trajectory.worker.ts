@@ -36,6 +36,7 @@ import {
 } from '../strategies/string-distance-kernel.js';
 import type { CharOverlapMode } from '../strategies/char-overlap-model.js';
 import type { DistanceModel } from '../strategies/distance-model.js';
+import { ExcludingDistanceModel } from '../strategies/distance-model.js';
 import type { WeightFamilyId } from '../strategies/weight-family.js';
 import { NeighborhoodProvider } from '../strategies/neighborhood.js';
 import { verifyVocabSha } from '../embeddings/vocab-sha.js';
@@ -51,6 +52,7 @@ import { buildUnionGraph } from '../engine/union-graph.js';
 import { computeForceLayoutLarge } from '../engine/force-layout.js';
 import type { TrajectoryWorkerUnionGraphRequest, UnionGraph } from './trajectory.protocol.js';
 import { tokenLabel } from './token-label.js';
+import { providerCacheKey } from './cache-keys.js';
 import {
 	getEmbeddingSource,
 	loadEmbedding,
@@ -253,27 +255,36 @@ async function decodeVocab(tok: Tokenizer, onProgress?: VocabProgress): Promise<
 
 /**
  * Ensure the `DistanceModel` + `NeighborhoodProvider` for a string-distance
- * kernel are ready for a tokenizer. Decodes all $K$ token strings (one-time
- * cost per kernel+tokenizer lifetime), builds the model via the kernel's
- * `makeModel`, and wraps it in a provider.
+ * kernel are ready for a tokenizer. Decodes all static token strings
+ * (one-time cost per kernel+tokenizer lifetime), appends the append-only
+ * OOV table so the model covers $K_{\text{eff}}$, builds the model via the
+ * kernel's `makeModel`, and wraps it in a provider.
  *
  * The cache key includes the kernel id, so set and multiset char-overlap
- * (and future kernels) don't collide. The radius ceiling comes from
- * `R_MAX_BY_KERNEL`.
+ * (and future kernels) don't collide, and the OOV content, so a changed
+ * table rebuilds instead of serving rows for ids that now mean different
+ * strings. The radius ceiling comes from `R_MAX_BY_KERNEL`.
  */
 async function ensureDistanceSourceProvider(
 	kernelId: string,
 	tokenizerId: string,
+	oovTokens?: readonly string[],
 	onProgress?: VocabProgress,
 ): Promise<NeighborhoodProvider> {
-	const cacheKey = `${kernelId}:${tokenizerId}`;
+	const cacheKey = providerCacheKey(kernelId, tokenizerId, oovTokens);
 	const cached = _providerCache.get(cacheKey);
 	if (cached) return cached.provider;
 
 	const tok = await loadTokenizer(tokenizerId);
-	const strings = await decodeVocab(tok, onProgress);
+	const staticStrings = await decodeVocab(tok, onProgress);
+	const oov = oovTokens ?? [];
+	const strings = oov.length > 0 ? [...staticStrings, ...oov] : staticStrings;
 
-	const model = getStringDistanceKernel(kernelId).makeModel(strings);
+	const inner = getStringDistanceKernel(kernelId).makeModel(strings);
+	// Whitespace ids are indexable but never destinations; see the walk's
+	// destination policy (stricter than pinning only the starting position).
+	const excluded = whitespaceIds(staticStrings.length, oov);
+	const model = excluded.size > 0 ? new ExcludingDistanceModel(inner, excluded) : inner;
 	// Own-property check: inherited keys like 'toString' must fall back to
 	// the default radius instead of crashing with a TypeError.
 	const rMax = Object.hasOwn(R_MAX_BY_KERNEL, kernelId) ? R_MAX_BY_KERNEL[kernelId]! : R_MAX;
@@ -282,6 +293,16 @@ async function ensureDistanceSourceProvider(
 	});
 	_providerCache.set(cacheKey, { model, provider });
 	return provider;
+}
+
+/** Ids of `' '` and `'\n'` in the appended OOV table. */
+function whitespaceIds(staticK: number, oovTokens: readonly string[]): Set<number> {
+	const ids = new Set<number>();
+	for (let i = 0; i < oovTokens.length; i++) {
+		const token = oovTokens[i]!;
+		if (token === ' ' || token === '\n') ids.add(staticK + i);
+	}
+	return ids;
 }
 
 self.onmessage = (event: MessageEvent<TrajectoryWorkerRequest>) => {
@@ -326,6 +347,7 @@ async function handleCompute(
 			provider = await ensureDistanceSourceProvider(
 				'edit-distance',
 				spec.tokenizerId,
+				spec.oovTokens,
 				(done, total) => postProgress('preparing', done, total),
 			);
 		} else if (spec.strategyId === 'char-overlap') {
@@ -333,6 +355,7 @@ async function handleCompute(
 			provider = await ensureDistanceSourceProvider(
 				stringDistanceKernelFor(mode).id,
 				spec.tokenizerId,
+				spec.oovTokens,
 				(done, total) => postProgress('preparing', done, total),
 			);
 		} else if (spec.strategyId === 'embedding-knn') {
@@ -454,7 +477,7 @@ async function handleNeighbors(
 		let graphParams: NeighborGraphParams | null = null;
 
 		if (strategyId === 'lexical') {
-			provider = await ensureDistanceSourceProvider('edit-distance', tokenizerId);
+			provider = await ensureDistanceSourceProvider('edit-distance', tokenizerId, msg.oovTokens);
 			const cfg = strategyConfig as {
 				maxDistance?: number;
 				k?: number;
@@ -469,7 +492,11 @@ async function handleNeighbors(
 			};
 		} else if (strategyId === 'char-overlap') {
 			const mode = (strategyConfig as { mode?: 'set' | 'multiset' }).mode ?? 'set';
-			provider = await ensureDistanceSourceProvider(stringDistanceKernelFor(mode).id, tokenizerId);
+			provider = await ensureDistanceSourceProvider(
+				stringDistanceKernelFor(mode).id,
+				tokenizerId,
+				msg.oovTokens,
+			);
 			const cfg = strategyConfig as {
 				maxDistance?: number;
 				k?: number;
@@ -568,7 +595,7 @@ async function handleUnionGraph(msg: TrajectoryWorkerUnionGraphRequest): Promise
 		let graphParams: NeighborGraphParams | null = null;
 
 		if (strategyId === 'lexical') {
-			provider = await ensureDistanceSourceProvider('edit-distance', tokenizerId);
+			provider = await ensureDistanceSourceProvider('edit-distance', tokenizerId, msg.oovTokens);
 			const cfg = strategyConfig as {
 				maxDistance?: number;
 				k?: number;
@@ -583,7 +610,11 @@ async function handleUnionGraph(msg: TrajectoryWorkerUnionGraphRequest): Promise
 			};
 		} else if (strategyId === 'char-overlap') {
 			const mode = (strategyConfig as { mode?: CharOverlapMode }).mode ?? 'set';
-			provider = await ensureDistanceSourceProvider(stringDistanceKernelFor(mode).id, tokenizerId);
+			provider = await ensureDistanceSourceProvider(
+				stringDistanceKernelFor(mode).id,
+				tokenizerId,
+				msg.oovTokens,
+			);
 			const cfg = strategyConfig as {
 				maxDistance?: number;
 				k?: number;

@@ -69,6 +69,36 @@ test('word tokenizer renders prose and OOV ids', async ({ page }) => {
 	expect(errors).toEqual([]);
 });
 
+for (const strategy of ['lexical', 'char-overlap'] as const) {
+	test(`word tokenizer: ${strategy} reaches ready over OOV whitespace`, async ({ page }) => {
+		const errors: string[] = [];
+		page.on('pageerror', (e) => errors.push(e.message));
+		page.on('console', (m) => {
+			if (m.type() === 'error') errors.push(m.text());
+		});
+		const counter = { n: 0 };
+		await routeVocab(page, counter);
+
+		await page.goto('/');
+		await expect(page.getByTestId('noise-button')).toBeEnabled({ timeout: TIMEOUT });
+		// Spaces and punctuation receive OOV ids alongside the unknown word.
+		await page.getByTestId('input-text').fill('the quick, zorblax!');
+		await selectTokenizer(page, 'words');
+		await expect(page.getByTestId('noise-button')).toBeEnabled({ timeout: TIMEOUT });
+		const card = page.getByTestId(`strategy-${strategy}`);
+		await expect(card).toBeEnabled({ timeout: TIMEOUT });
+		await card.click();
+		await expect(card).toHaveAttribute('aria-checked', 'true');
+		await page.getByTestId('noise-button').click();
+
+		await waitReady(page);
+		await expect(page.getByTestId('app-status')).toContainText('OOV', { timeout: TIMEOUT });
+		await expect(page.getByTestId('time-slider')).toBeEnabled({ timeout: TIMEOUT });
+
+		expect(errors).toEqual([]);
+	});
+}
+
 test('absorbing masks use the growing OOV sentinel', async ({ page }) => {
 	const errors: string[] = [];
 	page.on('pageerror', (e) => errors.push(e.message));

@@ -103,3 +103,28 @@ describe('ModelDistanceSource', () => {
 		expect(Array.from(table.ids)).toEqual([1, 2]);
 	});
 });
+
+// The worker appends the OOV table to the static vocabulary before building
+// a model. These tests pin that the OOV ids are indexable.
+describe('models over the effective vocabulary', () => {
+	const strings = ['the', 'quick', 'brown', 'fox', ' ', '\n', 'zorblax'];
+	const oovIds = [4, 5, 6];
+
+	it('EditDistanceModel: candidates and neighborsOf accept OOV ids', () => {
+		const model = new EditDistanceModel(strings);
+		const provider = new NeighborhoodProvider(model, 2);
+		for (const id of oovIds) {
+			expect(() => [...model.candidates(id, 2)]).not.toThrow();
+			expect(() => provider.neighborsOf(id)).not.toThrow();
+		}
+	});
+
+	it('CharOverlapModel: candidates and neighborsOf accept OOV ids', () => {
+		const model = new CharOverlapModel(strings, 'set');
+		const provider = new NeighborhoodProvider(model, 1);
+		for (const id of oovIds) {
+			expect(() => [...model.candidates(id, 0.5)]).not.toThrow();
+			expect(() => provider.neighborsOf(id)).not.toThrow();
+		}
+	});
+});

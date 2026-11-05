@@ -30,6 +30,10 @@ export interface TrajectorySpec {
 	/** Tokenizer id (kebab-case). Used by strategies that need tokenizer context
 	 *  (e.g. lexical for building the distance model in the worker). */
 	tokenizerId: string;
+	/** Append-only OOV table: index `i` has id `Tokenizer.vocabSize + i`.
+	 *  The worker appends these to the static vocabulary before building a
+	 *  distance model, so the model covers $K_{\text{eff}}$. */
+	oovTokens?: readonly string[];
 }
 
 /**
