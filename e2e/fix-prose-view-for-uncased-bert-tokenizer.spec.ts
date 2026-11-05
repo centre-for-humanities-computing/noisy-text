@@ -4,6 +4,7 @@
 // so a dropped `##` continuation token fails the test. The post-scrub phase
 // exercises the mask path: sentinels are dropped without shifting later spans.
 import { expect, test } from '@playwright/test';
+import { readProse } from './prose';
 
 const TOKENIZER_TIMEOUT = 120_000;
 
@@ -59,29 +60,6 @@ const FIXTURES: Fixture[] = [
 		],
 	},
 ];
-
-interface SpanInfo {
-	text: string;
-	start: number;
-	end: number;
-	tokenId: string;
-}
-
-async function readProse(page: import('@playwright/test').Page) {
-	return page.evaluate(() => {
-		const prose = document.querySelector('[data-testid="prose-text"]');
-		if (!prose) return null;
-		const spans: SpanInfo[] = Array.from(prose.querySelectorAll('[data-testid="prose-token"]')).map(
-			(el) => ({
-				text: el.textContent ?? '',
-				start: Number(el.getAttribute('data-start')),
-				end: Number(el.getAttribute('data-end')),
-				tokenId: el.getAttribute('data-token-id') ?? '',
-			}),
-		);
-		return { text: prose.textContent ?? '', spans };
-	});
-}
 
 async function selectCard(page: import('@playwright/test').Page, testid: string) {
 	const card = page.getByTestId(testid);

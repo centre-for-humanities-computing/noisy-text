@@ -1,5 +1,6 @@
 // End-to-end coverage for the hosted word tokenizer and its OOV ids.
 import { expect, test, type Page } from '@playwright/test';
+import { readProse } from './prose';
 
 const FIXTURE = 'e2e/fixtures/word-vocab/word-vocab-50k.json';
 const TIMEOUT = 120_000;
@@ -46,7 +47,7 @@ test('word tokenizer renders prose and OOV ids', async ({ page }) => {
 	await page.getByTestId('noise-button').click();
 
 	await waitReady(page);
-	await expect(page.getByTestId('app-status')).toContainText('(+2 OOV seen)', { timeout: TIMEOUT });
+	await expect(page.getByTestId('app-status')).toContainText('(+2 OOV)', { timeout: TIMEOUT });
 
 	const slider = page.getByTestId('time-slider');
 	await expect(slider).toBeEnabled({ timeout: TIMEOUT });
@@ -89,7 +90,7 @@ test('absorbing masks use the growing OOV sentinel', async ({ page }) => {
 	await page.getByTestId('noise-button').click();
 
 	await waitReady(page);
-	await expect(page.getByTestId('app-status')).toContainText('(+2 OOV seen)', { timeout: TIMEOUT });
+	await expect(page.getByTestId('app-status')).toContainText('(+2 OOV)', { timeout: TIMEOUT });
 
 	const slider = page.getByTestId('time-slider');
 	await expect(slider).toBeEnabled({ timeout: TIMEOUT });
@@ -107,7 +108,7 @@ test('absorbing masks use the growing OOV sentinel', async ({ page }) => {
 	// `zorblax` was already added to the instance's append-only OOV table and
 	// `quux` extends it, so the status reports the whole table ("seen"): `+3`,
 	// not a count of this input's new entries.
-	await expect(page.getByTestId('app-status')).toContainText('(+3 OOV seen)', { timeout: TIMEOUT });
+	await expect(page.getByTestId('app-status')).toContainText('(+3 OOV)', { timeout: TIMEOUT });
 	await expect(page.getByTestId('app-status')).toHaveAttribute('data-trajectory-status', 'ready', {
 		timeout: TIMEOUT,
 	});
@@ -142,6 +143,95 @@ test('word vocabulary is cached in IndexedDB across reloads', async ({ page }) =
 	await selectTokenizer(page, 'words');
 	await expect(page.getByTestId('noise-button')).toBeEnabled({ timeout: TIMEOUT });
 	expect(counter.n).toBe(before);
+
+	expect(errors).toEqual([]);
+});
+
+test('word prose spans, chips and mask scrubbing', async ({ page }) => {
+	const errors: string[] = [];
+	page.on('pageerror', (e) => errors.push(e.message));
+	page.on('console', (m) => {
+		if (m.type() === 'error') errors.push(m.text());
+	});
+	const counter = { n: 0 };
+	await routeVocab(page, counter);
+
+	const INPUT = 'Don’t a,b\nzorblax!';
+	// `a,b` gains a space after the comma; `\n` and the curly apostrophe do not.
+	const PROSE = 'Don’t a, b\nzorblax!';
+	const TOKENS = ['Don’t', ' ', 'a', ',', 'b', '\n', 'zorblax', '!'];
+	const SPANS: Array<[number, number]> = [
+		[0, 5],
+		[5, 6],
+		[6, 7],
+		[7, 8],
+		[9, 10],
+		[10, 11],
+		[11, 18],
+		[18, 19],
+	];
+
+	await page.goto('/');
+	await expect(page.getByTestId('noise-button')).toBeEnabled({ timeout: TIMEOUT });
+	// Fill before selecting `words`, as above: the default passage would
+	// otherwise allocate the first OOV ids.
+	await page.getByTestId('input-text').fill(INPUT);
+	await selectTokenizer(page, 'words');
+	await expect(page.getByTestId('noise-button')).toBeEnabled({ timeout: TIMEOUT });
+	await page.getByTestId('noise-button').click();
+	await waitReady(page);
+	await expect(page.getByTestId('app-status')).toContainText('Vocab: 40 (+7 OOV)', {
+		timeout: TIMEOUT,
+	});
+
+	const initial = (await readProse(page))!;
+	expect(initial.text).toBe(PROSE);
+	expect(initial.spans.map((s) => s.text)).toEqual(TOKENS);
+	expect(initial.spans.map((s) => [s.start, s.end])).toEqual(SPANS);
+
+	// The OOV id resolves to its word in the prose tooltip.
+	const zorblax = page.locator('[data-testid="prose-token"][aria-label="token zorblax"]');
+	await expect(zorblax).toHaveAttribute('data-token-id', '45', { timeout: TIMEOUT });
+	await zorblax.hover();
+	await expect(page.locator('[role="tooltip"] svg')).toContainText('zorblax', { timeout: TIMEOUT });
+
+	// Chips: `,` and `↵` read as themselves; `Don’t` keeps its case.
+	await page.getByRole('radio', { name: 'Tokens', exact: true }).click();
+	const output = page.getByTestId('output');
+	await expect(output.locator('[aria-label="token ,"]')).toBeVisible({ timeout: TIMEOUT });
+	await expect(output.locator('[aria-label="token ↵"]')).toBeVisible({ timeout: TIMEOUT });
+	await expect(output.locator('[aria-label="token Don’t"]')).toContainText('Don’t', {
+		timeout: TIMEOUT,
+	});
+
+	// Mask path: scrub into a partial mask, then back to $t = 0$.
+	await page.getByRole('radio', { name: 'Prose', exact: true }).click();
+	const absorbing = page.getByTestId('strategy-absorbing');
+	await expect(absorbing).toBeEnabled({ timeout: TIMEOUT });
+	await absorbing.click();
+	await expect(absorbing).toHaveAttribute('aria-checked', 'true');
+	await waitReady(page);
+
+	const slider = page.getByTestId('time-slider');
+	const max = Number((await slider.getAttribute('max')) ?? '1');
+	const textById = new Map(initial.spans.map((s) => [s.tokenId, s.text]));
+	let sawPartial = false;
+	for (let frac = 0.05; frac <= 1.001; frac += 0.05) {
+		await slider.fill(String(Math.round(max * frac)));
+		const current = (await readProse(page))!;
+		if (current.text === PROSE || current.text.length === 0) continue;
+		sawPartial = true;
+		for (const s of current.spans) {
+			expect(textById.get(s.tokenId)).toBe(current.text.slice(s.start, s.end));
+		}
+		break;
+	}
+	expect(sawPartial, 'no step produced a partly-masked prose').toBe(true);
+
+	await slider.fill('0');
+	const roundTrip = (await readProse(page))!;
+	expect(roundTrip.text).toBe(PROSE);
+	expect(roundTrip.spans.map((s) => [s.start, s.end])).toEqual(SPANS);
 
 	expect(errors).toEqual([]);
 });

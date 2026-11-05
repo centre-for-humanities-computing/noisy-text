@@ -24,6 +24,7 @@
 	import { strategyConfigFor } from '$lib/strategies/index.js';
 	import { EMBEDDING_SOURCES } from '$lib/embeddings/index.js';
 	import { sourceForTokenizer } from '$lib/embeddings/sources.js';
+	import { formatCount } from '$lib/format.js';
 	import { SCHEDULES } from '$lib/schedules/index.js';
 	import { recencyAt, allTokenCharSpans } from '$lib/engine/diff.js';
 	import EmbeddingSourcePicker from '$lib/components/EmbeddingSourcePicker.svelte';
@@ -363,8 +364,8 @@
 			const strategyLabel = info ? ` · Strategy: ${info.label}` : '';
 			const changedPart = changedCount !== null ? ` · ${changedCount} changed this step` : '';
 			const oovPart =
-				encoded.vocabSize > t.vocabSize ? ` (+${encoded.vocabSize - t.vocabSize} OOV seen)` : '';
-			return `${t.info.label} · Vocab: ${encoded.vocabSize.toLocaleString()}${oovPart} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}${changedPart}`;
+				encoded.vocabSize > t.vocabSize ? ` (+${encoded.vocabSize - t.vocabSize} OOV)` : '';
+			return `${t.info.label} · Vocab: ${formatCount(t.vocabSize)}${oovPart} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}${changedPart}`;
 		}
 		return 'Select a tokenizer';
 	});

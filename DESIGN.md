@@ -291,6 +291,13 @@ recency}`) — one span per located token, with `start`/`end` character
   token, so the first visible continuation keeps it too. GPT-2 byte-level
   decodes already carry their leading space and are never stripped
   (tokens like `##` decode literally).
+- Word-level tokenizers need no `##` normalization: `word.ts` emits every
+  word verbatim and one token per other code point, including the space and
+  newline tokens, and `decode` inserts at most one space where the input had
+  none. Each token's isolated decode is therefore exactly its own text, and
+  the greedy cursor only skips that inserted space. Space and newline tokens
+  are real spans (`␣` and `↵` in chips) and stay hoverable; only the
+  separators `decode` inserts remain plain gaps.
 - `InlineTokens.svelte` accepts the decoded text plus the `TokenCharSpan`
   array, and renders the text with `<span>` wrappers around the token
   spans; gaps between spans render as plain text. Spans are not merged:
