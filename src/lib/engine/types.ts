@@ -44,6 +44,10 @@ export interface TrajectoryDeps {
 	strategy: import('../strategies/types.js').NoiseStrategy;
 	schedule: import('../schedules/types.js').Schedule;
 	rng: import('../strategies/types.js').Rng;
+	/** Optional per-position freeze mask (1 = frozen), length $L$. A frozen
+	 *  cell still consumes its `sampleStep` draw (RNG order contract) but
+	 *  keeps its previous token instead of the sampled one. */
+	frozen?: Uint8Array;
 }
 
 /**

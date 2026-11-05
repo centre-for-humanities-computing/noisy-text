@@ -165,4 +165,25 @@ describe('computeTrajectory', () => {
 		const withoutProgress = computeTrajectory(input, deps());
 		expect(withProgress.rows).toEqual(withoutProgress.rows);
 	});
+
+	it('freezes masked positions without changing the non-frozen stream', () => {
+		const input = new Int32Array([1, 2, 3, 4, 5]);
+		const frozen = new Uint8Array([0, 1, 0, 1, 0]);
+		const deps = (): TrajectoryDeps => ({
+			strategy: getStrategy('uniform', {}, 100),
+			schedule: getSchedule('linear', {}, 20),
+			rng: createRng(777),
+		});
+		const plain = computeTrajectory(input, deps());
+		const masked = computeTrajectory(input, { ...deps(), frozen });
+
+		for (let t = 1; t <= masked.T; t++) {
+			const row = masked.tokensAt(t);
+			for (let i = 0; i < input.length; i++) {
+				expect(row[i]).toBe(frozen[i] === 1 ? input[i] : plain.tokensAt(t)[i]);
+			}
+		}
+		// The mask leaves at least one cell free to move.
+		expect(masked.tokensAt(masked.T)[0]).not.toBe(input[0]);
+	});
 });

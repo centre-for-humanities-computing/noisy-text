@@ -305,6 +305,32 @@ function whitespaceIds(staticK: number, oovTokens: readonly string[]): Set<numbe
 	return ids;
 }
 
+/**
+ * Freeze mask for positions whose initial id is an OOV whitespace token.
+ *
+ * $K_{\text{eff}} = K + |\text{OOV}|$, so the OOV id of entry $i$ is
+ * `vocabSize - oovTokens.length + i`. Returns `undefined` when the text
+ * has no whitespace OOV positions.
+ */
+function frozenMaskFor(
+	inputIds: Int32Array,
+	vocabSize: number,
+	oovTokens?: readonly string[],
+): Uint8Array | undefined {
+	const oov = oovTokens ?? [];
+	if (oov.length === 0) return undefined;
+	const whitespace = whitespaceIds(vocabSize - oov.length, oov);
+	const mask = new Uint8Array(inputIds.length);
+	let any = false;
+	for (let i = 0; i < inputIds.length; i++) {
+		if (whitespace.has(inputIds[i]!)) {
+			mask[i] = 1;
+			any = true;
+		}
+	}
+	return any ? mask : undefined;
+}
+
 self.onmessage = (event: MessageEvent<TrajectoryWorkerRequest>) => {
 	const msg = event.data;
 	if (msg.kind === 'compute') {
@@ -418,10 +444,15 @@ async function handleCompute(
 		const strategy = getStrategy(spec.strategyId, spec.strategyConfig, spec.vocabSize, provider);
 		const schedule = getSchedule(spec.scheduleId, spec.scheduleConfig, spec.T);
 		const rng = createRng(spec.seed);
+		const frozen = frozenMaskFor(spec.inputIds, spec.vocabSize, spec.oovTokens);
 
-		const traj = computeTrajectory(spec.inputIds, { strategy, schedule, rng }, (progress) => {
-			postProgress('walking', progress.cellsDone, progress.cellsTotal);
-		});
+		const traj = computeTrajectory(
+			spec.inputIds,
+			{ strategy, schedule, rng, frozen },
+			(progress) => {
+				postProgress('walking', progress.cellsDone, progress.cellsTotal);
+			},
+		);
 
 		postProgress('walking', spec.T * spec.inputIds.length, spec.T * spec.inputIds.length, true);
 

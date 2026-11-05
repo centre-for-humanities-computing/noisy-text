@@ -99,6 +99,56 @@ for (const strategy of ['lexical', 'char-overlap'] as const) {
 	});
 }
 
+for (const strategy of ['uniform', 'absorbing'] as const) {
+	test(`word tokenizer: ${strategy} keeps whitespace in place`, async ({ page }) => {
+		const errors: string[] = [];
+		page.on('pageerror', (e) => errors.push(e.message));
+		page.on('console', (m) => {
+			if (m.type() === 'error') errors.push(m.text());
+		});
+		const counter = { n: 0 };
+		await routeVocab(page, counter);
+
+		await page.goto('/');
+		await expect(page.getByTestId('noise-button')).toBeEnabled({ timeout: TIMEOUT });
+		await page.getByTestId('input-text').fill('the quick\nbrown fox');
+		await selectTokenizer(page, 'words');
+		await expect(page.getByTestId('noise-button')).toBeEnabled({ timeout: TIMEOUT });
+		const card = page.getByTestId(`strategy-${strategy}`);
+		await expect(card).toBeEnabled({ timeout: TIMEOUT });
+		await card.click();
+		await expect(card).toHaveAttribute('aria-checked', 'true');
+		await page.getByTestId('noise-button').click();
+
+		await waitReady(page);
+		const slider = page.getByTestId('time-slider');
+		await slider.fill('0');
+		const initial = (await readProse(page))!;
+		const frozen = initial.spans.flatMap((s, i) => (s.text === ' ' || s.text === '\n' ? [i] : []));
+		expect(frozen).toHaveLength(3);
+
+		const max = Number((await slider.getAttribute('max')) ?? '1');
+		await slider.fill(String(max));
+		const final = (await readProse(page))!;
+		const word = /\p{L}/u;
+		const before = initial.spans.filter((s) => word.test(s.text)).length;
+		const after = final.spans.filter((s) => word.test(s.text)).length;
+		expect(after).toBeLessThanOrEqual(before);
+
+		// Masked prose cells are omitted, so read every cell from the chips.
+		await page.getByRole('radio', { name: 'Tokens', exact: true }).click();
+		const chips = page.getByTestId('output').locator('.chip');
+		await expect(chips).toHaveCount(initial.spans.length);
+		for (const i of frozen) {
+			await expect(chips.nth(i).locator('.chip-id')).toHaveText(initial.spans[i]!.tokenId);
+			const visible = initial.spans[i]!.text === ' ' ? '␣' : '↵';
+			await expect(chips.nth(i).locator('.chip-token')).toHaveText(visible);
+		}
+
+		expect(errors).toEqual([]);
+	});
+}
+
 test('absorbing masks use the growing OOV sentinel', async ({ page }) => {
 	const errors: string[] = [];
 	page.on('pageerror', (e) => errors.push(e.message));
