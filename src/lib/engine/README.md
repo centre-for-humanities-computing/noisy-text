@@ -25,14 +25,25 @@ the contract and all dependent tests.
 ## Cache key format
 
 ```
-${tokenizerId}:${vocabSize}:${inputHash}:${strategyId}:${strategyConfigJson}:${scheduleId}:${scheduleConfigJson}:${T}:${seed}
+${tokenizerId}:${vocabSize}:${oovSignature}:${inputHash}:${strategyId}:${strategyConfigJson}:${scheduleId}:${scheduleConfigJson}:${T}:${seed}
 ```
 
 - `tokenizerId` and `vocabSize` pin the tokenizer and its effective
   vocabulary size (including the instance's append-only OOV table).
+- `oovSignature` is `JSON.stringify(oovTokens)` (empty without an OOV
+  table), so two same-length tables with different strings do not share
+  cached trajectories.
 - `inputHash` is FNV-1a 32-bit of the `Int32Array` token ids.
 - Config objects are `JSON.stringify`'d — they must be JSON-serializable.
 - Cache is FIFO with `MAX_CACHE_ENTRIES = 8`.
+
+## Word-tokenizer freezing
+
+The worker marks positions whose word-tokenizer token is `' '` or `'\n'`
+in `TrajectoryDeps.frozen`; the sampler draws once per cell but keeps the
+initial token there. Distance strategies build their model over
+`vocabSize` (including OOV strings), and the word-tokenizer inspector
+skips hover on those two whitespace tokens.
 
 ## Memory guard
 
