@@ -60,13 +60,16 @@ export const createAbsorbing: StrategyFactory<AbsorbingConfig> = (
 		config,
 
 		sampleStep(token: number, beta: number, rng: Rng): number {
+			// Draw unconditionally, even in the absorbing state, so the RNG
+			// stream stays path-independent: every call consumes one value.
+			const draw = rng();
+
 			// Absorbing state: once masked, always masked.
 			if (token === maskTokenId) return maskTokenId;
 
-			// Draw exactly 1 value to keep the RNG stream path-independent.
 			// $P(x_{t+1} = m \mid x_t \neq m) = \beta_t$
 			// $P(x_{t+1} = x_t \mid x_t \neq m) = 1 - \beta_t$
-			if (rng() < beta) return maskTokenId;
+			if (draw < beta) return maskTokenId;
 			return token;
 		},
 

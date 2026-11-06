@@ -60,8 +60,8 @@ describe('createAbsorbing', () => {
 			calls++;
 			return 0.5;
 		};
-		strategy.sampleStep(maskTokenId, 0.5, rng);
-		expect(calls).toBe(0); // mask token short-circuits, no rng draw
+		expect(strategy.sampleStep(maskTokenId, 0.5, rng)).toBe(maskTokenId);
+		expect(calls).toBe(1); // the draw is discarded, not skipped
 	});
 
 	it('stationary distribution converges to point mass at mask', () => {
