@@ -278,7 +278,7 @@ async function ensureDistanceSourceProvider(
 	const tok = await loadTokenizer(tokenizerId);
 	const staticStrings = await decodeVocab(tok, onProgress);
 	const oov = oovTokens ?? [];
-	const strings = oov.length > 0 ? [...staticStrings, ...oov] : staticStrings;
+	const strings = [...staticStrings, ...oov];
 
 	const inner = getStringDistanceKernel(kernelId).makeModel(strings);
 	// Whitespace ids are indexable but never destinations; see the walk's

@@ -25,3 +25,5 @@ A line named in an open issue's `**Compost:**` line is scheduled; `/implement` d
 2026-11-05 — No incremental or prefix-extension provider rebuild; a changed OOV table rebuilds the model — 1 — plan 1 on #87
 2026-11-05 — No GPT-2 or BERT changes; they do not expose standalone whitespace tokens — 1 — plan 1 on #87
 2026-11-05 — Fold the worker's three strategy-to-provider switches into one helper; the refactor exceeds a mechanical slice's budget — 1 — plan 1 on #87
+2026-11-06 — Replace `ExcludingDistanceModel` with a candidate predicate on the model distance source; the five-line wrapper adds a public class and its test — 1 — plan 2 on #87
+2026-11-06 — Keep `frozenMaskFor` and `whitespaceIds` worker-private; e2e remains their coverage instead of direct unit tests — 1 — plan 2 on #87
