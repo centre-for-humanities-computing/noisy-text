@@ -183,3 +183,21 @@ describe('TrajectoryCache', () => {
 		expect(cache.get(key0)).toBeDefined();
 	});
 });
+
+describe('TrajectoryCache OOV content', () => {
+	it('key differs for same vocabSize but different OOV tables', () => {
+		const spec1 = makeSpec({ oovTokens: [' ', 'zorblax'] });
+		const spec2 = makeSpec({ oovTokens: ['\n', 'zorblax'] });
+		const key1 = TrajectoryCache.key(spec1, hashIds(spec1.inputIds));
+		const key2 = TrajectoryCache.key(spec2, hashIds(spec2.inputIds));
+		expect(key1).not.toBe(key2);
+	});
+
+	it('key is stable for the same OOV table', () => {
+		const spec1 = makeSpec({ oovTokens: [' ', 'zorblax'] });
+		const spec2 = makeSpec({ oovTokens: [' ', 'zorblax'] });
+		const key1 = TrajectoryCache.key(spec1, hashIds(spec1.inputIds));
+		const key2 = TrajectoryCache.key(spec2, hashIds(spec2.inputIds));
+		expect(key1).toBe(key2);
+	});
+});

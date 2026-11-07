@@ -49,6 +49,44 @@ export interface DistanceModel {
 }
 
 // ---------------------------------------------------------------------------
+// Candidate filtering wrapper
+// ---------------------------------------------------------------------------
+
+/**
+ * Wrap a model to keep selected ids out of its neighbourhoods.
+ *
+ * `candidates` omits every id in `excluded`; `distance` and `K` delegate
+ * unchanged. Sound for the inner model's radius bound: removing ids can
+ * only shrink the candidate superset. Used by the word tokenizer to keep
+ * `' '` and `'\n'` out of jump destinations while leaving their distances
+ * measurable (for inspection and frozen cells).
+ */
+export class ExcludingDistanceModel implements DistanceModel {
+	readonly id: string;
+	readonly K: number;
+
+	private readonly _inner: DistanceModel;
+	private readonly _excluded: ReadonlySet<number>;
+
+	constructor(inner: DistanceModel, excluded: ReadonlySet<number>) {
+		this._inner = inner;
+		this._excluded = excluded;
+		this.id = inner.id;
+		this.K = inner.K;
+	}
+
+	*candidates(token: number, radius: number): Iterable<number> {
+		for (const j of this._inner.candidates(token, radius)) {
+			if (!this._excluded.has(j)) yield j;
+		}
+	}
+
+	distance(a: number, b: number, maxDist: number): number {
+		return this._inner.distance(a, b, maxDist);
+	}
+}
+
+// ---------------------------------------------------------------------------
 // Edit-distance implementation
 // ---------------------------------------------------------------------------
 

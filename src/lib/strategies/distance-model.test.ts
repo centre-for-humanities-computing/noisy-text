@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { levenshtein, EditDistanceModel } from './distance-model.js';
+import { levenshtein, EditDistanceModel, ExcludingDistanceModel } from './distance-model.js';
 
 describe('levenshtein', () => {
 	it('returns 0 for identical strings', () => {
@@ -121,5 +121,26 @@ describe('EditDistanceModel', () => {
 		const model = new EditDistanceModel(['a', 'b', 'ab']);
 		const cands = [...model.candidates(0, 1)];
 		expect(cands).toContain(1); // 'b' is d=1 from 'a'
+	});
+});
+
+describe('ExcludingDistanceModel', () => {
+	// Effective vocab: static words, then the OOV table [' ', '\n'].
+	const strings = ['cat', 'cats', ' ', '\n'];
+	const excluded = new Set([2, 3]);
+	const inner = new EditDistanceModel(strings);
+	const model = new ExcludingDistanceModel(inner, excluded);
+
+	it('omits excluded ids from candidates', () => {
+		const ids = [...model.candidates(0, 2)];
+		expect(ids).toContain(1); // 'cats'
+		expect(ids).not.toContain(2); // ' '
+		expect(ids).not.toContain(3); // '\n'
+	});
+
+	it('delegates K, id and distance', () => {
+		expect(model.K).toBe(strings.length);
+		expect(model.id).toBe(inner.id);
+		expect(model.distance(0, 2, 10)).toBe(inner.distance(0, 2, 10));
 	});
 });

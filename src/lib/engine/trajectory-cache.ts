@@ -7,8 +7,20 @@ import type { Trajectory, TrajectorySpec } from './types.js';
 const MAX_CACHE_ENTRIES = 8;
 
 /**
+ * Content signature of the append-only OOV table, for cache keys.
+ *
+ * `vocabSize` alone is not enough: two texts can encode to the same
+ * $K_{\text{eff}}$ while their OOV ids mean different strings. The empty
+ * table has the empty signature, so tokenizers without OOV ids keep a
+ * stable key prefix.
+ */
+export function oovSignature(oovTokens: readonly string[] | undefined): string {
+	return oovTokens && oovTokens.length > 0 ? JSON.stringify(oovTokens) : '';
+}
+
+/**
  * In-memory LRU-ish cache for trajectories, keyed by
- * `(tokenizerId, vocabSize, inputHash, strategyId, strategyConfig, scheduleId, scheduleConfig, T, seed)`.
+ * `(tokenizerId, vocabSize, oovSignature, inputHash, strategyId, strategyConfig, scheduleId, scheduleConfig, T, seed)`.
  *
  * Cache invalidation is explicit (never time-based), per CONVENTIONS.
  */
@@ -19,12 +31,13 @@ export class TrajectoryCache {
 	/**
 	 * Compute a cache key from a trajectory spec and input hash.
 	 *
-	 * Key format: `${tokenizerId}:${vocabSize}:${inputHash}:${strategyId}:${strategyConfigJson}:${scheduleId}:${scheduleConfigJson}:${T}:${seed}`
+	 * Key format: `${tokenizerId}:${vocabSize}:${oovSignature}:${inputHash}:${strategyId}:${strategyConfigJson}:${scheduleId}:${scheduleConfigJson}:${T}:${seed}`
 	 */
 	static key(spec: TrajectorySpec, inputHash: number): string {
 		return [
 			spec.tokenizerId,
 			String(spec.vocabSize),
+			oovSignature(spec.oovTokens),
 			inputHash,
 			spec.strategyId,
 			JSON.stringify(spec.strategyConfig),

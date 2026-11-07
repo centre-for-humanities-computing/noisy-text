@@ -18,8 +18,15 @@ import { MAX_CELLS } from './types.js';
  * This is a coupled random walk, NOT independent sampling from
  * $\bar{Q}_t e_{x_0}$.
  *
+ * ## Freezing
+ *
+ * A frozen position $i$ keeps its initial token:
+ * $x_{t+1}[i] = x_t[i]$ for all $t$. The `sampleStep` draw still happens
+ * for that cell and its result is discarded, so the random stream at every
+ * other position is unchanged by the mask.
+ *
  * @param inputIds - The initial token sequence $x_0$, length $L$.
- * @param deps - Resolved strategy, schedule, and RNG.
+ * @param deps - Resolved strategy, schedule, RNG, and optional freeze mask.
  * @param onProgress - Optional callback for progress reporting.
  * @returns The computed trajectory.
  * @throws If $(T+1) \times L$ exceeds `MAX_CELLS`.
@@ -29,7 +36,7 @@ export function computeTrajectory(
 	deps: TrajectoryDeps,
 	onProgress?: (progress: TrajectoryProgress) => void,
 ): Trajectory {
-	const { strategy, schedule, rng } = deps;
+	const { strategy, schedule, rng, frozen } = deps;
 	const L = inputIds.length;
 	const T = schedule.T;
 
@@ -55,8 +62,10 @@ export function computeTrajectory(
 		const dstRow = (t + 1) * L;
 
 		for (let i = 0; i < L; i++) {
-			// $x_{t+1}[i] \sim Q_t(\cdot \mid x_t[i])$
-			rows[dstRow + i] = strategy.sampleStep(rows[srcRow + i]!, beta, rng);
+			// $x_{t+1}[i] \sim Q_t(\cdot \mid x_t[i])$; a frozen cell keeps
+			// $x_t[i]$ but still consumes the draw.
+			const sampled = strategy.sampleStep(rows[srcRow + i]!, beta, rng);
+			rows[dstRow + i] = frozen?.[i] === 1 ? rows[srcRow + i]! : sampled;
 		}
 
 		// One report per completed row; throttling is the caller's job.

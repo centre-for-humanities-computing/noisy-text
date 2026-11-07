@@ -64,8 +64,15 @@ hosted 50 000-word GloVe vocabulary and caches the parsed list in IndexedDB.
 - **Prose spans.** Every word, punctuation mark, space and newline is one
   token, so a token's isolated decode is exactly its text. `alignTokenPieces`
   matches it directly, and `allTokenCharSpans` leaves only the space `decode`
-  inserts as a plain gap; the space and newline tokens themselves remain
-  hoverable spans (`␣` and `↵` in chips).
+  inserts as a plain gap; the space and newline tokens themselves remain spans
+  (`␣` and `↵` in chips), though their inspector is skipped.
+- **Frozen whitespace.** In a trajectory, positions whose token is `' '` or
+  `'\n'` stay frozen: each step still consumes its RNG draw, but the initial
+  token is kept, so whitespace never becomes a word. The inspector ignores
+  hover on these two tokens; punctuation remains inspectable.
+- **Distance vocabularies.** Lexical and char-overlap distance models are
+  built over $K_{\text{eff}}$, including the instance's OOV strings, so OOV
+  ids can be queried as candidates and neighbours.
 - **Round-trip limits.** Digits, `/_@#`, emoji and unspaced neutral
   punctuation are separate tokens and gain spaces on decode. Combining marks
   are not letters and split from their base. Straight quotes appear in both
