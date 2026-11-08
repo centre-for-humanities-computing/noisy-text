@@ -581,61 +581,13 @@ async function handleNeighbors(
 	} = msg;
 
 	try {
-		let provider: NeighborhoodProvider | undefined;
-		let graphParams: NeighborGraphParams | null = null;
-
-		if (strategyId === 'lexical') {
-			provider = await ensureDistanceSourceProvider('edit-distance', tokenizerId, msg.oovTokens);
-			const cfg = strategyConfig as {
-				maxDistance?: number;
-				k?: number;
-				tau?: number;
-				family?: WeightFamilyId;
-			};
-			graphParams = {
-				maxDistance: cfg.maxDistance ?? 2,
-				k: cfg.k ?? 50,
-				tau: cfg.tau ?? 1.0,
-				family: cfg.family ?? 'exponential',
-			};
-		} else if (strategyId === 'char-overlap') {
-			const mode = (strategyConfig as { mode?: 'set' | 'multiset' }).mode ?? 'set';
-			provider = await ensureDistanceSourceProvider(
-				stringDistanceKernelFor(mode).id,
-				tokenizerId,
-				msg.oovTokens,
-			);
-			const cfg = strategyConfig as {
-				maxDistance?: number;
-				k?: number;
-				tau?: number;
-				family?: WeightFamilyId;
-			};
-			graphParams = {
-				maxDistance: cfg.maxDistance ?? 0.5,
-				k: cfg.k ?? 50,
-				tau: cfg.tau ?? 1.0,
-				family: cfg.family ?? 'exponential',
-			};
-		} else if (strategyId === 'embedding-knn') {
-			const cfg = strategyConfig as unknown as EmbeddingKnnConfig;
-			provider = (
-				await ensureEmbeddingProvider(
-					cfg.sourceId,
-					cfg.preprocess,
-					cfg.metric,
-					cfg.k,
-					tokenizerId,
-					cfg,
-				)
-			).provider;
-			graphParams = {
-				maxDistance: cfg.maxDistance ?? Infinity,
-				k: cfg.k ?? 50,
-				tau: cfg.tau ?? 1.0,
-				family: cfg.family ?? 'exponential',
-			};
-		}
+		const { provider, graphParams } = await resolveStrategyResource(
+			strategyId,
+			strategyConfig,
+			tokenizerId,
+			msg.oovTokens,
+			vocabSize,
+		);
 
 		const strategy = getStrategy(strategyId, strategyConfig, vocabSize, provider);
 		const tok = await loadTokenizer(tokenizerId);
@@ -699,61 +651,13 @@ async function handleUnionGraph(msg: TrajectoryWorkerUnionGraphRequest): Promise
 	const yieldFn = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
 	try {
-		let provider: NeighborhoodProvider | undefined;
-		let graphParams: NeighborGraphParams | null = null;
-
-		if (strategyId === 'lexical') {
-			provider = await ensureDistanceSourceProvider('edit-distance', tokenizerId, msg.oovTokens);
-			const cfg = strategyConfig as {
-				maxDistance?: number;
-				k?: number;
-				tau?: number;
-				family?: WeightFamilyId;
-			};
-			graphParams = {
-				maxDistance: cfg.maxDistance ?? 2,
-				k: cfg.k ?? 50,
-				tau: cfg.tau ?? 1.0,
-				family: cfg.family ?? 'exponential',
-			};
-		} else if (strategyId === 'char-overlap') {
-			const mode = (strategyConfig as { mode?: CharOverlapMode }).mode ?? 'set';
-			provider = await ensureDistanceSourceProvider(
-				stringDistanceKernelFor(mode).id,
-				tokenizerId,
-				msg.oovTokens,
-			);
-			const cfg = strategyConfig as {
-				maxDistance?: number;
-				k?: number;
-				tau?: number;
-				family?: WeightFamilyId;
-			};
-			graphParams = {
-				maxDistance: cfg.maxDistance ?? 0.5,
-				k: cfg.k ?? 50,
-				tau: cfg.tau ?? 1.0,
-				family: cfg.family ?? 'exponential',
-			};
-		} else if (strategyId === 'embedding-knn') {
-			const cfg = strategyConfig as unknown as EmbeddingKnnConfig;
-			provider = (
-				await ensureEmbeddingProvider(
-					cfg.sourceId,
-					cfg.preprocess,
-					cfg.metric,
-					cfg.k,
-					tokenizerId,
-					cfg,
-				)
-			).provider;
-			graphParams = {
-				maxDistance: cfg.maxDistance ?? Infinity,
-				k: cfg.k ?? 50,
-				tau: cfg.tau ?? 1.0,
-				family: cfg.family ?? 'exponential',
-			};
-		}
+		const { provider, graphParams } = await resolveStrategyResource(
+			strategyId,
+			strategyConfig,
+			tokenizerId,
+			msg.oovTokens,
+			vocabSize,
+		);
 		if (isStale()) return;
 
 		const tok = await loadTokenizer(tokenizerId);

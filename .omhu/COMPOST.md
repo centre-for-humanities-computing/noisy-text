@@ -27,3 +27,7 @@ A line named in an open issue's `**Compost:**` line is scheduled; `/implement` d
 2026-11-05 — Fold the worker's three strategy-to-provider switches into one helper; the refactor exceeds a mechanical slice's budget — 1 — plan 1 on #87
 2026-11-06 — Replace `ExcludingDistanceModel` with a candidate predicate on the model distance source; the five-line wrapper adds a public class and its test — 1 — plan 2 on #87
 2026-11-06 — Keep `frozenMaskFor` and `whitespaceIds` worker-private; e2e remains their coverage instead of direct unit tests — 1 — plan 2 on #87
+2026-11-08 — WordNet resource and case — 1 — plan 1 on #93
+2026-11-08 — Literal default fallbacks for partial configs; the canonical config wins — 1 — plan 1 on #93
+2026-11-08 — Provider caching policy, new providers, warm-up budget, protocol and UI — 1 — plan 1 on #93
+2026-11-08 — No new tests; e2e is the coverage — 1 — plan 1 on #93
