@@ -27,7 +27,7 @@
 
 import { computeTrajectory } from '../engine/trajectory.js';
 import { createRng } from '../engine/rng.js';
-import { getStrategy } from '../strategies/index.js';
+import { getStrategy, strategyConfigFor } from '../strategies/index.js';
 import { getSchedule } from '../schedules/index.js';
 import { loadTokenizer } from '../tokenizers/index.js';
 import {
@@ -125,21 +125,20 @@ const NEIGHBOR_STORE_LIMIT = 200;
  */
 const _providerCache = new Map<string, { model: DistanceModel; provider: NeighborhoodProvider }>();
 
+/** The warmed embedding index, its provider and its token filter. */
+interface EmbeddingResource {
+	provider: NeighborhoodProvider;
+	index: EmbeddingKnnIndex;
+	predicate: (id: number) => boolean;
+}
+
 /**
  * Cached embedding-backed model/provider/index triple per embedding
  * config. The matrix (int8, ~24 MB) and memoized top-$M$ rows are shared
  * across requests with the same
  * `sourceId:preprocess:metric:predicate-signature` key.
  */
-const _embeddingCache = new Map<
-	string,
-	{
-		model: DistanceModel;
-		provider: NeighborhoodProvider;
-		index: EmbeddingKnnIndex;
-		predicate: (id: number) => boolean;
-	}
->();
+const _embeddingCache = new Map<string, EmbeddingResource & { model: DistanceModel }>();
 
 /**
  * Ensure the embedding-backed `DistanceModel` + `NeighborhoodProvider`
@@ -168,11 +167,7 @@ async function ensureEmbeddingProvider(
 		'tokenClass' | 'excludeSpecial' | 'excludeUnused' | 'excludeByteFallback'
 	>,
 	onProgress?: VocabProgress,
-): Promise<{
-	provider: NeighborhoodProvider;
-	index: EmbeddingKnnIndex;
-	predicate: (id: number) => boolean;
-}> {
+): Promise<EmbeddingResource> {
 	const info = getEmbeddingSource(sourceId);
 	if (info.tokenizerId !== tokenizerId) {
 		throw new Error(
@@ -305,6 +300,105 @@ function whitespaceIds(staticK: number, oovTokens: readonly string[]): Set<numbe
 	return ids;
 }
 
+/** Worker-side resources a strategy request needs. */
+interface StrategyResource {
+	provider?: NeighborhoodProvider;
+	graphParams: NeighborGraphParams | null;
+	embedding?: EmbeddingResource;
+}
+
+/** Graph-shaping fields of a neighbourhood strategy config. */
+interface GraphConfig {
+	maxDistance: number | null;
+	k: number;
+	tau: number;
+	family: WeightFamilyId;
+}
+
+/**
+ * Canonical graph parameters for a neighbourhood strategy, or `null` when
+ * the strategy has no provider.
+ *
+ * Normalising through `strategyConfigFor` keeps the registry the only home
+ * for the defaults; `embedding-knn`'s `maxDistance: null` (no cutoff) maps
+ * to `Infinity` at the graph boundary.
+ */
+function graphParamsFor(
+	strategyId: string,
+	strategyConfig: unknown,
+	vocabSize: number,
+): NeighborGraphParams | null {
+	if (strategyId !== 'lexical' && strategyId !== 'char-overlap' && strategyId !== 'embedding-knn') {
+		return null;
+	}
+	const cfg = strategyConfigFor(
+		strategyId,
+		vocabSize,
+		strategyConfig as Record<string, unknown>,
+	) as GraphConfig;
+	return {
+		maxDistance: cfg.maxDistance ?? Infinity,
+		k: cfg.k,
+		tau: cfg.tau,
+		family: cfg.family,
+	};
+}
+
+/**
+ * Resolve the provider, graph parameters and — only for `embedding-knn` —
+ * the warmed index and token filter that a strategy request needs.
+ *
+ * This is a lookup, not a warm-up: `handleCompute` owns materialising the
+ * matrix, precomputing input rows and the budgeted BFS, and does so on the
+ * returned `embedding`.
+ */
+async function resolveStrategyResource(
+	strategyId: string,
+	strategyConfig: unknown,
+	tokenizerId: string,
+	oovTokens: readonly string[] | undefined,
+	vocabSize: number,
+	onProgress?: VocabProgress,
+): Promise<StrategyResource> {
+	let provider: NeighborhoodProvider | undefined;
+	let embedding: EmbeddingResource | undefined;
+
+	if (strategyId === 'lexical') {
+		provider = await ensureDistanceSourceProvider(
+			'edit-distance',
+			tokenizerId,
+			oovTokens,
+			onProgress,
+		);
+	} else if (strategyId === 'char-overlap') {
+		const mode = (strategyConfig as { mode?: CharOverlapMode }).mode ?? 'set';
+		provider = await ensureDistanceSourceProvider(
+			stringDistanceKernelFor(mode).id,
+			tokenizerId,
+			oovTokens,
+			onProgress,
+		);
+	} else if (strategyId === 'embedding-knn') {
+		const cfg = strategyConfig as unknown as EmbeddingKnnConfig;
+		embedding = await ensureEmbeddingProvider(
+			cfg.sourceId,
+			cfg.preprocess,
+			cfg.metric,
+			cfg.k,
+			tokenizerId,
+			cfg,
+			onProgress,
+		);
+		provider = embedding.provider;
+	}
+
+	return {
+		provider,
+		graphParams: graphParamsFor(strategyId, strategyConfig, vocabSize),
+		embedding,
+	};
+}
+
 /**
  * Freeze mask for positions whose initial id is an OOV whitespace token.
  *
@@ -366,43 +460,26 @@ async function handleCompute(
 	};
 
 	try {
-		// For distance-based strategies: build (or reuse) the provider for
-		// the strategy's string-distance kernel.
-		let provider: NeighborhoodProvider | undefined;
-		if (spec.strategyId === 'lexical') {
-			provider = await ensureDistanceSourceProvider(
-				'edit-distance',
-				spec.tokenizerId,
-				spec.oovTokens,
-				(done, total) => postProgress('preparing', done, total),
-			);
-		} else if (spec.strategyId === 'char-overlap') {
-			const mode = (spec.strategyConfig as { mode?: CharOverlapMode }).mode ?? 'set';
-			provider = await ensureDistanceSourceProvider(
-				stringDistanceKernelFor(mode).id,
-				spec.tokenizerId,
-				spec.oovTokens,
-				(done, total) => postProgress('preparing', done, total),
-			);
-		} else if (spec.strategyId === 'embedding-knn') {
-			const cfg = spec.strategyConfig as unknown as EmbeddingKnnConfig;
-			const emb = await ensureEmbeddingProvider(
-				cfg.sourceId,
-				cfg.preprocess,
-				cfg.metric,
-				cfg.k,
-				spec.tokenizerId,
-				cfg,
-				(done, total) => postProgress('preparing', done, total),
-			);
-			provider = emb.provider;
+		// Build (or reuse) the provider for the strategy's resource.
+		const { provider, embedding } = await resolveStrategyResource(
+			spec.strategyId,
+			spec.strategyConfig,
+			spec.tokenizerId,
+			spec.oovTokens,
+			spec.vocabSize,
+			(done, total) => postProgress('preparing', done, total),
+		);
+
+		if (embedding) {
 			// Materialize the contiguous row matrix once (memoized); later
 			// requests with the same config skip this almost instantly.
-			await emb.index.materialize((done, total) => postProgress('materializing', done, total));
+			await embedding.index.materialize((done, total) =>
+				postProgress('materializing', done, total),
+			);
 			// Rows for the walk's input tokens are precomputed up front
 			// (chunked, non-blocking) so the walk itself never stalls.
 			const inputs = distinctTokens(spec.inputIds);
-			await emb.index.precomputeRows(inputs, (done, total) =>
+			await embedding.index.precomputeRows(inputs, (done, total) =>
 				postProgress('embeddings', done, total),
 			);
 			// Budgeted warm-up BFS: walk outward over the kNN graph from the
@@ -421,10 +498,10 @@ async function handleCompute(
 			while (frontier.length > 0 && warmed < WARMUP_MAX_TOKENS && performance.now() < deadline) {
 				const next: number[] = [];
 				for (let i = 0; i < frontier.length; i++) {
-					const neighbours = emb.index.topM(frontier[i]!).ids;
+					const neighbours = embedding.index.topM(frontier[i]!).ids;
 					for (let j = 0; j < neighbours.length; j++) {
 						const id = neighbours[j]!;
-						if (seen.has(id) || !emb.predicate(id)) continue;
+						if (seen.has(id) || !embedding.predicate(id)) continue;
 						seen.add(id);
 						next.push(id);
 					}
@@ -432,7 +509,7 @@ async function handleCompute(
 				if (next.length === 0) break;
 				const batch = Int32Array.from(next.slice(0, WARMUP_MAX_TOKENS - warmed));
 				warmed += batch.length;
-				await emb.index.precomputeRows(
+				await embedding.index.precomputeRows(
 					batch,
 					(done, total) => postProgress('embeddings', done, total),
 					deadline,
