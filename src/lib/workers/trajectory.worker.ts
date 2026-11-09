@@ -37,7 +37,6 @@ import {
 import type { CharOverlapMode } from '../strategies/char-overlap-model.js';
 import type { DistanceModel } from '../strategies/distance-model.js';
 import { ExcludingDistanceModel } from '../strategies/distance-model.js';
-import type { WeightFamilyId } from '../strategies/weight-family.js';
 import { NeighborhoodProvider } from '../strategies/neighborhood.js';
 import { verifyVocabSha } from '../embeddings/vocab-sha.js';
 import type { Tokenizer } from '../tokenizers/types.js';
@@ -307,43 +306,6 @@ interface StrategyResource {
 	embedding?: EmbeddingResource;
 }
 
-/** Graph-shaping fields of a neighbourhood strategy config. */
-interface GraphConfig {
-	maxDistance: number | null;
-	k: number;
-	tau: number;
-	family: WeightFamilyId;
-}
-
-/**
- * Canonical graph parameters for a neighbourhood strategy, or `null` when
- * the strategy has no provider.
- *
- * Normalising through `strategyConfigFor` keeps the registry the only home
- * for the defaults; `embedding-knn`'s `maxDistance: null` (no cutoff) maps
- * to `Infinity` at the graph boundary.
- */
-function graphParamsFor(
-	strategyId: string,
-	strategyConfig: unknown,
-	vocabSize: number,
-): NeighborGraphParams | null {
-	if (strategyId !== 'lexical' && strategyId !== 'char-overlap' && strategyId !== 'embedding-knn') {
-		return null;
-	}
-	const cfg = strategyConfigFor(
-		strategyId,
-		vocabSize,
-		strategyConfig as Record<string, unknown>,
-	) as GraphConfig;
-	return {
-		maxDistance: cfg.maxDistance ?? Infinity,
-		k: cfg.k,
-		tau: cfg.tau,
-		family: cfg.family,
-	};
-}
-
 /**
  * Resolve the provider, graph parameters and — only for `embedding-knn` —
  * the warmed index and token filter that a strategy request needs.
@@ -361,6 +323,7 @@ async function resolveStrategyResource(
 	onProgress?: VocabProgress,
 ): Promise<StrategyResource> {
 	let provider: NeighborhoodProvider | undefined;
+	let graphParams: NeighborGraphParams | null = null;
 	let embedding: EmbeddingResource | undefined;
 
 	if (strategyId === 'lexical') {
@@ -392,9 +355,25 @@ async function resolveStrategyResource(
 		provider = embedding.provider;
 	}
 
+	if (provider) {
+		// Canonical params keep the registry the only home for the defaults;
+		// `embedding-knn`'s `maxDistance: null` maps to `Infinity` here.
+		const cfg = strategyConfigFor(
+			strategyId,
+			vocabSize,
+			strategyConfig as Record<string, unknown>,
+		) as Pick<EmbeddingKnnConfig, 'maxDistance' | 'k' | 'tau' | 'family'>;
+		graphParams = {
+			maxDistance: cfg.maxDistance ?? Infinity,
+			k: cfg.k,
+			tau: cfg.tau,
+			family: cfg.family,
+		};
+	}
+
 	return {
 		provider,
-		graphParams: graphParamsFor(strategyId, strategyConfig, vocabSize),
+		graphParams,
 		embedding,
 	};
 }
