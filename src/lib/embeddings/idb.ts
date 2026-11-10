@@ -1,13 +1,14 @@
 /**
  * Minimal promise wrapper over raw `indexedDB` — no dependency.
  *
- * DB `noisy-text-embeddings` with three object stores:
+ * DB `noisy-text-embeddings` with four object stores:
  * - `matrices`, keyed by `<source>@<EMBEDDING_CACHE_TAG>` — fetched
  *   embedding bundles.
  * - `rows`, keyed by
  *   `<source>|<preprocess>|<metric>|<m>@<EMBEDDING_CACHE_TAG>|<token>` —
  *   computed top-$M$ neighbour rows.
  * - `vocab`, keyed by the vocabulary URL — parsed word-vocabulary lists.
+ * - `wordnet`, keyed by `<source>@<cache tag>` — OEWN bundles.
  *
  * The `IDBDatabase` connection is opened once and reused across calls
  * (with the cached handle dropped on `close`/`versionchange` so a lost
@@ -19,11 +20,13 @@
 import type { RowCache } from './knn-index.js';
 
 const DB_NAME = 'noisy-text-embeddings';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const MATRIX_STORE = 'matrices';
 const ROW_STORE = 'rows';
 /** Parsed word-vocabulary lists, keyed by vocabulary URL. */
 export const VOCAB_STORE = 'vocab';
+/** OEWN WordNet bundles, keyed by `<source>@<cache tag>`. */
+export const WORDNET_STORE = 'wordnet';
 
 /** Whether IndexedDB is available in this environment. */
 export function hasIndexedDb(): boolean {
@@ -46,6 +49,7 @@ function openDb(): Promise<IDBDatabase> {
 				if (!db.objectStoreNames.contains(MATRIX_STORE)) db.createObjectStore(MATRIX_STORE);
 				if (!db.objectStoreNames.contains(ROW_STORE)) db.createObjectStore(ROW_STORE);
 				if (!db.objectStoreNames.contains(VOCAB_STORE)) db.createObjectStore(VOCAB_STORE);
+				if (!db.objectStoreNames.contains(WORDNET_STORE)) db.createObjectStore(WORDNET_STORE);
 			};
 			req.onsuccess = () => {
 				const db = req.result;
