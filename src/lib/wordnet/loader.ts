@@ -38,7 +38,7 @@ const idbCache: WordNetCache = {
 	put: (key, value) => idbPut(WORDNET_STORE, key, value),
 };
 function fail(reason: string): never {
-	throw new Error(`loadWordNet: ${reason}`);
+	throw new Error(`WordNet: ${reason}`);
 }
 
 export function wordnetBaseUrl(revision = WORDNET_DATASET_REVISION): string {
@@ -54,7 +54,8 @@ export async function decodeWordNet(
 	const meta = JSON.parse(metaText) as WordNetMeta;
 	if (meta.source !== WORDNET_SOURCE) fail(`source mismatch: ${meta.source}`);
 	if (meta.vocabSize !== words.length) fail(`vocab size mismatch: ${meta.vocabSize}`);
-	if (meta.categoryOrder.join('\n') !== WORDNET_CATEGORIES.join('\n')) fail('category order');
+	if (meta.categoryOrder.join('\n') !== WORDNET_CATEGORIES.join('\n'))
+		fail('unexpected category order');
 	const sha = await wordVocabSha(words);
 	if (meta.vocabSha !== sha) fail(`vocab SHA mismatch: expected ${meta.vocabSha}, got ${sha}`);
 

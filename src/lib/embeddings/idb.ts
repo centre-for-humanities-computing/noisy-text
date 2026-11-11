@@ -21,8 +21,8 @@ import type { RowCache } from './knn-index.js';
 
 const DB_NAME = 'noisy-text-embeddings';
 const DB_VERSION = 3;
-const MATRIX_STORE = 'matrices';
-const ROW_STORE = 'rows';
+export const MATRIX_STORE = 'matrices';
+export const ROW_STORE = 'rows';
 /** Parsed word-vocabulary lists, keyed by vocabulary URL. */
 export const VOCAB_STORE = 'vocab';
 /** OEWN WordNet bundles, keyed by `<source>@<cache tag>`. */
