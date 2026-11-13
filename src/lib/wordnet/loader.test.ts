@@ -48,6 +48,31 @@ it('skips the network on a hit', async () => {
 	expect(bundle).toBe(cached);
 });
 
+function bundleWith(rowMap: [number, number], target: number): ArrayBuffer {
+	const out = new ArrayBuffer(37);
+	const bytes = new Uint8Array(out);
+	const view = new DataView(out);
+	bytes.set(new TextEncoder().encode('OEWN'));
+	view.setUint32(4, 1, true);
+	view.setUint32(8, 1, true);
+	view.setUint32(12, 1, true);
+	bytes.set(new Uint8Array(new Int32Array(rowMap).buffer), 16);
+	bytes.set(new Uint8Array(new Int32Array([0, 1]).buffer), 24);
+	bytes.set(new Uint8Array(new Int32Array([target]).buffer), 32);
+	bytes.set([0], 36);
+	return out;
+}
+
+it('rejects a target outside the vocabulary', async () => {
+	await expect(decodeWordNet(metaText, bundleWith([0, -1], 2), words)).rejects.toThrow(
+		'outside the vocabulary',
+	);
+});
+
+it('rejects a target that resolves to its own row', async () => {
+	await expect(decodeWordNet(metaText, bundleWith([0, 0], 1), words)).rejects.toThrow('own row');
+});
+
 it('rejects a vocab SHA mismatch', async () => {
 	const bad = metaText.replace(/"vocabSha":"[^"]*"/, '"vocabSha":"00"');
 	await expect(decodeWordNet(bad, bin, words)).rejects.toThrow('vocab SHA');

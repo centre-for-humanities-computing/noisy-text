@@ -59,7 +59,6 @@ describe('wordnet table', () => {
 		expect(table.row('DOG')).toBe(0);
 		expect(table.lookup('DoG')).toEqual(table.lookup(0));
 		expect(table.lookup('dog').map((r) => r.target)).toEqual([1, 2, 2, 3]);
-		expect(table.lookup('dog').some((r) => r.target === 0)).toBe(false);
 	});
 
 	it('unions senses and keeps a target under both categories', () => {

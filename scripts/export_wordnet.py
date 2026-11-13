@@ -128,7 +128,7 @@ def build(vocab: list[str], lmf):
         for lemma in row_lemmas:
             for synset in lemma_synsets.get(lemma, ()):
                 for target_lemma in synset_lemmas.get(synset, ()):
-                    if target_lemma != lemma and target_lemma in lemma_id:
+                    if target_lemma not in row_lemmas and target_lemma in lemma_id:
                         edges.add((lemma_id[target_lemma], CATEGORY_INDEX["synonym"]))
                 for target_synset, category in synset_edges.get(synset, ()):
                     for target_lemma in synset_lemmas.get(target_synset, ()):

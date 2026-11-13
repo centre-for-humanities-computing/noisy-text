@@ -78,6 +78,15 @@ export async function decodeWordNet(
 	off += edgeCount * 4;
 	const categories = new Uint8Array(buffer, off, edgeCount);
 	if (offsets[0] !== 0 || offsets[rows] !== edgeCount) fail('bad CSR offsets');
+	for (let row = 0; row < rows; row++) {
+		const start = offsets[row]!;
+		const end = offsets[row + 1]!;
+		for (let edge = start; edge < end; edge++) {
+			const target = targets[edge]!;
+			if (target < 0 || target >= words.length) fail(`target ${target} outside the vocabulary`);
+			if (rowMap[target] === row) fail(`target ${target} resolves to its own row`);
+		}
+	}
 	return { meta, rowMap, offsets, targets, categories };
 }
 
