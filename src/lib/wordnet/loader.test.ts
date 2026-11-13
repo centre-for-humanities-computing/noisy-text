@@ -1,5 +1,11 @@
 import { expect, it } from 'vitest';
-import { decodeWordNet, loadWordNet, wordnetBaseUrl, WORDNET_CATEGORIES } from './loader.js';
+import {
+	decodeWordNet,
+	loadWordNet,
+	wordnetBaseUrl,
+	WORDNET_CATEGORIES,
+	type WordNetBundle,
+} from './loader.js';
 
 const words = ['dog', 'canine'];
 const bin = new ArrayBuffer(37);
@@ -62,6 +68,25 @@ function bundleWith(rowMap: [number, number], target: number): ArrayBuffer {
 	bytes.set([0], 36);
 	return out;
 }
+
+it('keys the cache by the vocabulary digest', async () => {
+	const store = new Map<string, WordNetBundle>();
+	let fetches = 0;
+	const cache = {
+		get: async (key: string) => store.get(key),
+		put: async (key: string, value: WordNetBundle) => void store.set(key, value),
+	};
+	const counting = (async (url: string) => {
+		fetches++;
+		return response(url);
+	}) as unknown as typeof fetch;
+	await loadWordNet(words, { baseUrl, fetch: counting, cache });
+	expect(fetches).toBe(2);
+	await expect(loadWordNet(['dog', 'cat'], { baseUrl, fetch: counting, cache })).rejects.toThrow(
+		'vocab SHA',
+	);
+	expect(fetches).toBe(4);
+});
 
 it('rejects a target outside the vocabulary', async () => {
 	await expect(decodeWordNet(metaText, bundleWith([0, -1], 2), words)).rejects.toThrow(

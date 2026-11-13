@@ -50,13 +50,14 @@ export async function decodeWordNet(
 	metaText: string,
 	buffer: ArrayBuffer,
 	words: readonly string[],
+	vocabSha?: string,
 ): Promise<WordNetBundle> {
 	const meta = JSON.parse(metaText) as WordNetMeta;
 	if (meta.source !== WORDNET_SOURCE) fail(`source mismatch: ${meta.source}`);
 	if (meta.vocabSize !== words.length) fail(`vocab size mismatch: ${meta.vocabSize}`);
 	if (meta.categoryOrder.join('\n') !== WORDNET_CATEGORIES.join('\n'))
 		fail('unexpected category order');
-	const sha = await wordVocabSha(words);
+	const sha = vocabSha ?? (await wordVocabSha(words));
 	if (meta.vocabSha !== sha) fail(`vocab SHA mismatch: expected ${meta.vocabSha}, got ${sha}`);
 
 	const view = new DataView(buffer);
@@ -104,7 +105,8 @@ export async function loadWordNet(
 	const base = (options.baseUrl ?? wordnetBaseUrl()).replace(/\/$/, '');
 	const cache = options.cache ?? idbCache;
 	const doFetch = options.fetch ?? fetch;
-	const key = `${WORDNET_SOURCE}@${shortHash(base)}`;
+	const sha = await wordVocabSha(words);
+	const key = `${WORDNET_SOURCE}@${shortHash(base)}@${sha}`;
 
 	const cached = await cache.get(key);
 	if (cached) return cached;
@@ -113,7 +115,7 @@ export async function loadWordNet(
 	if (!metaRes.ok) fail(`manifest HTTP ${metaRes.status}`);
 	const binRes = await doFetch(`${base}/${WORDNET_SOURCE}.bin`);
 	if (!binRes.ok) fail(`bundle HTTP ${binRes.status}`);
-	const bundle = await decodeWordNet(await metaRes.text(), await binRes.arrayBuffer(), words);
+	const bundle = await decodeWordNet(await metaRes.text(), await binRes.arrayBuffer(), words, sha);
 	await cache.put(key, bundle);
 	return bundle;
 }
