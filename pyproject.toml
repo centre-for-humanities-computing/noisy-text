@@ -9,4 +9,5 @@ dependencies = [
     "numpy>=2.5.4",
     "safetensors>=0.8.0",
     "torch>=2.14.1",
+    "wn>=1.1.1",
 ]
