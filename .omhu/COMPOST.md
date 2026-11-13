@@ -35,3 +35,6 @@ A line named in an open issue's `**Compost:**` line is scheduled; `/implement` d
 2026-11-11 — Direction/normalisation toggles for relation edges — 1 — plan 1 on #92
 2026-11-11 — Real OEWN export upload and pinned `WORDNET_DATASET_REVISION` — 1 — plan 1 on #92
 2026-11-11 — Runtime Morphy in TypeScript; morphology stays at export — 1 — plan 1 on #92
+2026-11-13 — A Python test harness for the WordNet exporter; CI is Node-only, so the decoder invariant is the checked half — 1 — plan 2 on #92
+2026-11-13 — Verifying a cached WordNet bundle on a hit instead of keying the cache by the vocabulary digest — 1 — plan 2 on #92
+2026-11-13 — Dropping `coveredLemmas` from the WordNet table fixture; `WordNetMeta` mirrors the manifest, so it means loosening the type — 1 — plan 2 on #92

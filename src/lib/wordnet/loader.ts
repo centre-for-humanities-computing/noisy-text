@@ -1,4 +1,4 @@
-import { hfResolvePrefix, shortHash } from '../embeddings/loader.js';
+import { HF_DATASET_REPO, hfResolvePrefix, shortHash } from '../embeddings/loader.js';
 import { idbGet, idbPut, WORDNET_STORE } from '../embeddings/idb.js';
 import { wordVocabSha } from '../embeddings/vocab-sha.js';
 
@@ -6,7 +6,6 @@ import { wordVocabSha } from '../embeddings/vocab-sha.js';
 export const WORDNET_SOURCE = 'oewn-2025';
 export const WORDNET_CATEGORIES = ['hypernym', 'hyponym', 'synonym', 'meronym', 'holonym'] as const;
 export type WordNetCategory = (typeof WORDNET_CATEGORIES)[number];
-export const WORDNET_DATASET_REPO = 'chcaa/noisy-text-embeddings';
 export const WORDNET_DATASET_REVISION = '';
 export interface WordNetMeta {
 	source: string;
@@ -43,7 +42,7 @@ function fail(reason: string): never {
 
 export function wordnetBaseUrl(revision = WORDNET_DATASET_REVISION): string {
 	if (!revision) fail('WORDNET_DATASET_REVISION is not pinned; upload the bundle and set the sha');
-	return hfResolvePrefix(WORDNET_DATASET_REPO, revision);
+	return hfResolvePrefix(HF_DATASET_REPO, revision);
 }
 
 export async function decodeWordNet(

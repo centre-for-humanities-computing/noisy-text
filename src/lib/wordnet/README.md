@@ -1,8 +1,7 @@
 # WordNet
 
 The WordNet half of the playground: OEWN 2025 relations keyed by the static
-50k word-vocabulary ids. The bundle is not shipped with the app and nothing
-here runs in CI. (The loader and table land in #92's later slices; the walk,
+50k word-vocabulary ids. The bundle is not shipped with the app. (The walk,
 kernel and status line are #94.)
 
 ## Bundle format
