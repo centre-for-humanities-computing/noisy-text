@@ -104,5 +104,5 @@ it('rejects a vocab SHA mismatch', async () => {
 });
 
 it('refuses an unpinned revision', () => {
-	expect(() => wordnetBaseUrl()).toThrow('not pinned');
+	expect(() => wordnetBaseUrl('')).toThrow('not pinned');
 });
