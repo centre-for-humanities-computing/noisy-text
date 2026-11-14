@@ -57,5 +57,5 @@ self edges are dropped by lemma. Targets are always static ids.
    leaves the embedding and word-vocabulary caches alone.
 
 The exporter fails loudly if a target falls outside the static ids. The
-loader refuses to run while `WORDNET_DATASET_REVISION` is still the
-placeholder, so #94 cannot wire the table before step 5 happens.
+loader refuses an empty `WORDNET_DATASET_REVISION`, so an unpinned
+checkout cannot fetch the bundle.
