@@ -50,7 +50,8 @@ on `main`.
 
 ## Commit and push
 
-Run the `verify` commands from `.omhu.json`; an empty list means there is no
+Run `node scripts/verify.mjs` when the human asks or the answer depends on a
+check; a soil-only edit does not need it, and an empty list means there is no
 automated gate. Then:
 
 - **On a branch:** write the message under `/tmp/opencode/`, stage the soil with

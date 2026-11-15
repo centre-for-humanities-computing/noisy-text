@@ -61,17 +61,25 @@ Your marker is `<!-- plan: N -->`, one past the latest plan comment's number, or
 `plan: 1`. An old `<!-- plan: round=N -->` counts as N. Write one comment, at
 most about one page, with these sections in order:
 
-1. **Story** — one or two paragraphs in the issue's own words: what changes,
-   why, and how you will try it. Domain language, no signatures, no file lists.
-2. **Smallest version** — the minimal option first, what it leaves out and the
-   rough cost. Argue for anything beyond it; deletions count in its favour.
+1. **Story** — one or two paragraphs in the issue's own words: it opens with
+   the issue's **Show**, restated or added when the issue has none, then what
+   changes and why. Domain language, no signatures, no file lists.
+2. **Smallest version** — the smallest thing you can see, first: what it leaves
+   out and the rough cost. Argue for anything beyond it; deletions count in its
+   favour.
 3. **Soil check** — the existing code and patterns it grows from, what it could
    replace or delete, and one small tending item of at most about 30 lines in
    the same area.
 4. **Not doing** — what is deferred, one line each; each also gets a line in
    `.omhu/COMPOST.md` when the work lands.
 5. **Slices** — one sentence each, with kind (behavioral or mechanical) and a
-   line budget. One slice is one commit.
+   scope sentence. Slice 1 is the walking skeleton: the thinnest end-to-end path
+   through the feature, runnable, with fake data where the real thing is missing;
+   each later slice replaces one fake and leaves the demo runnable. Pure
+   infrastructure is allowed only when it names the Show it unblocks. A refactor
+   is exempt: its Show is unchanged behaviour, proven by verify or a before/after
+   structural measure. One slice is one commit. Name the repo's churn cap once,
+   read from `.omhu.json`, and say the gate allows 25% over it before it stops.
 6. **Net lines** — added and deleted, as an estimate.
 
 A revision plan uses the same sections, scoped to the review's blockers.
@@ -98,7 +106,8 @@ enough to read the diff yourself" or "this deserves a review" — then name the
 next step: `/implement <number>`, or the first step you would run.
 
 When the record shows something happened — a `Deviation:`, a failed check or
-retry or STOP, a deleted file, a blocked round, a slice over budget, a gap
+retry or STOP, a deleted file, a blocked round, a commit that exceeds the repo
+cap or reads as more than one change, a gap
 between estimated and actual churn, two implementation paths to compare, or, for
 a plan, a draft that would sharpen against a counterpoint — state what you
 noticed or ask one question in your own words before you post. The Dalsgaard

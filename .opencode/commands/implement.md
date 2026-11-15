@@ -18,7 +18,7 @@ token `step` builds one slice and stops with a note.
    `Dream:` title is its own plan, numbered 1, so no comment is needed: a
    `Tend:` body holds its picks as slices and its compost decisions, a `Dream:`
    body the soil change it agreed. Ask for `/plan` only if the body is not
-   plan-shaped. Read the slices, their kinds and budgets, the Not
+   plan-shaped. Read the slices, their kinds and scope sentences, the Not
    doing lines, and any tending item. No plan → STOP and ask for `/plan`.
 3. Find the PR with `node scripts/forge.mjs pr find --head <branch> --json` and
    read `pr get <pr> --json` for the newest `<!-- review: round=N -->` and its
@@ -60,12 +60,13 @@ deviation that changes what the slice is about is a STOP.
 
 Then for slice k of n:
 
-1. Run `node scripts/slice-check.mjs --budget <the plan's budget>`. Omit
-   `--budget` only when the plan names none. It runs verify (or says there is
-   no automated gate when the list is empty), stages the tree,
-   and reports churn. Verify failure: fix only what this slice broke and retry;
-   after two attempts STOP and leave earlier commits in place. Over budget:
-   STOP and ask, unless a smaller version still does the slice's job.
+1. Run `node scripts/slice-check.mjs`. It uses the repo's churn cap unless the
+   plan names a tighter one, in which case pass `--budget <that number>`. It
+   runs verify (or says there is no automated gate when the list is empty),
+   stages the tree, and reports churn. Verify failure: fix only what this slice
+   broke and retry; after two attempts STOP and leave earlier commits in place.
+   Over the cap: STOP and ask, unless a smaller version still does the slice's
+   job.
 2. Commit once. Subject from the plan, a 3–5 line body saying what, why and how
    it was verified, then these trailers on their own lines:
 
@@ -81,7 +82,6 @@ Then for slice k of n:
    copied from the plan
    (`behavioral` or `mechanical`). Write the message to
    `/tmp/opencode/commit-<n>-<k>.md` and use `git commit -F`.
-
 3. In `step` mode, stop here — including after the last slice — with exactly:
    what grew (one line), one thing to try, and `Continue?`. Do not push. A
    later `/implement <n> step` resumes from the trailers.
@@ -93,8 +93,9 @@ deleted and the line the issue's `**Compost:**` line names when it has one, leav
 a `Promoted:` line for the issue it was handed to, update `.omhu/MAP.md` only if
 the shape of the code changed, and include the plan's tending item if it named
 one. If the session held a `Noticed:` line, append it to `.omhu/JOURNAL.md` as
-this phase's entry, dated and in the human's words. No version bump unless
-`AGENTS.md` states a versioning rule.
+this phase's entry, dated and in the human's words. Bump `VERSION` once, in this
+slice, by the block's rule: `feat` → minor, everything else → patch, a major
+only when the plan says so.
 
 ## Finish (no `step` only)
 
@@ -116,8 +117,9 @@ The body named at `pr create` carries `Closes #<n>` on its own line, after the
 field note and before the next-step line, so the merge closes the issue.
 
 When the record shows something happened — a `Deviation:`, a failed check or
-retry or STOP, a deleted file, a blocked round, a slice over budget, a gap
-between estimated and actual churn, or two implementation paths to compare —
+retry or STOP, a deleted file, a blocked round, a commit that exceeds the repo
+cap or reads as more than one change, a gap between estimated and actual churn,
+or two implementation paths to compare —
 state what you noticed or ask one question in your own words before writing the
 field note. The Dalsgaard strategies guide the wording (contrast, uncertainty,
 blind spot, counterpoint); they are not a list to rotate through. Carry a

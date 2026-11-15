@@ -73,6 +73,18 @@ export default tseslint.config(
 			'.venv/',
 			'.agents/',
 			'.claude/',
+			// Vendored Omhu workflow scripts (listed in .omhu/manifest.json):
+			// prettier skips them, so lint does too instead of fighting upstream style.
+			'scripts/cite-check.mjs',
+			'scripts/forge.mjs',
+			'scripts/loop-state.mjs',
+			'scripts/overview.mjs',
+			'scripts/record.mjs',
+			'scripts/reflect-facts.mjs',
+			'scripts/slice-check.mjs',
+			'scripts/snapshot.mjs',
+			'scripts/soil.mjs',
+			'scripts/verify.mjs',
 		],
 	},
 );

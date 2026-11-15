@@ -101,6 +101,10 @@ These are load-bearing; breaking them silently breaks the math.
 - **Soil is edited in place.** `.omhu/MAP.md`, `.omhu/JOURNAL.md`,
   `.omhu/COMPOST.md` and this file change in the issue's last slice, as a diff
   you can read.
+- **Version at the soil slice.** One bump per issue, in its last slice: `feat`
+  → minor, anything else → patch, a major only when the plan says so. The root
+  `VERSION` is the number; copy it into `package.json` when there is one. Tags
+  and releases stay the human's act.
 - **Short prompts.** Prompts should be as concise as they can be; when a cheap
   model fails a step, move it into a script or a check rather than into more
   prose.

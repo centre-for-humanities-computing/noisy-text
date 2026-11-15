@@ -23,7 +23,7 @@ before, and on a fresh branch after.
 - If the PR has merged, the branch may be gone: read `main`'s merge or squash
   commit (`git log main -1 --format=%B`). Its diff against the first parent is
   the range; if you cannot name it, say so and accept `unknown`.
-  Save what the facts script needs under `/tmp/opencode/`:
+Save what the facts script needs under `/tmp/opencode/`:
 
 ```bash
 node scripts/forge.mjs issue get <n> --json > /tmp/opencode/issue-<n>.json
@@ -32,7 +32,6 @@ node scripts/forge.mjs pr commits <pr> --json > /tmp/opencode/commits-<pr>.json
 node scripts/reflect-facts.mjs --range <range> --issue /tmp/opencode/issue-<n>.json \
   --pr /tmp/opencode/pr-<pr>.json --commits /tmp/opencode/commits-<pr>.json
 ```
-
 Before the merge, churn is `main...HEAD` and the trailers are read from
 `main..HEAD`; after it, both are `<sha>^..<sha>`. Pass the churn range.
 
@@ -46,7 +45,8 @@ open, restate nothing.
 
 Open from a `Noticed:` line in the record or from an event it shows — a review
 round, a deviation, a deleted file, a failed check or retry, a blocked round, a
-slice over budget, a gap between estimated and actual churn. Ask at most three
+commit that exceeds the repo cap or reads as more than one change, a gap between
+estimated and actual churn. Ask at most three
 questions in your own words; the Dalsgaard strategies guide the wording
 (contrast, uncertainty, blind spot, counterpoint), not a list to rotate through.
 When there is nothing to open from, say so and write only the facts.
@@ -75,7 +75,8 @@ on `main`.
 
 ## Commit and push
 
-Run the `verify` commands from `.omhu.json`; an empty list means there is no
+Run `node scripts/verify.mjs` when the human asks or the answer depends on a
+check; a soil-only edit does not need it, and an empty list means there is no
 automated gate. Then:
 
 - **Before merge:** write the message under `/tmp/opencode/`, stage the soil

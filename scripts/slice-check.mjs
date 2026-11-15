@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
 import { loadConfig } from './forge.mjs';
+import { runVerify } from './verify.mjs';
 
 export const EXIT = { ok: 0, fail: 1, budget: 2 };
 
@@ -52,26 +53,17 @@ export function parseArgs(argv = []) {
 	return options;
 }
 
-const fail = (message, code = EXIT.fail) => ({
-	code,
-	stdout: '',
-	stderr: `slice-check: ${message}\n`,
-});
-
-function run(command, args, { cwd, env, inherit = false, shell = false } = {}) {
-	const result = spawnSync(command, args, {
-		cwd,
-		env,
-		shell,
-		encoding: 'utf8',
-		stdio: inherit ? ['inherit', 'inherit', 'inherit'] : ['ignore', 'pipe', 'pipe'],
-	});
-	if (result.error) throw new Error(`${command} could not run: ${result.error.message}`);
-	return result;
-}
+const fail = (message, code = EXIT.fail) => ({ code, stdout: '', stderr: `slice-check: ${message}\n` });
 
 function git(args, { cwd, env } = {}) {
-	return run('git', args, { cwd, env });
+	const result = spawnSync('git', args, {
+		cwd,
+		env,
+		encoding: 'utf8',
+		stdio: ['ignore', 'pipe', 'pipe']
+	});
+	if (result.error) throw new Error(`git could not run: ${result.error.message}`);
+	return result;
 }
 
 export function runSliceCheck(argv = [], { cwd = process.cwd(), env = process.env } = {}) {
@@ -94,24 +86,14 @@ export function runSliceCheck(argv = [], { cwd = process.cwd(), env = process.en
 	if (!Number.isFinite(budget) || budget < 0) {
 		return fail('no budget; pass --budget or set "sliceBudget" in .omhu.json');
 	}
-	if (
-		!Array.isArray(config.verify) ||
-		config.verify.some((command) => typeof command !== 'string' || !command.trim())
-	) {
-		return fail('"verify" in .omhu.json must be a list of commands');
-	}
-	const gate =
-		config.verify.length === 0 ? 'slice-check: no automated gate ("verify" is empty)\n' : '';
-
 	const index = git(['diff', '--cached', '--quiet'], { cwd, env });
 	if (index.status !== 0) {
 		return fail('the index already has staged changes; commit or unstage them first');
 	}
 
-	for (const command of config.verify) {
-		const result = run(command, [], { cwd, env, inherit: true, shell: true });
-		if (result.status !== 0) return fail(`verify failed: ${command}`);
-	}
+	const verify = runVerify({ cwd, env });
+	if (verify.code !== EXIT.ok) return verify;
+	const gate = verify.stdout;
 
 	const add = git(['add', '-A'], { cwd, env });
 	if (add.status !== 0) return fail(`could not stage the working tree\n${add.stderr ?? ''}`);
@@ -133,7 +115,7 @@ export function runSliceCheck(argv = [], { cwd = process.cwd(), env = process.en
 		return {
 			code: EXIT.budget,
 			stdout: `${gate}${summary}`,
-			stderr: `slice-check: ${churn} changed lines is more than 25% over the ${budget}-line budget\n`,
+			stderr: `slice-check: ${churn} changed lines is more than 25% over the ${budget}-line budget\n`
 		};
 	}
 	return { code: EXIT.ok, stdout: `${gate}${summary}`, stderr: '' };

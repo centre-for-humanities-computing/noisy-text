@@ -6,7 +6,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, resolve } from 'node:path';
-import { pathToFileURL, URL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
 export class ForgeError extends Error {
 	constructor(message, { code = 'error', status = 1, cause } = {}) {
@@ -17,8 +17,7 @@ export class ForgeError extends Error {
 	}
 }
 
-const isPlainObject = (value) =>
-	value !== null && typeof value === 'object' && !Array.isArray(value);
+const isPlainObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 export function parseRemote(remote) {
 	if (typeof remote !== 'string') return null;
@@ -59,7 +58,7 @@ function normalizeHost(host) {
 		const path = url.pathname.replace(/\/+$/g, '');
 		return {
 			host: url.hostname.toLowerCase(),
-			webBase: `${url.protocol === 'http:' ? 'http' : 'https'}://${url.host}${path}`,
+			webBase: `${url.protocol === 'http:' ? 'http' : 'https'}://${url.host}${path}`
 		};
 	} catch {
 		return null;
@@ -95,21 +94,13 @@ export function tokenEnvFor(kind, cfg = {}) {
 	return null;
 }
 
-export function resolveForge({ cwd = process.cwd(), cfg = {}, gitRun } = {}) {
-	const forge =
-		isPlainObject(cfg) && Object.hasOwn(cfg, 'forge')
-			? isPlainObject(cfg.forge)
-				? cfg.forge
-				: {}
-			: isPlainObject(cfg)
-				? cfg
-				: {};
+export function resolveForge({ cwd = process.cwd(), cfg = {}, env = process.env, gitRun } = {}) {
+	const forge = isPlainObject(cfg) && Object.hasOwn(cfg, 'forge')
+		? (isPlainObject(cfg.forge) ? cfg.forge : {})
+		: (isPlainObject(cfg) ? cfg : {});
 	const kind = forge.kind ?? null;
 	if (kind !== null && !['github', 'forgejo'].includes(kind)) {
-		throw new ForgeError(`invalid forge.kind "${kind}" (expected github, forgejo, or null)`, {
-			code: 'config',
-			status: 2,
-		});
+		throw new ForgeError(`invalid forge.kind "${kind}" (expected github, forgejo, or null)`, { code: 'config', status: 2 });
 	}
 
 	const remote = forge.remote || 'origin';
@@ -123,13 +114,9 @@ export function resolveForge({ cwd = process.cwd(), cfg = {}, gitRun } = {}) {
 		else if (parsed) resolvedKind = parsed.host === 'github.com' ? 'github' : 'forgejo';
 	}
 	if (!resolvedKind) {
-		throw new ForgeError(
-			`cannot detect a forge: set forge.host (remote "${remote}" was not found)`,
-			{
-				code: 'config',
-				status: 2,
-			},
-		);
+		throw new ForgeError(`cannot detect a forge: set forge.host (remote "${remote}" was not found)`, {
+			code: 'config', status: 2
+		});
 	}
 
 	const hostInfo = configuredHost
@@ -138,13 +125,9 @@ export function resolveForge({ cwd = process.cwd(), cfg = {}, gitRun } = {}) {
 			? { host: parsed.host, webBase: `https://${parsed.host}` }
 			: null;
 	if (!hostInfo) {
-		throw new ForgeError(
-			`cannot detect a forge host: set forge.host (remote "${remote}" was not found)`,
-			{
-				code: 'config',
-				status: 2,
-			},
-		);
+		throw new ForgeError(`cannot detect a forge host: set forge.host (remote "${remote}" was not found)`, {
+			code: 'config', status: 2
+		});
 	}
 
 	const host = hostInfo.host;
@@ -165,7 +148,7 @@ export function resolveForge({ cwd = process.cwd(), cfg = {}, gitRun } = {}) {
 		apiBase,
 		remote,
 		tokenEnv: tokenEnvFor(resolvedKind, forge),
-		tokenFile: forge.tokenFile ?? null,
+		tokenFile: forge.tokenFile ?? null
 	};
 }
 
@@ -182,16 +165,7 @@ export function resolveToken(forge, env = {}, cwd = process.cwd()) {
 
 export const EXIT = { ok: 0, operation: 1, usage: 2, auth: 3, notFound: 4 };
 
-const VALUE_FLAGS = new Set([
-	'--body-file',
-	'--title',
-	'--head',
-	'--base',
-	'--label',
-	'--milestone',
-	'--remote',
-	'--state',
-]);
+const VALUE_FLAGS = new Set(['--body-file', '--title', '--head', '--base', '--label', '--milestone', '--description', '--remote', '--state']);
 const BOOLEAN_FLAGS = new Set(['--json', '--help', '-h']);
 
 export function parseArgs(argv = []) {
@@ -205,8 +179,7 @@ export function parseArgs(argv = []) {
 			continue;
 		}
 		if (arg.startsWith('--')) {
-			if (!VALUE_FLAGS.has(arg))
-				throw new ForgeError(`unknown option ${arg}`, { code: 'usage', status: EXIT.usage });
+			if (!VALUE_FLAGS.has(arg)) throw new ForgeError(`unknown option ${arg}`, { code: 'usage', status: EXIT.usage });
 			const value = argv[i + 1];
 			if (value === undefined || value.startsWith('--')) {
 				throw new ForgeError(`${arg} requires a value`, { code: 'usage', status: EXIT.usage });
@@ -229,13 +202,17 @@ export function usage() {
 
 Commands:
   issue get <number>
+  issue list
   issue search <query>
   issue create --title <t> --body-file <path> [--label <name>]... [--milestone <title>]
   issue edit <number> [--title <t>] --body-file <path> [--label <name>]... [--milestone <title>]
   issue comment <number> --body-file <path>
   milestone list [--state open|closed|all]  (default: open)
-  milestone create --title <t>
+  milestone get <number>
+  milestone create --title <t> [--description <text>]
+  milestone edit <number> [--title <t>] [--description <text>]
   pr find --head <branch> [--state open|closed|all]  (default: open)
+  pr list
   pr get <number>
   pr commits <number>
   pr create --base <b> --head <h> --title <t> --body-file <path>
@@ -256,42 +233,23 @@ Exit codes:
 
 export function redact(value, tokens) {
 	let text = String(value ?? '');
-	const list = Array.isArray(tokens) ? tokens.filter(Boolean) : tokens ? [tokens] : [];
+	const list = Array.isArray(tokens) ? tokens.filter(Boolean) : (tokens ? [tokens] : []);
 	for (const token of list) text = text.split(token).join('[redacted]');
 	return text.replace(/\b(Bearer|token)\s+[A-Za-z0-9._~+/=-]{8,}/gi, '$1 [redacted]');
 }
 
 export function normalizeError(error, tokens) {
 	if (error instanceof ForgeError) {
-		return new ForgeError(redact(error.message, tokens), {
-			code: error.code,
-			status: error.status,
-			cause: error.cause,
-		});
+		return new ForgeError(redact(error.message, tokens), { code: error.code, status: error.status, cause: error.cause });
 	}
-	return new ForgeError(redact(error?.message ?? error, tokens), {
-		code: 'operation',
-		status: EXIT.operation,
-		cause: error,
-	});
+	return new ForgeError(redact(error?.message ?? error, tokens), { code: 'operation', status: EXIT.operation, cause: error });
 }
 
-export async function request(
-	url,
-	{
-		method = 'GET',
-		token,
-		tokenScheme = 'Bearer',
-		headers = {},
-		body,
-		fetchImpl = globalThis.fetch,
-	} = {},
-) {
+export async function request(url, {
+	method = 'GET', token, tokenScheme = 'Bearer', headers = {}, body, fetchImpl = globalThis.fetch
+} = {}) {
 	if (typeof fetchImpl !== 'function') {
-		throw new ForgeError('fetch is not available in this Node runtime', {
-			code: 'operation',
-			status: EXIT.operation,
-		});
+		throw new ForgeError('fetch is not available in this Node runtime', { code: 'operation', status: EXIT.operation });
 	}
 	const requestHeaders = { Accept: 'application/json', ...headers };
 	if (token) requestHeaders.Authorization = `${tokenScheme} ${token}`;
@@ -300,7 +258,7 @@ export async function request(
 		response = await fetchImpl(url, {
 			method,
 			headers: requestHeaders,
-			body: body === undefined ? undefined : typeof body === 'string' ? body : JSON.stringify(body),
+			body: body === undefined ? undefined : (typeof body === 'string' ? body : JSON.stringify(body))
 		});
 	} catch (error) {
 		throw normalizeError(error, token);
@@ -318,24 +276,12 @@ export async function request(
 	}
 	if (!response.ok) {
 		const status = response.status;
-		const detail =
-			typeof parsed === 'string'
-				? parsed
-				: (parsed?.message ?? parsed?.error ?? response.statusText);
-		const message = redact(
-			`${method} ${url} failed (${status}): ${detail ?? 'request failed'}`,
-			token,
-		);
-		const code =
-			status === 401 || status === 403 ? 'auth' : status === 404 ? 'not-found' : 'operation';
+		const detail = typeof parsed === 'string' ? parsed : (parsed?.message ?? parsed?.error ?? response.statusText);
+		const message = redact(`${method} ${url} failed (${status}): ${detail ?? 'request failed'}`, token);
+		const code = status === 401 || status === 403 ? 'auth' : status === 404 ? 'not-found' : 'operation';
 		throw new ForgeError(message, {
 			code,
-			status:
-				status === 401 || status === 403
-					? EXIT.auth
-					: status === 404
-						? EXIT.notFound
-						: EXIT.operation,
+			status: status === 401 || status === 403 ? EXIT.auth : status === 404 ? EXIT.notFound : EXIT.operation
 		});
 	}
 	return parsed;
@@ -343,20 +289,14 @@ export async function request(
 
 function repoPath(forge) {
 	if (!forge.owner || !forge.repo) {
-		throw new ForgeError('the forge remote must include an owner and repository', {
-			code: 'config',
-			status: EXIT.usage,
-		});
+		throw new ForgeError('the forge remote must include an owner and repository', { code: 'config', status: EXIT.usage });
 	}
 	return `${forge.apiBase}/repos/${encodeURIComponent(forge.owner)}/${encodeURIComponent(forge.repo)}`;
 }
 
 function requireToken(token, forge) {
 	if (!token) {
-		throw new ForgeError(`${forge.tokenEnv ?? 'forge token'} is not set`, {
-			code: 'auth',
-			status: EXIT.auth,
-		});
+		throw new ForgeError(`${forge.tokenEnv ?? 'forge token'} is not set`, { code: 'auth', status: EXIT.auth });
 	}
 	return token;
 }
@@ -365,26 +305,25 @@ async function paginate(fetchPage, limit = 50) {
 	const out = [];
 	for (let page = 1; ; page += 1) {
 		const batch = await fetchPage(page);
-		if (!Array.isArray(batch))
-			throw new ForgeError('forge returned a non-list page', {
-				code: 'operation',
-				status: EXIT.operation,
-			});
+		if (!Array.isArray(batch)) throw new ForgeError('forge returned a non-list page', { code: 'operation', status: EXIT.operation });
 		out.push(...batch);
 		if (batch.length < limit) return out;
 	}
+}
+
+// The list verbs share one list-then-read loop: each row's thread is read
+// after the list, and `map` turns the pair into the shared shape.
+async function listWithThreads(rows, readThread, map) {
+	const out = [];
+	for (const row of rows) out.push(map(row, await readThread(row)));
+	return out;
 }
 
 function forgejoRequest(forge, token, path, { method = 'GET', body, fetchImpl } = {}) {
 	const headers = { Accept: 'application/json' };
 	if (body !== undefined) headers['Content-Type'] = 'application/json';
 	return request(`${repoPath(forge)}${path}`, {
-		method,
-		token,
-		tokenScheme: 'token',
-		headers,
-		body,
-		fetchImpl,
+		method, token, tokenScheme: 'token', headers, body, fetchImpl
 	});
 }
 
@@ -392,7 +331,7 @@ function mapComment(comment) {
 	return {
 		author: comment.user?.login ?? comment.user?.username ?? '',
 		body: comment.body ?? '',
-		createdAt: comment.created_at ?? '',
+		createdAt: comment.created_at ?? ''
 	};
 }
 
@@ -402,13 +341,41 @@ function mapIssue(issue, comments = []) {
 		title: issue.title ?? '',
 		body: issue.body ?? '',
 		state: issue.state ?? 'open',
-		labels: (issue.labels ?? [])
-			.map((label) => (typeof label === 'string' ? label : label.name))
-			.filter(Boolean),
+		labels: (issue.labels ?? []).map((label) => typeof label === 'string' ? label : label.name).filter(Boolean),
 		milestone: issue.milestone?.title ?? null,
 		author: issue.user?.login ?? issue.user?.username ?? '',
 		url: issue.html_url ?? '',
-		comments: comments.map(mapComment),
+		updatedAt: issue.updated_at ?? '',
+		comments: comments.map(mapComment)
+	};
+}
+
+// Forgejo and GitHub REST name pull fields the same way, so one mapper serves
+// both transports; `pr get` and `pr list` use it.
+function mapPull(pull, comments = []) {
+	return {
+		number: pull.number,
+		title: pull.title ?? '',
+		body: pull.body ?? '',
+		state: String(pull.state ?? 'open').toLowerCase(),
+		url: pull.html_url ?? '',
+		head: pull.head?.ref ?? '',
+		base: pull.base?.ref ?? '',
+		updatedAt: pull.updated_at ?? '',
+		comments: comments.map(mapComment)
+	};
+}
+
+// Rows from `issue search` carry the milestone so /cultivate can group a
+// milestone's members without a get per issue; all three transports share this
+// one shape. Closed rows are kept because they are evidence of what is done.
+function mapSearchRow(row) {
+	return {
+		number: row.number,
+		title: row.title ?? '',
+		state: String(row.state ?? 'open').toLowerCase(),
+		url: row.html_url ?? row.url ?? '',
+		milestone: row.milestone?.title ?? null
 	};
 }
 
@@ -418,6 +385,20 @@ function mapMilestone(row) {
 		title: row.title ?? '',
 		state: String(row.state ?? 'open').toLowerCase(),
 		due: row.due_on ?? null,
+		description: row.description ?? '',
+		openIssues: row.open_issues ?? 0,
+		closedIssues: row.closed_issues ?? 0
+	};
+}
+
+// Create and edit replies vary by transport; fill the write result from the
+// arguments when the response echoes only part of the milestone.
+function mapMilestoneWrite(row, { number, title, description }) {
+	return {
+		number: row.number ?? row.id ?? number,
+		title: row.title ?? title ?? '',
+		description: row.description ?? description ?? '',
+		url: row.html_url ?? ''
 	};
 }
 
@@ -427,17 +408,14 @@ function mapMilestone(row) {
 async function forgejoNamedIds(forge, token, path, names, fetchImpl) {
 	if (!names?.length) return undefined;
 	const separator = path.includes('?') ? '&' : '?';
-	const all = await paginate(async (page) =>
-		forgejoRequest(forge, token, `${path}${separator}limit=50&page=${page}`, { fetchImpl }),
-	);
+	const all = await paginate(async (page) => forgejoRequest(
+		forge, token, `${path}${separator}limit=50&page=${page}`, { fetchImpl }
+	));
 	const byName = new Map(all.map((thing) => [thing.name ?? thing.title, thing.id]));
 	const ids = [];
 	for (const name of names) {
 		if (!byName.has(name)) {
-			throw new ForgeError(`"${name}" does not exist on ${forge.owner}/${forge.repo}`, {
-				code: 'not-found',
-				status: EXIT.notFound,
-			});
+			throw new ForgeError(`"${name}" does not exist on ${forge.owner}/${forge.repo}`, { code: 'not-found', status: EXIT.notFound });
 		}
 		ids.push(byName.get(name));
 	}
@@ -454,32 +432,30 @@ const forgejoIssueVerbs = {
 	async issueGet({ number }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const issue = await forgejoRequest(forge, token, `/issues/${number}`, { fetchImpl });
-		const comments = await paginate(async (page) =>
-			forgejoRequest(forge, token, `/issues/${number}/comments?limit=50&page=${page}`, {
-				fetchImpl,
-			}),
-		);
+		const comments = await paginate(async (page) => forgejoRequest(
+			forge, token, `/issues/${number}/comments?limit=50&page=${page}`, { fetchImpl }
+		));
 		return mapIssue(issue, comments);
+	},
+
+	async issueList(_args, { forge, token, fetchImpl }) {
+		requireToken(token, forge);
+		const issues = await paginate(async (page) => forgejoRequest(
+			forge, token, `/issues?state=open&type=issues&limit=50&page=${page}`, { fetchImpl }
+		));
+		return listWithThreads(issues, (issue) => paginate(async (page) => forgejoRequest(
+			forge, token, `/issues/${issue.number}/comments?limit=50&page=${page}`, { fetchImpl }
+		)), mapIssue);
 	},
 
 	async issueSearch({ query }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
-		const items = await paginate(async (page) =>
-			forgejoRequest(
-				forge,
-				token,
-				`/issues?state=all&type=issues&q=${encodeURIComponent(query)}&limit=50&page=${page}`,
-				{ fetchImpl },
-			),
-		);
+		const items = await paginate(async (page) => forgejoRequest(
+			forge, token, `/issues?state=all&type=issues&q=${encodeURIComponent(query)}&limit=50&page=${page}`, { fetchImpl }
+		));
 		return items
 			.filter((issue) => !issue.pull_request)
-			.map((issue) => ({
-				number: issue.number,
-				title: issue.title ?? '',
-				state: issue.state ?? 'open',
-				url: issue.html_url ?? '',
-			}));
+			.map(mapSearchRow);
 	},
 
 	async issueCreate({ title, body, labels, milestone }, { forge, token, fetchImpl }) {
@@ -487,13 +463,8 @@ const forgejoIssueVerbs = {
 		const labelIds = await forgejoNamedIds(forge, token, '/labels', labels, fetchImpl);
 		const payload = { title, body };
 		if (labelIds) payload.labels = labelIds;
-		if (milestone !== null)
-			payload.milestone = await forgejoMilestoneId(forge, token, milestone, fetchImpl);
-		const issue = await forgejoRequest(forge, token, '/issues', {
-			method: 'POST',
-			body: payload,
-			fetchImpl,
-		});
+		if (milestone !== null) payload.milestone = await forgejoMilestoneId(forge, token, milestone, fetchImpl);
+		const issue = await forgejoRequest(forge, token, '/issues', { method: 'POST', body: payload, fetchImpl });
 		return { number: issue.number, title: issue.title ?? title, url: issue.html_url ?? '' };
 	},
 
@@ -503,105 +474,103 @@ const forgejoIssueVerbs = {
 		if (title) payload.title = title;
 		const labelIds = await forgejoNamedIds(forge, token, '/labels', labels, fetchImpl);
 		if (labelIds) payload.labels = labelIds;
-		if (milestone !== null)
-			payload.milestone = await forgejoMilestoneId(forge, token, milestone, fetchImpl);
-		const issue = await forgejoRequest(forge, token, `/issues/${number}`, {
-			method: 'PATCH',
-			body: payload,
-			fetchImpl,
-		});
+		if (milestone !== null) payload.milestone = await forgejoMilestoneId(forge, token, milestone, fetchImpl);
+		const issue = await forgejoRequest(forge, token, `/issues/${number}`, { method: 'PATCH', body: payload, fetchImpl });
 		return { number: issue.number, title: issue.title ?? title ?? '', url: issue.html_url ?? '' };
 	},
 
 	async issueComment({ number, body }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const comment = await forgejoRequest(forge, token, `/issues/${number}/comments`, {
-			method: 'POST',
-			body: { body },
-			fetchImpl,
+			method: 'POST', body: { body }, fetchImpl
 		});
 		return { id: comment.id ?? null, url: comment.html_url ?? null };
 	},
 
 	async milestoneList({ state }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
-		const rows = await paginate(async (page) =>
-			forgejoRequest(forge, token, `/milestones?state=${state}&limit=50&page=${page}`, {
-				fetchImpl,
-			}),
-		);
+		const rows = await paginate(async (page) => forgejoRequest(
+			forge, token, `/milestones?state=${state}&limit=50&page=${page}`, { fetchImpl }
+		));
 		return rows.map(mapMilestone);
 	},
 
-	async milestoneCreate({ title }, { forge, token, fetchImpl }) {
+	async milestoneGet({ number }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
-		const row = await forgejoRequest(forge, token, '/milestones', {
-			method: 'POST',
-			body: { title },
-			fetchImpl,
-		});
-		return { number: row.id, title: row.title ?? title, url: row.html_url ?? '' };
+		const row = await forgejoRequest(forge, token, `/milestones/${number}`, { fetchImpl });
+		return mapMilestone(row);
+	},
+
+	async milestoneCreate({ title, description }, { forge, token, fetchImpl }) {
+		requireToken(token, forge);
+		const payload = { title };
+		if (description !== null) payload.description = description;
+		const row = await forgejoRequest(forge, token, '/milestones', { method: 'POST', body: payload, fetchImpl });
+		return mapMilestoneWrite(row, { title, description });
+	},
+
+	async milestoneEdit({ number, title, description }, { forge, token, fetchImpl }) {
+		requireToken(token, forge);
+		const payload = {};
+		if (title !== null) payload.title = title;
+		if (description !== null) payload.description = description;
+		const row = await forgejoRequest(forge, token, `/milestones/${number}`, { method: 'PATCH', body: payload, fetchImpl });
+		return mapMilestoneWrite(row, { number, title, description });
 	},
 
 	async prFind({ head, state }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
-		const pulls = await paginate(async (page) =>
-			forgejoRequest(forge, token, `/pulls?state=${state}&limit=50&page=${page}`, { fetchImpl }),
-		);
-		const match = pickPull(
-			pulls
-				.filter((pull) => pull.head?.ref === head)
-				.map((pull) => ({
-					number: pull.number,
-					url: pull.html_url ?? '',
-					title: pull.title ?? '',
-					state: String(pull.state ?? 'open').toLowerCase(),
-					head: pull.head?.ref ?? head,
-					base: pull.base?.ref ?? '',
-					merged: Boolean(pull.merged) || Boolean(pull.merged_at),
-				})),
-			{ state },
-		);
+		const pulls = await paginate(async (page) => forgejoRequest(
+			forge, token, `/pulls?state=${state}&limit=50&page=${page}`, { fetchImpl }
+		));
+		const match = pickPull(pulls
+			.filter((pull) => pull.head?.ref === head)
+			.map((pull) => ({
+				number: pull.number,
+				url: pull.html_url ?? '',
+				title: pull.title ?? '',
+				state: String(pull.state ?? 'open').toLowerCase(),
+				head: pull.head?.ref ?? head,
+				base: pull.base?.ref ?? '',
+				merged: Boolean(pull.merged) || Boolean(pull.merged_at)
+			})), { state });
 		return match ? pullSummary(match) : null;
 	},
 
 	async prGet({ number }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const pull = await forgejoRequest(forge, token, `/pulls/${number}`, { fetchImpl });
-		const comments = await paginate(async (page) =>
-			forgejoRequest(forge, token, `/issues/${number}/comments?limit=50&page=${page}`, {
-				fetchImpl,
-			}),
-		);
-		return {
-			number: pull.number,
-			title: pull.title ?? '',
-			body: pull.body ?? '',
-			state: pull.state ?? 'open',
-			url: pull.html_url ?? '',
-			head: pull.head?.ref ?? '',
-			base: pull.base?.ref ?? '',
-			comments: comments.map(mapComment),
-		};
+		const comments = await paginate(async (page) => forgejoRequest(
+			forge, token, `/issues/${number}/comments?limit=50&page=${page}`, { fetchImpl }
+		));
+		return mapPull(pull, comments);
+	},
+
+	async prList(_args, { forge, token, fetchImpl }) {
+		requireToken(token, forge);
+		const pulls = await paginate(async (page) => forgejoRequest(
+			forge, token, `/pulls?state=open&limit=50&page=${page}`, { fetchImpl }
+		));
+		return listWithThreads(pulls, (pull) => paginate(async (page) => forgejoRequest(
+			forge, token, `/issues/${pull.number}/comments?limit=50&page=${page}`, { fetchImpl }
+		)), mapPull);
 	},
 
 	async prCommits({ number }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
-		const commits = await paginate(async (page) =>
-			forgejoRequest(forge, token, `/pulls/${number}/commits?limit=50&page=${page}`, { fetchImpl }),
-		);
+		const commits = await paginate(async (page) => forgejoRequest(
+			forge, token, `/pulls/${number}/commits?limit=50&page=${page}`, { fetchImpl }
+		));
 		return commits.map((commit) => ({
 			sha: commit.sha ?? '',
-			message: commit.commit?.message ?? '',
+			message: commit.commit?.message ?? ''
 		}));
 	},
 
 	async prCreate({ base, head, title, body }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const pull = await forgejoRequest(forge, token, '/pulls', {
-			method: 'POST',
-			body: { base, head, title, body },
-			fetchImpl,
+			method: 'POST', body: { base, head, title, body }, fetchImpl
 		});
 		return { number: pull.number, url: pull.html_url ?? '' };
 	},
@@ -609,9 +578,7 @@ const forgejoIssueVerbs = {
 	async prComment({ number, body }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const comment = await forgejoRequest(forge, token, `/issues/${number}/comments`, {
-			method: 'POST',
-			body: { body },
-			fetchImpl,
+			method: 'POST', body: { body }, fetchImpl
 		});
 		return { id: comment.id ?? null, url: comment.html_url ?? null };
 	},
@@ -630,10 +597,10 @@ const forgejoIssueVerbs = {
 		const checks = statuses.map((entry) => ({
 			name: entry.context ?? entry.name ?? '',
 			status: mapCheckStatus(entry.status ?? entry.state),
-			url: entry.target_url ?? null,
+			url: entry.target_url ?? null
 		}));
 		return { status: combinedStatus(checks), checks };
-	},
+	}
 };
 
 function mapCheckStatus(value) {
@@ -656,28 +623,17 @@ function combinedStatus(checks) {
 }
 
 function execGh(ctx, args, { acceptStatus } = {}) {
-	const call =
-		ctx.ghRun ??
-		((argv, options) =>
-			spawnSync('gh', argv, {
-				cwd: ctx.cwd,
-				encoding: 'utf8',
-				...options,
-			}));
+	const call = ctx.ghRun ?? ((argv, options) => spawnSync('gh', argv, {
+		cwd: ctx.cwd, encoding: 'utf8', ...options
+	}));
 	let result;
 	try {
 		result = call(args, { cwd: ctx.cwd });
 	} catch (error) {
-		throw new ForgeError(`gh is not available: ${error.message}`, {
-			code: 'auth',
-			status: EXIT.auth,
-		});
+		throw new ForgeError(`gh is not available: ${error.message}`, { code: 'auth', status: EXIT.auth });
 	}
 	if (!result || result.error) {
-		throw new ForgeError(`gh is not available: ${result?.error?.message ?? 'no result'}`, {
-			code: 'auth',
-			status: EXIT.auth,
-		});
+		throw new ForgeError(`gh is not available: ${result?.error?.message ?? 'no result'}`, { code: 'auth', status: EXIT.auth });
 	}
 	if (result.status !== 0 && !acceptStatus?.(result)) {
 		const detail = String(result.stderr || result.stdout || 'gh failed').trim();
@@ -689,11 +645,7 @@ function execGh(ctx, args, { acceptStatus } = {}) {
 		// ("Could not resolve host:") or a repository the token cannot see
 		// ("Could not resolve to a Repository") is an operation error (R2-N2),
 		// and a bare 404 is translated only inside the milestone lookup (R3-N2).
-		if (
-			/could not resolve to (?:an? )?(?:issue|pull ?request|milestone)|no (?:issues|pull ?requests|milestones) match/i.test(
-				detail,
-			)
-		) {
+		if (/could not resolve to (?:an? )?(?:issue|pull ?request|milestone)|no (?:issues|pull ?requests|milestones) match/i.test(detail)) {
 			throw new ForgeError(detail, { code: 'not-found', status: EXIT.notFound });
 		}
 		throw new ForgeError(detail, { code: 'operation', status: EXIT.operation });
@@ -712,19 +664,19 @@ export function ghAvailable(ctx) {
 function ghJson(ctx, args) {
 	const result = execGh(ctx, args);
 	const text = String(result.stdout ?? '').trim();
-	if (!text)
-		throw new ForgeError(`gh ${args.join(' ')} returned no JSON`, {
-			code: 'operation',
-			status: EXIT.operation,
-		});
+	if (!text) throw new ForgeError(`gh ${args.join(' ')} returned no JSON`, { code: 'operation', status: EXIT.operation });
 	try {
 		return JSON.parse(text);
 	} catch (error) {
-		throw new ForgeError(`gh ${args.join(' ')} returned invalid JSON: ${error.message}`, {
-			code: 'operation',
-			status: EXIT.operation,
-		});
+		throw new ForgeError(`gh ${args.join(' ')} returned invalid JSON: ${error.message}`, { code: 'operation', status: EXIT.operation });
 	}
+}
+
+// `gh issue list` has no page offset, so the list verbs read the REST list
+// through `gh api` one page at a time instead of capping at GH_LIST_LIMIT.
+async function ghApiPaginate(ctx, path) {
+	const sep = path.includes('?') ? '&' : '?';
+	return paginate(async (page) => ghJson(ctx, ['api', `${path}${sep}per_page=100&page=${page}`]), 100);
 }
 
 // `gh --milestone` expects the milestone title, while prompts pass the number
@@ -740,13 +692,9 @@ async function ghMilestoneName(ctx, milestone) {
 		row = ghJson(ctx, ['api', 'repos/{owner}/{repo}/milestones/' + value]);
 	} catch (error) {
 		if (error instanceof ForgeError && /not found \(http 404\)/i.test(error.message)) {
-			throw new ForgeError(
-				`milestone "${value}" does not exist on ${ctx.forge.owner}/${ctx.forge.repo}`,
-				{
-					code: 'not-found',
-					status: EXIT.notFound,
-				},
-			);
+			throw new ForgeError(`milestone "${value}" does not exist on ${ctx.forge.owner}/${ctx.forge.repo}`, {
+				code: 'not-found', status: EXIT.notFound
+			});
 		}
 		throw error;
 	}
@@ -765,13 +713,9 @@ function urlNumber(value) {
 // still-open one, with the newest number inside each rank.
 function pickPull(pulls, { state = 'open' } = {}) {
 	const list = pulls.filter(Boolean);
-	if (state !== 'all')
-		return [...list].sort((a, b) => Number(a.number) - Number(b.number))[0] ?? null;
-	const rank = (pull) =>
-		pull.merged || pull.state === 'merged' ? 3 : pull.state === 'closed' ? 2 : 1;
-	return (
-		[...list].sort((a, b) => rank(b) - rank(a) || Number(b.number) - Number(a.number))[0] ?? null
-	);
+	if (state !== 'all') return [...list].sort((a, b) => Number(a.number) - Number(b.number))[0] ?? null;
+	const rank = (pull) => (pull.merged || pull.state === 'merged' ? 3 : pull.state === 'closed' ? 2 : 1);
+	return [...list].sort((a, b) => rank(b) - rank(a) || Number(b.number) - Number(a.number))[0] ?? null;
 }
 
 function pullSummary(pull) {
@@ -782,7 +726,15 @@ function pullSummary(pull) {
 		title: pull.title ?? '',
 		state: merged ? 'merged' : String(pull.state ?? 'open').toLowerCase(),
 		head: pull.head ?? '',
-		base: pull.base ?? '',
+		base: pull.base ?? ''
+	};
+}
+
+function mapGhComment(comment) {
+	return {
+		author: comment.author?.login ?? '',
+		body: comment.body ?? '',
+		createdAt: comment.createdAt ?? ''
 	};
 }
 
@@ -792,21 +744,30 @@ function mapGhIssue(issue) {
 		title: issue.title ?? '',
 		body: issue.body ?? '',
 		state: String(issue.state ?? 'open').toLowerCase(),
-		labels: (issue.labels ?? [])
-			.map((label) => (typeof label === 'string' ? label : label.name))
-			.filter(Boolean),
+		labels: (issue.labels ?? []).map((label) => typeof label === 'string' ? label : label.name).filter(Boolean),
 		milestone: issue.milestone?.title ?? null,
 		author: issue.author?.login ?? '',
 		url: issue.url ?? '',
-		comments: (issue.comments ?? []).map((comment) => ({
-			author: comment.author?.login ?? '',
-			body: comment.body ?? '',
-			createdAt: comment.createdAt ?? '',
-		})),
+		updatedAt: issue.updatedAt ?? '',
+		comments: (issue.comments ?? []).map(mapGhComment)
 	};
 }
 
-const ghIssueFields = 'number,title,body,state,labels,milestone,author,url,comments';
+function mapGhPull(pull) {
+	return {
+		number: pull.number,
+		title: pull.title ?? '',
+		body: pull.body ?? '',
+		state: String(pull.state ?? 'open').toLowerCase(),
+		url: pull.url ?? '',
+		head: pull.headRefName ?? '',
+		base: pull.baseRefName ?? '',
+		updatedAt: pull.updatedAt ?? '',
+		comments: (pull.comments ?? []).map(mapGhComment)
+	};
+}
+
+const ghIssueFields = 'number,title,body,state,labels,milestone,author,url,updatedAt,comments';
 
 // One gh list call returns at most this many rows; the cap is documented in
 // docs/forge.md so the gh transport matches the paginating adapters (R1-N13).
@@ -817,25 +778,19 @@ const githubGh = {
 		return mapGhIssue(ghJson(ctx, ['issue', 'view', String(number), '--json', ghIssueFields]));
 	},
 
+	async issueList(_args, ctx) {
+		const issues = await ghApiPaginate(ctx, 'repos/{owner}/{repo}/issues?state=open');
+		return listWithThreads(issues.filter((row) => !row.pull_request), (issue) => ghApiPaginate(
+			ctx, `repos/{owner}/{repo}/issues/${issue.number}/comments`
+		), mapIssue);
+	},
+
 	async issueSearch({ query }, ctx) {
 		const rows = ghJson(ctx, [
-			'issue',
-			'list',
-			'--search',
-			query,
-			'--state',
-			'all',
-			'--limit',
-			String(GH_LIST_LIMIT),
-			'--json',
-			'number,title,state,url',
+			'issue', 'list', '--search', query, '--state', 'all', '--limit', String(GH_LIST_LIMIT),
+			'--json', 'number,title,state,url,milestone'
 		]);
-		return rows.map((row) => ({
-			number: row.number,
-			title: row.title ?? '',
-			state: String(row.state ?? 'open').toLowerCase(),
-			url: row.url ?? '',
-		}));
+		return rows.map(mapSearchRow);
 	},
 
 	async issueCreate({ title, labels, milestone, bodyFile }, ctx) {
@@ -843,11 +798,7 @@ const githubGh = {
 		for (const label of labels) args.push('--label', label);
 		if (milestone !== null) args.push('--milestone', await ghMilestoneName(ctx, milestone));
 		const result = execGh(ctx, args);
-		const url =
-			String(result.stdout ?? '')
-				.trim()
-				.split(/\s+/)
-				.find((part) => /^https?:\/\//.test(part)) ?? '';
+		const url = String(result.stdout ?? '').trim().split(/\s+/).find((part) => /^https?:\/\//.test(part)) ?? '';
 		return { number: urlNumber(url), title, url };
 	},
 
@@ -863,9 +814,7 @@ const githubGh = {
 		try {
 			execGh(ctx, args);
 			mutated = true;
-			const issue = mapGhIssue(
-				ghJson(ctx, ['issue', 'view', String(number), '--json', ghIssueFields]),
-			);
+			const issue = mapGhIssue(ghJson(ctx, ['issue', 'view', String(number), '--json', ghIssueFields]));
 			return { number: issue.number, title: issue.title, url: issue.url };
 		} catch (error) {
 			if (mutated && error instanceof ForgeError) error.noFallback = true;
@@ -875,26 +824,16 @@ const githubGh = {
 
 	async issueComment({ number, bodyFile }, ctx) {
 		const result = execGh(ctx, ['issue', 'comment', String(number), '--body-file', bodyFile]);
-		const url =
-			String(result.stdout ?? '')
-				.trim()
-				.split(/\s+/)
-				.find((part) => /^https?:\/\//.test(part)) ?? null;
+		const url = String(result.stdout ?? '').trim().split(/\s+/).find((part) => /^https?:\/\//.test(part)) ?? null;
 		return { id: null, url };
 	},
 
 	async milestoneList({ state }, ctx) {
 		const rows = [];
 		for (let page = 1; ; page += 1) {
-			const batch = ghJson(ctx, [
-				'api',
-				`repos/{owner}/{repo}/milestones?state=${state}&per_page=100&page=${page}`,
-			]);
+			const batch = ghJson(ctx, ['api', `repos/{owner}/{repo}/milestones?state=${state}&per_page=100&page=${page}`]);
 			if (!Array.isArray(batch)) {
-				throw new ForgeError('gh milestone list returned a non-list page', {
-					code: 'operation',
-					status: EXIT.operation,
-				});
+				throw new ForgeError('gh milestone list returned a non-list page', { code: 'operation', status: EXIT.operation });
 			}
 			rows.push(...batch);
 			if (batch.length < 100) break;
@@ -902,106 +841,66 @@ const githubGh = {
 		return rows.map(mapMilestone);
 	},
 
-	async milestoneCreate({ title }, ctx) {
-		const row = ghJson(ctx, [
-			'api',
-			'repos/{owner}/{repo}/milestones',
-			'--method',
-			'POST',
-			'-f',
-			`title=${title}`,
-		]);
-		return { number: row.number, title: row.title ?? title, url: row.html_url ?? '' };
+	async milestoneGet({ number }, ctx) {
+		const row = ghJson(ctx, ['api', `repos/{owner}/{repo}/milestones/${number}`]);
+		return mapMilestone(row);
+	},
+
+	async milestoneCreate({ title, description }, ctx) {
+		const args = ['api', 'repos/{owner}/{repo}/milestones', '--method', 'POST', '-f', `title=${title}`];
+		if (description !== null) args.push('-f', `description=${description}`);
+		return mapMilestoneWrite(ghJson(ctx, args), { title, description });
+	},
+
+	async milestoneEdit({ number, title, description }, ctx) {
+		const args = ['api', `repos/{owner}/{repo}/milestones/${number}`, '--method', 'PATCH'];
+		if (title !== null) args.push('-f', `title=${title}`);
+		if (description !== null) args.push('-f', `description=${description}`);
+		return mapMilestoneWrite(ghJson(ctx, args), { number, title, description });
 	},
 
 	async prFind({ head, state }, ctx) {
-		const rows = ghJson(ctx, [
-			'pr',
-			'list',
-			'--head',
-			head,
-			'--state',
-			state,
-			'--limit',
-			String(GH_LIST_LIMIT),
-			'--json',
-			'number,url,title,state,headRefName,baseRefName,mergedAt',
-		]);
-		const match = pickPull(
-			rows.map((row) => ({
-				number: row.number,
-				url: row.url ?? '',
-				title: row.title ?? '',
-				state: String(row.state ?? 'open').toLowerCase(),
-				head: row.headRefName ?? head,
-				base: row.baseRefName ?? '',
-				merged: Boolean(row.mergedAt),
-			})),
-			{ state },
-		);
+		const rows = ghJson(ctx, ['pr', 'list', '--head', head, '--state', state, '--limit', String(GH_LIST_LIMIT), '--json', 'number,url,title,state,headRefName,baseRefName,mergedAt']);
+		const match = pickPull(rows.map((row) => ({
+			number: row.number,
+			url: row.url ?? '',
+			title: row.title ?? '',
+			state: String(row.state ?? 'open').toLowerCase(),
+			head: row.headRefName ?? head,
+			base: row.baseRefName ?? '',
+			merged: Boolean(row.mergedAt)
+		})), { state });
 		return match ? pullSummary(match) : null;
 	},
 
 	async prGet({ number }, ctx) {
-		const pull = ghJson(ctx, [
-			'pr',
-			'view',
-			String(number),
-			'--json',
-			'number,title,body,state,url,headRefName,baseRefName,comments',
-		]);
-		return {
-			number: pull.number,
-			title: pull.title ?? '',
-			body: pull.body ?? '',
-			state: String(pull.state ?? 'open').toLowerCase(),
-			url: pull.url ?? '',
-			head: pull.headRefName ?? '',
-			base: pull.baseRefName ?? '',
-			comments: (pull.comments ?? []).map((comment) => ({
-				author: comment.author?.login ?? '',
-				body: comment.body ?? '',
-				createdAt: comment.createdAt ?? '',
-			})),
-		};
+		return mapGhPull(ghJson(ctx, ['pr', 'view', String(number), '--json', 'number,title,body,state,url,headRefName,baseRefName,updatedAt,comments']));
+	},
+
+	async prList(_args, ctx) {
+		const pulls = await ghApiPaginate(ctx, 'repos/{owner}/{repo}/pulls?state=open');
+		return listWithThreads(pulls, (pull) => ghApiPaginate(
+			ctx, `repos/{owner}/{repo}/issues/${pull.number}/comments`
+		), mapPull);
 	},
 
 	async prCommits({ number }, ctx) {
 		const pull = ghJson(ctx, ['pr', 'view', String(number), '--json', 'commits']);
 		return (pull.commits ?? []).map((commit) => ({
 			sha: commit.oid ?? '',
-			message: [commit.messageHeadline, commit.messageBody].filter(Boolean).join('\n\n'),
+			message: [commit.messageHeadline, commit.messageBody].filter(Boolean).join('\n\n')
 		}));
 	},
 
 	async prCreate({ base, head, title, bodyFile }, ctx) {
-		const result = execGh(ctx, [
-			'pr',
-			'create',
-			'--base',
-			base,
-			'--head',
-			head,
-			'--title',
-			title,
-			'--body-file',
-			bodyFile,
-		]);
-		const url =
-			String(result.stdout ?? '')
-				.trim()
-				.split(/\s+/)
-				.find((part) => /^https?:\/\//.test(part)) ?? '';
+		const result = execGh(ctx, ['pr', 'create', '--base', base, '--head', head, '--title', title, '--body-file', bodyFile]);
+		const url = String(result.stdout ?? '').trim().split(/\s+/).find((part) => /^https?:\/\//.test(part)) ?? '';
 		return { number: urlNumber(url), url };
 	},
 
 	async prComment({ number, bodyFile }, ctx) {
 		const result = execGh(ctx, ['pr', 'comment', String(number), '--body-file', bodyFile]);
-		const url =
-			String(result.stdout ?? '')
-				.trim()
-				.split(/\s+/)
-				.find((part) => /^https?:\/\//.test(part)) ?? null;
+		const url = String(result.stdout ?? '').trim().split(/\s+/).find((part) => /^https?:\/\//.test(part)) ?? null;
 		return { id: null, url };
 	},
 
@@ -1010,60 +909,43 @@ const githubGh = {
 		// pending, still printing the requested JSON; only a run without usable
 		// output is a real failure, and that one goes through execGh's
 		// auth/not-found/operation classification like every other verb (R1-B3).
-		const result = execGh(
-			ctx,
-			['pr', 'checks', String(number), '--json', 'name,state,bucket,link'],
-			{
-				acceptStatus: (check) =>
-					String(check.stdout ?? '').trim() !== '' ||
-					/no checks reported/i.test(String(check.stderr ?? '')),
-			},
-		);
+		const result = execGh(ctx, ['pr', 'checks', String(number), '--json', 'name,state,bucket,link'], {
+			acceptStatus: (check) => String(check.stdout ?? '').trim() !== '' || /no checks reported/i.test(String(check.stderr ?? ''))
+		});
 		const stdout = String(result.stdout ?? '').trim();
 		if (!stdout) return { status: 'unknown', checks: [] };
 		let rows;
 		try {
 			rows = JSON.parse(stdout);
 		} catch (error) {
-			throw new ForgeError(`gh pr checks returned invalid JSON: ${error.message}`, {
-				code: 'operation',
-				status: EXIT.operation,
-			});
+			throw new ForgeError(`gh pr checks returned invalid JSON: ${error.message}`, { code: 'operation', status: EXIT.operation });
 		}
 		if (!Array.isArray(rows) || !rows.length) return { status: 'unknown', checks: [] };
 		const checks = rows.map((row) => ({
 			name: row.name ?? '',
 			status: mapGhCheck(row.bucket ?? row.state),
-			url: row.link ?? null,
+			url: row.link ?? null
 		}));
 		return { status: combinedStatus(checks), checks };
-	},
+	}
 };
 
 function mapGhCheck(value) {
 	const state = String(value ?? '').toLowerCase();
-	if (state === 'pass' || state === 'success' || state === 'neutral' || state === 'skipping')
-		return 'pass';
-	if (state === 'fail' || state === 'failure' || state === 'error' || state === 'cancel')
-		return 'fail';
-	if (state === 'pending' || state === 'queued' || state === 'in_progress' || state === 'running')
-		return 'pending';
+	if (state === 'pass' || state === 'success' || state === 'neutral' || state === 'skipping') return 'pass';
+	if (state === 'fail' || state === 'failure' || state === 'error' || state === 'cancel') return 'fail';
+	if (state === 'pending' || state === 'queued' || state === 'in_progress' || state === 'running') return 'pending';
 	return 'unknown';
 }
 
 function githubRestRequest(forge, token, path, { method = 'GET', body, fetchImpl } = {}) {
 	const headers = {
 		Accept: 'application/vnd.github+json',
-		'X-GitHub-Api-Version': '2022-11-28',
+		'X-GitHub-Api-Version': '2022-11-28'
 	};
 	if (body !== undefined) headers['Content-Type'] = 'application/json';
 	return request(`${repoPath(forge)}${path}`, {
-		method,
-		token,
-		tokenScheme: 'Bearer',
-		headers,
-		body,
-		fetchImpl,
+		method, token, tokenScheme: 'Bearer', headers, body, fetchImpl
 	});
 }
 
@@ -1075,17 +957,12 @@ async function githubRestPaginate(fetchPage) {
 async function githubRestMilestoneNumber(forge, token, milestone, fetchImpl) {
 	const value = String(milestone ?? '').trim();
 	if (/^\d+$/.test(value)) return Number(value);
-	const all = await githubRestPaginate(async (page) =>
-		githubRestRequest(forge, token, `/milestones?state=all&per_page=100&page=${page}`, {
-			fetchImpl,
-		}),
-	);
+	const all = await githubRestPaginate(async (page) => githubRestRequest(
+		forge, token, `/milestones?state=all&per_page=100&page=${page}`, { fetchImpl }
+	));
 	const match = all.find((row) => row.title === value);
 	if (!match) {
-		throw new ForgeError(`milestone "${value}" does not exist on ${forge.owner}/${forge.repo}`, {
-			code: 'not-found',
-			status: EXIT.notFound,
-		});
+		throw new ForgeError(`milestone "${value}" does not exist on ${forge.owner}/${forge.repo}`, { code: 'not-found', status: EXIT.notFound });
 	}
 	return match.number;
 }
@@ -1094,47 +971,40 @@ const githubRest = {
 	async issueGet({ number }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const issue = await githubRestRequest(forge, token, `/issues/${number}`, { fetchImpl });
-		const comments = await githubRestPaginate(async (page) =>
-			githubRestRequest(forge, token, `/issues/${number}/comments?per_page=100&page=${page}`, {
-				fetchImpl,
-			}),
-		);
+		const comments = await githubRestPaginate(async (page) => githubRestRequest(
+			forge, token, `/issues/${number}/comments?per_page=100&page=${page}`, { fetchImpl }
+		));
 		return mapIssue(issue, comments);
+	},
+
+	async issueList(_args, { forge, token, fetchImpl }) {
+		requireToken(token, forge);
+		const issues = await githubRestPaginate(async (page) => githubRestRequest(
+			forge, token, `/issues?state=open&per_page=100&page=${page}`, { fetchImpl }
+		));
+		return listWithThreads(issues.filter((row) => !row.pull_request), (issue) => githubRestPaginate(async (page) => githubRestRequest(
+			forge, token, `/issues/${issue.number}/comments?per_page=100&page=${page}`, { fetchImpl }
+		)), mapIssue);
 	},
 
 	async issueSearch({ query }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const q = `repo:${forge.owner}/${forge.repo} is:issue ${query}`;
 		const items = await githubRestPaginate(async (page) => {
-			const data = await githubRestRequest(
-				forge,
-				token,
-				`/search/issues?q=${encodeURIComponent(q)}&per_page=100&page=${page}`,
-				{ fetchImpl },
-			);
+			const data = await githubRestRequest(forge, token, `/search/issues?q=${encodeURIComponent(q)}&per_page=100&page=${page}`, { fetchImpl });
 			return data.items ?? [];
 		});
 		return items
 			.filter((issue) => !issue.pull_request)
-			.map((issue) => ({
-				number: issue.number,
-				title: issue.title ?? '',
-				state: String(issue.state ?? 'open').toLowerCase(),
-				url: issue.html_url ?? '',
-			}));
+			.map(mapSearchRow);
 	},
 
 	async issueCreate({ title, body, labels, milestone }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const payload = { title, body };
 		if (labels.length) payload.labels = labels;
-		if (milestone !== null)
-			payload.milestone = await githubRestMilestoneNumber(forge, token, milestone, fetchImpl);
-		const issue = await githubRestRequest(forge, token, '/issues', {
-			method: 'POST',
-			body: payload,
-			fetchImpl,
-		});
+		if (milestone !== null) payload.milestone = await githubRestMilestoneNumber(forge, token, milestone, fetchImpl);
+		const issue = await githubRestRequest(forge, token, '/issues', { method: 'POST', body: payload, fetchImpl });
 		return { number: issue.number, title: issue.title ?? title, url: issue.html_url ?? '' };
 	},
 
@@ -1143,112 +1013,103 @@ const githubRest = {
 		const payload = { body };
 		if (title) payload.title = title;
 		if (labels.length) payload.labels = labels;
-		if (milestone !== null)
-			payload.milestone = await githubRestMilestoneNumber(forge, token, milestone, fetchImpl);
-		const issue = await githubRestRequest(forge, token, `/issues/${number}`, {
-			method: 'PATCH',
-			body: payload,
-			fetchImpl,
-		});
+		if (milestone !== null) payload.milestone = await githubRestMilestoneNumber(forge, token, milestone, fetchImpl);
+		const issue = await githubRestRequest(forge, token, `/issues/${number}`, { method: 'PATCH', body: payload, fetchImpl });
 		return { number: issue.number, title: issue.title ?? title ?? '', url: issue.html_url ?? '' };
 	},
 
 	async issueComment({ number, body }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const comment = await githubRestRequest(forge, token, `/issues/${number}/comments`, {
-			method: 'POST',
-			body: { body },
-			fetchImpl,
+			method: 'POST', body: { body }, fetchImpl
 		});
 		return { id: comment.id ?? null, url: comment.html_url ?? null };
 	},
 
 	async milestoneList({ state }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
-		const rows = await githubRestPaginate(async (page) =>
-			githubRestRequest(forge, token, `/milestones?state=${state}&per_page=100&page=${page}`, {
-				fetchImpl,
-			}),
-		);
+		const rows = await githubRestPaginate(async (page) => githubRestRequest(
+			forge, token, `/milestones?state=${state}&per_page=100&page=${page}`, { fetchImpl }
+		));
 		return rows.map(mapMilestone);
 	},
 
-	async milestoneCreate({ title }, { forge, token, fetchImpl }) {
+	async milestoneGet({ number }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
-		const row = await githubRestRequest(forge, token, '/milestones', {
-			method: 'POST',
-			body: { title },
-			fetchImpl,
-		});
-		return { number: row.number, title: row.title ?? title, url: row.html_url ?? '' };
+		const row = await githubRestRequest(forge, token, `/milestones/${number}`, { fetchImpl });
+		return mapMilestone(row);
+	},
+
+	async milestoneCreate({ title, description }, { forge, token, fetchImpl }) {
+		requireToken(token, forge);
+		const payload = { title };
+		if (description !== null) payload.description = description;
+		const row = await githubRestRequest(forge, token, '/milestones', { method: 'POST', body: payload, fetchImpl });
+		return mapMilestoneWrite(row, { title, description });
+	},
+
+	async milestoneEdit({ number, title, description }, { forge, token, fetchImpl }) {
+		requireToken(token, forge);
+		const payload = {};
+		if (title !== null) payload.title = title;
+		if (description !== null) payload.description = description;
+		const row = await githubRestRequest(forge, token, `/milestones/${number}`, { method: 'PATCH', body: payload, fetchImpl });
+		return mapMilestoneWrite(row, { number, title, description });
 	},
 
 	async prFind({ head, state }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
-		const pulls = await githubRestPaginate(async (page) =>
-			githubRestRequest(
-				forge,
-				token,
-				`/pulls?state=${state}&head=${encodeURIComponent(`${forge.owner}:${head}`)}&per_page=100&page=${page}`,
-				{ fetchImpl },
-			),
-		);
-		const match = pickPull(
-			pulls
-				.filter((pull) => pull.head?.ref === head)
-				.map((pull) => ({
-					number: pull.number,
-					url: pull.html_url ?? '',
-					title: pull.title ?? '',
-					state: String(pull.state ?? 'open').toLowerCase(),
-					head: pull.head?.ref ?? head,
-					base: pull.base?.ref ?? '',
-					merged: Boolean(pull.merged_at),
-				})),
-			{ state },
-		);
+		const pulls = await githubRestPaginate(async (page) => githubRestRequest(
+			forge, token, `/pulls?state=${state}&head=${encodeURIComponent(`${forge.owner}:${head}`)}&per_page=100&page=${page}`, { fetchImpl }
+		));
+		const match = pickPull(pulls
+			.filter((pull) => pull.head?.ref === head)
+			.map((pull) => ({
+				number: pull.number,
+				url: pull.html_url ?? '',
+				title: pull.title ?? '',
+				state: String(pull.state ?? 'open').toLowerCase(),
+				head: pull.head?.ref ?? head,
+				base: pull.base?.ref ?? '',
+				merged: Boolean(pull.merged_at)
+			})), { state });
 		return match ? pullSummary(match) : null;
 	},
 
 	async prGet({ number }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const pull = await githubRestRequest(forge, token, `/pulls/${number}`, { fetchImpl });
-		const comments = await githubRestPaginate(async (page) =>
-			githubRestRequest(forge, token, `/issues/${number}/comments?per_page=100&page=${page}`, {
-				fetchImpl,
-			}),
-		);
-		return {
-			number: pull.number,
-			title: pull.title ?? '',
-			body: pull.body ?? '',
-			state: String(pull.state ?? 'open').toLowerCase(),
-			url: pull.html_url ?? '',
-			head: pull.head?.ref ?? '',
-			base: pull.base?.ref ?? '',
-			comments: comments.map(mapComment),
-		};
+		const comments = await githubRestPaginate(async (page) => githubRestRequest(
+			forge, token, `/issues/${number}/comments?per_page=100&page=${page}`, { fetchImpl }
+		));
+		return mapPull(pull, comments);
+	},
+
+	async prList(_args, { forge, token, fetchImpl }) {
+		requireToken(token, forge);
+		const pulls = await githubRestPaginate(async (page) => githubRestRequest(
+			forge, token, `/pulls?state=open&per_page=100&page=${page}`, { fetchImpl }
+		));
+		return listWithThreads(pulls, (pull) => githubRestPaginate(async (page) => githubRestRequest(
+			forge, token, `/issues/${pull.number}/comments?per_page=100&page=${page}`, { fetchImpl }
+		)), mapPull);
 	},
 
 	async prCommits({ number }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
-		const commits = await githubRestPaginate(async (page) =>
-			githubRestRequest(forge, token, `/pulls/${number}/commits?per_page=100&page=${page}`, {
-				fetchImpl,
-			}),
-		);
+		const commits = await githubRestPaginate(async (page) => githubRestRequest(
+			forge, token, `/pulls/${number}/commits?per_page=100&page=${page}`, { fetchImpl }
+		));
 		return commits.map((commit) => ({
 			sha: commit.sha ?? '',
-			message: commit.commit?.message ?? '',
+			message: commit.commit?.message ?? ''
 		}));
 	},
 
 	async prCreate({ base, head, title, body }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const pull = await githubRestRequest(forge, token, '/pulls', {
-			method: 'POST',
-			body: { base, head, title, body },
-			fetchImpl,
+			method: 'POST', body: { base, head, title, body }, fetchImpl
 		});
 		return { number: pull.number, url: pull.html_url ?? '' };
 	},
@@ -1256,9 +1117,7 @@ const githubRest = {
 	async prComment({ number, body }, { forge, token, fetchImpl }) {
 		requireToken(token, forge);
 		const comment = await githubRestRequest(forge, token, `/issues/${number}/comments`, {
-			method: 'POST',
-			body: { body },
-			fetchImpl,
+			method: 'POST', body: { body }, fetchImpl
 		});
 		return { id: comment.id ?? null, url: comment.html_url ?? null };
 	},
@@ -1287,22 +1146,14 @@ const githubRest = {
 		for (let page = 1; ; page += 1) {
 			let data;
 			try {
-				data = await githubRestRequest(
-					forge,
-					token,
-					`/commits/${sha}/check-runs?per_page=100&page=${page}`,
-					{ fetchImpl },
-				);
+				data = await githubRestRequest(forge, token, `/commits/${sha}/check-runs?per_page=100&page=${page}`, { fetchImpl });
 			} catch (error) {
 				if (!(error instanceof ForgeError && error.status === EXIT.notFound)) throw error;
 				if (page > 1) missingPage = page;
 				break;
 			}
 			if (!Array.isArray(data?.check_runs)) {
-				throw new ForgeError('forge returned a non-list check-runs page', {
-					code: 'operation',
-					status: EXIT.operation,
-				});
+				throw new ForgeError('forge returned a non-list check-runs page', { code: 'operation', status: EXIT.operation });
 			}
 			if (page === 1 && typeof data.total_count === 'number') totalCount = data.total_count;
 			runs.push(...data.check_runs);
@@ -1311,9 +1162,7 @@ const githubRest = {
 		if (missingPage) {
 			warnings.push(`check-runs page ${missingPage} is missing; the check list may be incomplete`);
 		} else if (totalCount !== null && totalCount > runs.length) {
-			warnings.push(
-				`read ${runs.length} of ${totalCount} check runs; the check list may be incomplete`,
-			);
+			warnings.push(`read ${runs.length} of ${totalCount} check runs; the check list may be incomplete`);
 		}
 		const statuses = await optional(async () => {
 			const data = await githubRestRequest(forge, token, `/commits/${sha}/status`, { fetchImpl });
@@ -1324,16 +1173,16 @@ const githubRest = {
 			...runs.map((run) => ({
 				name: run.name ?? '',
 				status: mapCheckRun(run),
-				url: run.html_url ?? run.details_url ?? null,
+				url: run.html_url ?? run.details_url ?? null
 			})),
 			...statuses.map((entry) => ({
 				name: entry.context ?? '',
 				status: mapCheckStatus(entry.state ?? entry.status),
-				url: entry.target_url ?? null,
-			})),
+				url: entry.target_url ?? null
+			}))
 		];
 		return { status: combinedStatus(checks), checks };
-	},
+	}
 };
 
 function mapCheckRun(run) {
@@ -1342,17 +1191,8 @@ function mapCheckRun(run) {
 	// `stale` is a completed run GitHub gave up on; gh's own bucket calls that
 	// "skipping", so it maps to pass here rather than surfacing as unknown
 	// (R2-N3).
-	if (
-		conclusion === 'success' ||
-		conclusion === 'neutral' ||
-		conclusion === 'skipped' ||
-		conclusion === 'stale'
-	)
-		return 'pass';
-	if (
-		['failure', 'timed_out', 'cancelled', 'action_required', 'startup_failure'].includes(conclusion)
-	)
-		return 'fail';
+	if (conclusion === 'success' || conclusion === 'neutral' || conclusion === 'skipped' || conclusion === 'stale') return 'pass';
+	if (['failure', 'timed_out', 'cancelled', 'action_required', 'startup_failure'].includes(conclusion)) return 'fail';
 	return 'unknown';
 }
 
@@ -1372,13 +1212,9 @@ for (const [name, fn] of Object.entries(githubGh)) {
 			}
 		}
 		if (!ctx.token) {
-			throw new ForgeError(
-				'gh is not installed or not authenticated, and GITHUB_TOKEN is not set',
-				{
-					code: 'auth',
-					status: EXIT.auth,
-				},
-			);
+			throw new ForgeError('gh is not installed or not authenticated, and GITHUB_TOKEN is not set', {
+				code: 'auth', status: EXIT.auth
+			});
 		}
 		return githubRest[name](args, ctx);
 	};
@@ -1388,36 +1224,37 @@ export const defaultAdapters = { forgejo: forgejoIssueVerbs, github: githubAdapt
 
 const COMMANDS = {
 	'issue get': 'issueGet',
+	'issue list': 'issueList',
 	'issue search': 'issueSearch',
 	'issue create': 'issueCreate',
 	'issue edit': 'issueEdit',
 	'issue comment': 'issueComment',
 	'milestone list': 'milestoneList',
+	'milestone get': 'milestoneGet',
 	'milestone create': 'milestoneCreate',
+	'milestone edit': 'milestoneEdit',
 	'pr find': 'prFind',
+	'pr list': 'prList',
 	'pr get': 'prGet',
 	'pr commits': 'prCommits',
 	'pr create': 'prCreate',
 	'pr comment': 'prComment',
-	'pr checks': 'prChecks',
+	'pr checks': 'prChecks'
 };
 
 function requireNumber(value, label) {
-	if (!/^\d+$/.test(value ?? ''))
-		throw new ForgeError(`${label} must be a number`, { code: 'usage', status: EXIT.usage });
+	if (!/^\d+$/.test(value ?? '')) throw new ForgeError(`${label} must be a number`, { code: 'usage', status: EXIT.usage });
 	return Number(value);
 }
 
 function requireValue(flags, name) {
-	if (!flags[name])
-		throw new ForgeError(`--${name} is required`, { code: 'usage', status: EXIT.usage });
+	if (!flags[name]) throw new ForgeError(`--${name} is required`, { code: 'usage', status: EXIT.usage });
 	return flags[name];
 }
 
 function stateValue(flags) {
 	const state = flags.state ?? 'open';
-	if (!['open', 'closed', 'all'].includes(state))
-		throw new ForgeError(`unknown --state ${state}`, { code: 'usage', status: EXIT.usage });
+	if (!['open', 'closed', 'all'].includes(state)) throw new ForgeError(`unknown --state ${state}`, { code: 'usage', status: EXIT.usage });
 	return state;
 }
 
@@ -1426,10 +1263,7 @@ function readBody(flags) {
 	try {
 		return readFileSync(path, 'utf8');
 	} catch (error) {
-		throw new ForgeError(`cannot read --body-file ${path}: ${error.message}`, {
-			code: 'usage',
-			status: EXIT.usage,
-		});
+		throw new ForgeError(`cannot read --body-file ${path}: ${error.message}`, { code: 'usage', status: EXIT.usage });
 	}
 }
 
@@ -1439,18 +1273,11 @@ function buildCall(parsed) {
 	const [noun, verb, ...rest] = positionals;
 	const key = `${noun} ${verb}`;
 	const method = COMMANDS[key];
-	if (!method)
-		throw new ForgeError(`unknown command "${noun} ${verb ?? ''}"`.trim(), {
-			code: 'usage',
-			status: EXIT.usage,
-		});
+	if (!method) throw new ForgeError(`unknown command "${noun} ${verb ?? ''}"`.trim(), { code: 'usage', status: EXIT.usage });
 	// `--state` only means something for a pull or milestone lookup; silently
 	// ignoring it on another verb hides a caller bug (R2-N7).
 	if (flags.state !== undefined && !['pr find', 'milestone list'].includes(key)) {
-		throw new ForgeError('--state is only valid for pr find and milestone list', {
-			code: 'usage',
-			status: EXIT.usage,
-		});
+		throw new ForgeError('--state is only valid for pr find and milestone list', { code: 'usage', status: EXIT.usage });
 	}
 
 	switch (key) {
@@ -1459,9 +1286,10 @@ function buildCall(parsed) {
 		case 'pr commits':
 		case 'pr checks':
 			return { json, method, args: { number: requireNumber(rest[0], 'number') } };
+		case 'issue list':
+			return { json, method, args: {} };
 		case 'issue search':
-			if (!rest.length)
-				throw new ForgeError('search query is required', { code: 'usage', status: EXIT.usage });
+			if (!rest.length) throw new ForgeError('search query is required', { code: 'usage', status: EXIT.usage });
 			return { json, method, args: { query: rest.join(' ') } };
 		case 'issue create':
 			return {
@@ -1472,8 +1300,8 @@ function buildCall(parsed) {
 					body: readBody(flags),
 					bodyFile: flags['body-file'],
 					labels: flags.label ?? [],
-					milestone: flags.milestone ?? null,
-				},
+					milestone: flags.milestone ?? null
+				}
 			};
 		case 'issue edit':
 			return {
@@ -1485,30 +1313,43 @@ function buildCall(parsed) {
 					body: readBody(flags),
 					bodyFile: flags['body-file'],
 					labels: flags.label ?? [],
-					milestone: flags.milestone ?? null,
-				},
+					milestone: flags.milestone ?? null
+				}
 			};
 		case 'milestone list':
 			return { json, method, args: { state: stateValue(flags) } };
+		case 'milestone get':
+			return { json, method, args: { number: requireNumber(rest[0], 'number') } };
 		case 'milestone create':
-			return { json, method, args: { title: requireValue(flags, 'title') } };
-		case 'issue comment':
-		case 'pr comment':
+			return {
+				json,
+				method,
+				args: { title: requireValue(flags, 'title'), description: flags.description ?? null }
+			};
+		case 'milestone edit':
+			if (flags.title === undefined && flags.description === undefined) {
+				throw new ForgeError('milestone edit needs --title or --description', { code: 'usage', status: EXIT.usage });
+			}
 			return {
 				json,
 				method,
 				args: {
 					number: requireNumber(rest[0], 'number'),
-					body: readBody(flags),
-					bodyFile: flags['body-file'],
-				},
+					title: flags.title ?? null,
+					description: flags.description ?? null
+				}
 			};
-		case 'pr find':
+		case 'issue comment':
+		case 'pr comment':
 			return {
 				json,
 				method,
-				args: { head: requireValue(flags, 'head'), state: stateValue(flags) },
+				args: { number: requireNumber(rest[0], 'number'), body: readBody(flags), bodyFile: flags['body-file'] }
 			};
+		case 'pr find':
+			return { json, method, args: { head: requireValue(flags, 'head'), state: stateValue(flags) } };
+		case 'pr list':
+			return { json, method, args: {} };
 		case 'pr create':
 			return {
 				json,
@@ -1518,8 +1359,8 @@ function buildCall(parsed) {
 					head: requireValue(flags, 'head'),
 					title: requireValue(flags, 'title'),
 					body: readBody(flags),
-					bodyFile: flags['body-file'],
-				},
+					bodyFile: flags['body-file']
+				}
 			};
 		default:
 			throw new ForgeError(`unknown command "${key}"`, { code: 'usage', status: EXIT.usage });
@@ -1532,17 +1373,9 @@ function human(value) {
 	return JSON.stringify(value, null, 2);
 }
 
-export async function run(
-	argv = [],
-	{
-		cwd = process.cwd(),
-		env = process.env,
-		fetchImpl = globalThis.fetch,
-		ghRun,
-		gitRun,
-		adapters = defaultAdapters,
-	} = {},
-) {
+export async function run(argv = [], {
+	cwd = process.cwd(), env = process.env, fetchImpl = globalThis.fetch, ghRun, gitRun, adapters = defaultAdapters
+} = {}) {
 	let parsed;
 	let json = argv.includes('--json');
 	let forge = null;
@@ -1552,40 +1385,28 @@ export async function run(
 		json = parsed.json;
 		const call = buildCall(parsed);
 		if (call.help) return { code: EXIT.ok, stdout: usage(), stderr: '' };
-		forge = resolveForge({ cwd, cfg: loadForgeConfig(cwd), gitRun });
+		forge = resolveForge({ cwd, cfg: loadForgeConfig(cwd), env, gitRun });
 		token = resolveToken(forge, env, cwd);
 		const adapter = adapters[forge.kind];
 		if (!adapter) {
-			throw new ForgeError(`no ${forge.kind} adapter is available`, {
-				code: 'operation',
-				status: EXIT.operation,
-			});
+			throw new ForgeError(`no ${forge.kind} adapter is available`, { code: 'operation', status: EXIT.operation });
 		}
 		const warnings = [];
 		const value = await adapter[call.method](call.args, {
-			forge,
-			env,
-			fetchImpl,
-			ghRun,
-			cwd,
-			token,
-			json: call.json,
-			warnings,
+			forge, env, fetchImpl, ghRun, cwd, token, json: call.json, warnings
 		});
 		return {
 			code: EXIT.ok,
 			stdout: json ? JSON.stringify(value) : human(value),
 			stderr: warnings.length ? `${warnings.join('\n')}\n` : '',
-			value,
+			value
 		};
 	} catch (error) {
 		const tokens = [token, env?.[forge?.tokenEnv], env?.GITHUB_TOKEN, env?.FORGEJO_TOKEN];
 		const normalized = normalizeError(error, tokens);
 		const code = normalized.status ?? EXIT.operation;
 		if (json) {
-			const body = JSON.stringify({
-				error: { code: normalized.code, message: normalized.message, status: code },
-			});
+			const body = JSON.stringify({ error: { code: normalized.code, message: normalized.message, status: code } });
 			return { code, stdout: '', stderr: `${body}\n` };
 		}
 		return { code, stdout: '', stderr: `${normalized.message}\n` };
@@ -1594,16 +1415,14 @@ export async function run(
 
 export function main() {
 	const result = run(process.argv.slice(2));
-	result
-		.then(({ code, stdout, stderr }) => {
-			if (stdout) process.stdout.write(stdout.endsWith('\n') ? stdout : `${stdout}\n`);
-			if (stderr) process.stderr.write(stderr);
-			process.exitCode = code;
-		})
-		.catch((error) => {
-			process.stderr.write(`${error.message}\n`);
-			process.exitCode = EXIT.operation;
-		});
+	result.then(({ code, stdout, stderr }) => {
+		if (stdout) process.stdout.write(stdout.endsWith('\n') ? stdout : `${stdout}\n`);
+		if (stderr) process.stderr.write(stderr);
+		process.exitCode = code;
+	}).catch((error) => {
+		process.stderr.write(`${error.message}\n`);
+		process.exitCode = EXIT.operation;
+	});
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main();
