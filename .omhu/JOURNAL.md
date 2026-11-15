@@ -30,3 +30,7 @@ Noticed: the issue estimates one or two commits; this is four slices because the
 Commit-subject accuracy "is not that important" — the worry is overoptimizing. Round 2's tidy notes are "later": many things to tidy, they do no harm.
 [workflow] Missing issue numbers in subjects drew a review note; the human would rather not overoptimize commit prose.
 Facts: 1 walk · 2 review rounds · 1 slice · +341/−30
+
+2026-11-11 — implement — what grew, and what is still untested?
+
+The WordNet path now runs exporter → bundle + manifest → IndexedDB loader → typed table, with four planned slices plus this soil commit. S2 landed at 175 changed lines against its 140 estimate because the synthetic fixture and four loader tests dominate. The Python exporter was exercised against the real OEWN 2025 archive but has no checked-in test, and coverage's denominator (letter-bearing tokens only, OOV included and uncovered) is the easiest thing to get subtly wrong; both are review targets. Nothing consumes the table until #94.

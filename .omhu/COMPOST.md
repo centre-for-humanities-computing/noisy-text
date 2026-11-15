@@ -28,3 +28,13 @@ A line named in an open issue's `**Compost:**` line is scheduled; `/implement` d
 2026-11-06 — Keep `frozenMaskFor` and `whitespaceIds` worker-private; e2e remains their coverage instead of direct unit tests — 1 — plan 2 on #87
 2026-11-08 — WordNet resource and case — 1 — plan 1 on #93
 2026-11-08 — Literal default fallbacks for partial configs; the canonical config wins — 1 — plan 1 on #93
+2026-11-11 — Distance/graph-IC variants of the WordNet walk — 1 — plan 1 on #92
+2026-11-11 — DanNet as a second WordNet source — 1 — plan 1 on #92
+2026-11-11 — OOV lemma sources for words outside the 50k vocabulary — 1 — plan 1 on #92
+2026-11-11 — Namenet proper-noun relations — 1 — plan 1 on #92
+2026-11-11 — Direction/normalisation toggles for relation edges — 1 — plan 1 on #92
+2026-11-11 — Real OEWN export upload and pinned `WORDNET_DATASET_REVISION` — 1 — plan 1 on #92
+2026-11-11 — Runtime Morphy in TypeScript; morphology stays at export — 1 — plan 1 on #92
+2026-11-13 — A Python test harness for the WordNet exporter; CI is Node-only, so the decoder invariant is the checked half — 1 — plan 2 on #92
+2026-11-13 — Verifying a cached WordNet bundle on a hit instead of keying the cache by the vocabulary digest — 1 — plan 2 on #92
+2026-11-13 — Dropping `coveredLemmas` from the WordNet table fixture; `WordNetMeta` mirrors the manifest, so it means loosening the type — 1 — plan 2 on #92

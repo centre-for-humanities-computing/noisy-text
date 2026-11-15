@@ -5,7 +5,7 @@ import type {
 	TransformBundle,
 } from './types.js';
 import { getEmbeddingSource } from './sources.js';
-import { idbGet, idbPut, hasIndexedDb } from './idb.js';
+import { idbGet, idbPut, hasIndexedDb, MATRIX_STORE } from './idb.js';
 
 /**
  * Fetch + decode + cache embedding bundles.
@@ -74,9 +74,6 @@ interface CachedBundle {
 	eigenvalues: Float32Array;
 	whitening: Float32Array;
 }
-
-/** Bundle shape stored in IndexedDB (structured-cloneable typed arrays). */
-const MATRIX_STORE = 'matrices';
 
 /** Fetch a URL, streaming progress when the server sends a content length. */
 export async function fetchBytes(url: string, onProgress?: ByteProgress): Promise<ArrayBuffer> {
