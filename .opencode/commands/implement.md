@@ -93,9 +93,9 @@ deleted and the line the issue's `**Compost:**` line names when it has one, leav
 a `Promoted:` line for the issue it was handed to, update `.omhu/MAP.md` only if
 the shape of the code changed, and include the plan's tending item if it named
 one. If the session held a `Noticed:` line, append it to `.omhu/JOURNAL.md` as
-this phase's entry, dated and in the human's words. Bump `VERSION` once, in this
-slice, by the block's rule: `feat` → minor, everything else → patch, a major
-only when the plan says so.
+this phase's entry, dated and in the human's words. Bump the version in
+`package.json` once, in this slice, by the block's rule: `feat` → minor,
+everything else → patch, a major only when the plan says so.
 
 ## Finish (no `step` only)
 

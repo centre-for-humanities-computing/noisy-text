@@ -6,7 +6,8 @@ agent: gardener
 Tend `$ARGUMENTS`: a path (`scripts/`, one file), a theme (`the prompts`), or
 nothing for the whole repository. You simplify code that already behaves: delete,
 merge, rename, extract, move — no new capability, dependency or observable
-change, and `node --test` green before and after. You read and speak, then wait.
+change, and `node scripts/verify.mjs` green before and after. You read and
+speak, then wait.
 
 ## Read first
 
@@ -70,9 +71,9 @@ The body is the plan `/implement` grows, in `/cultivate`'s order:
 - **Acceptance criteria.** Numbered AC1…, each observable by a test, a command or
   a named observation; a pick that adds lines earns a reader's-gain observation.
 - **Slices.** One line per pick: the subject, one sentence, and `(mechanical)`.
-  Every slice is `Kind: mechanical`: behaviour is preserved, `node --test` is
-  green before and after. A move is churn, not growth; the cap counts both
-  sides of a move. Exceed the cap only with your say-so in the slice line.
+  Every slice is `Kind: mechanical`: behaviour is preserved,
+  `node scripts/verify.mjs` is green before and after. A move is churn, not
+  growth; the cap counts both sides of a move. Exceed the cap only with your say-so in the slice line.
 - **Not doing.** One line each; they reach `.omhu/COMPOST.md` with the work.
 
 Then say the issue number and stop; `/implement <number>` owns the branch, the

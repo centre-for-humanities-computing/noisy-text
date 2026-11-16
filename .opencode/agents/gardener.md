@@ -35,6 +35,10 @@ permissions:
   - action: shell
     resource: "node scripts/forge.mjs issue create *"
     effect: allow
+  # The gate, so `/tend` can check the tree before and after a move.
+  - action: shell
+    resource: "node scripts/verify.mjs"
+    effect: allow
   # Looking around, without leaving a mark. These match the raw command text, so
   # they keep a cheap model in its lane; they are not a sandbox.
   - action: shell
