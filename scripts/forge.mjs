@@ -905,38 +905,29 @@ const githubGh = {
 	},
 
 	async prChecks({ number }, ctx) {
-		// `gh pr checks` exits 1 when a check failed and 8 while checks are
-		// pending, still printing the requested JSON; only a run without usable
-		// output is a real failure, and that one goes through execGh's
-		// auth/not-found/operation classification like every other verb (R1-B3).
-		const result = execGh(ctx, ['pr', 'checks', String(number), '--json', 'name,state,bucket,link'], {
-			acceptStatus: (check) => String(check.stdout ?? '').trim() !== '' || /no checks reported/i.test(String(check.stderr ?? ''))
-		});
+		// `gh pr checks --json` only landed in recent gh releases; 2.45 (the
+		// current distro build) rejects the flag. The rollup on `pr view` carries
+		// the same data and has been available for years, so read that and map it
+		// here the way the REST adapter already maps the same rows.
+		const result = execGh(ctx, ['pr', 'view', String(number), '--json', 'statusCheckRollup']);
 		const stdout = String(result.stdout ?? '').trim();
 		if (!stdout) return { status: 'unknown', checks: [] };
 		let rows;
 		try {
-			rows = JSON.parse(stdout);
+			rows = JSON.parse(stdout).statusCheckRollup ?? [];
 		} catch (error) {
-			throw new ForgeError(`gh pr checks returned invalid JSON: ${error.message}`, { code: 'operation', status: EXIT.operation });
+			throw new ForgeError(`gh pr view returned invalid JSON: ${error.message}`, { code: 'operation', status: EXIT.operation });
 		}
 		if (!Array.isArray(rows) || !rows.length) return { status: 'unknown', checks: [] };
 		const checks = rows.map((row) => ({
-			name: row.name ?? '',
-			status: mapGhCheck(row.bucket ?? row.state),
-			url: row.link ?? null
+			name: row.name ?? row.context ?? '',
+			// A StatusContext reports `state`; a CheckRun reports status+conclusion.
+			status: row.state === undefined ? mapCheckRun(row) : mapCheckStatus(row.state),
+			url: row.detailsUrl ?? row.targetUrl ?? null
 		}));
 		return { status: combinedStatus(checks), checks };
 	}
 };
-
-function mapGhCheck(value) {
-	const state = String(value ?? '').toLowerCase();
-	if (state === 'pass' || state === 'success' || state === 'neutral' || state === 'skipping') return 'pass';
-	if (state === 'fail' || state === 'failure' || state === 'error' || state === 'cancel') return 'fail';
-	if (state === 'pending' || state === 'queued' || state === 'in_progress' || state === 'running') return 'pending';
-	return 'unknown';
-}
 
 function githubRestRequest(forge, token, path, { method = 'GET', body, fetchImpl } = {}) {
 	const headers = {
