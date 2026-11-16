@@ -11,10 +11,9 @@ project files. The only writes are scratch under `/tmp/opencode/` and one commen
 - `AGENTS.md`, then `.omhu/REVIEW_PRIORITIES.md`. If the second is missing, say
   so and continue. A violated invariant is a blocker; nothing else is.
 - The branch is `<issue>-<slug>`: `git rev-parse --abbrev-ref HEAD`; the leading
-  number is the issue. Read it with
-  `node scripts/forge.mjs issue get <issue> --json` — its latest
-  `<!-- plan: N -->` comment (an old `round=N` counts) and its acceptance
-  criteria.
+  number is the issue. Read it with `node scripts/forge.mjs issue get <issue>
+  --json` — its latest `<!-- plan: N -->` comment (an old `round=N` counts) and
+  its acceptance criteria.
 - `node scripts/forge.mjs pr get <pr> --json`. No open PR → STOP. If its `head`
   is not `git rev-parse --abbrev-ref HEAD`, STOP and ask to check out the PR
   branch; never review or post on another branch.
@@ -40,13 +39,15 @@ none are open, restate nothing.
 
 Read `AGENTS.md` and the invariants before the diff. For a suspected bug, write
 a scratch script under `/tmp/opencode/`, run it with
-`node /tmp/opencode/<script>`, and keep its output as the repro. The `verify`
-commands from `.omhu.json` are the only other check; an empty list means there
-is no automated gate.
+`node /tmp/opencode/<script>`, and keep its output as the repro. Run
+`node scripts/verify.mjs` when the range changes code or behaviour; it runs the
+`.omhu.json` list and says when there is no automated gate. Skip it for a soil-
+or docs-only range.
 
 Only a bug you reproduced, or an invariant you can name and point at, is a
-blocker. An unmet acceptance criterion, a slice over its budget, a wording
-concern or a nit is a stewardship note and never causes a round.
+blocker. An unmet acceptance criterion, a commit that exceeds the repo cap or
+reads as more than one change, a wording concern or a nit is a stewardship note
+and never causes a round.
 
 ## The comment
 
@@ -56,25 +57,21 @@ three-line list of what could be deleted or simplified. Cite only backticked
 quoted in the finding, never cited; cite the failing repro or a surviving line.
 Prose and fenced output are not citations.
 
-```md
+````md
 <!-- review: round=N -->
-
 Reviewed commit: <sha>
 
 **Verdict:** block | approve
 
 **Blockers**
-
 - <what breaks> `path:start-end` — repro: `node /tmp/opencode/...` gives <output>
 
 **Stewardship notes**
-
-- <concern, unmet criterion, slice budget, or nit>
+- <concern, unmet criterion, a commit that reads as more than one change, or nit>
 
 **What could be deleted or simplified**
-
 - <at most three lines>
-```
+````
 
 Write it to `/tmp/opencode/review-<pr>.md`, then run
 `node scripts/cite-check.mjs <reviewed-commit> /tmp/opencode/review-<pr>.md`.

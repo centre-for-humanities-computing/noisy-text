@@ -3,10 +3,10 @@ description: Cultivate an issue — read the issue drafts, the soil and the code
 agent: cultivator
 ---
 
-Cultivate `$ARGUMENTS`: a bare number is an existing issue you mature, anything
-else is free text you cultivate into a new issue, and an empty argument picks
-from what is already there. There is no flag. You read and speak, edit no code,
-and write nothing until you confirm.
+Cultivate `$ARGUMENTS`: a bare number is an existing issue you mature,
+`milestone <n>` matures a milestone, anything else is free text you cultivate
+into a new issue, and an empty argument picks from what is already there. There
+is no flag. You read and speak, edit no code, and write nothing until you confirm.
 
 ## Read, then speak first
 
@@ -21,24 +21,50 @@ and write nothing until you confirm.
 - For a number, fetch it with `node scripts/forge.mjs issue get <number> --json`.
   For either form, find the code the work would touch and read it: every claim
   about the code is grounded in `file:line`.
-- List the open milestones with `node scripts/forge.mjs milestone list --json`
-  and keep them in view.
 - When an outside fact the issue rests on may have moved, search the web with
   `websearch` and cite the URL; keep model knowledge marked as recollection.
 
-When `$ARGUMENTS` is empty, list the three sources — the open issue drafts, the
-last five journal entries, the compost lines — one line each with where it came
-from, and ask which to mature. Do not invent an idea from empty free text.
+When `$ARGUMENTS` is empty, list the four sources — the open issue drafts, the
+last five journal entries, the compost lines, the open milestones — one line each
+with where it came from, and ask which to mature. Do not invent an idea from
+empty free text.
 
 Before cultivating, name any open issue that already covers the idea — search two
 or three distinctive words and `issue get` each open candidate before naming it,
 because search returns no body — and ask whether to mature that one instead. Then
 say what the issue is really about and what you would do, and only then write.
 
-Ask which open milestone the issue belongs to, with that list in front of you;
-"none" is a real answer. It is a question, not an argument. The chosen title
-rides on the create or edit command, and split children inherit the parent's
-milestone.
+## Milestones
+
+List the open milestones once with `node scripts/forge.mjs milestone list --json`
+and keep them in view: they are the empty run's fourth source, the parent an
+issue is asked for, and the goals `milestone <n>` reads. Ask which one an issue
+belongs to; "none" is a real answer, a question rather than an argument. The
+chosen title rides on the create or edit command, and split children inherit the
+parent's milestone.
+
+## Milestone mode
+
+`milestone <n>` matures the milestone instead of one issue. Read it with
+`milestone get <n> --json`: the description is the goal written as a story and
+the title is only a name, so never invent scope from the title. Group the members
+from `issue search "" --json` by that title and keep closed rows — they are
+evidence of what is already done.
+
+Name the missing pieces against the story, one line each: a capability the story
+names that no issue covers, a member whose acceptance criteria do not reach it,
+and a member whose body is still `TBD`. Also name a member that is invisible —
+it produces nothing you can see — and unblocks no Show; ask whether it belongs in
+this milestone, to move, merge or defer, and do not draft it as a gap. Then stop.
+Order the drafts so the first visible thing comes first: the gap whose issue makes
+it appear is named and drafted before the rest. On confirmation, cultivate
+each gap through The shape below, showing and confirming one draft at a time: a
+missing capability becomes an `issue create`, while a member that falls short is
+matured with `issue edit`. Pass `--milestone "<title>"` to every create; split
+children inherit it. When the conversation sharpens the goal, edit it with
+`milestone edit <n> --description <story>` and keep the technical specifics in
+the issues. When nothing is missing, say so plainly and create nothing: a
+milestone without gaps is finished, not a prompt to invent work.
 
 ## The shape
 
@@ -48,10 +74,15 @@ Write the title first, then the body in this order:
   or none. **Compost:** the one line it came from, when that is the source; a line
   named in an open issue's Compost line is already scheduled, not promoted again.
 - **Story.** One or two paragraphs in the issue's own words: what changes, why,
-  and how you would try it.
+  and how it lands.
+- **Show.** What to run, look at or measure when it lands: a demonstration, a
+  command's output, a table, a count, or a before/after diff. Pure infrastructure
+  is allowed only when it names the Show it unblocks. Refactoring is exempt: its
+  Show is unchanged behaviour, proven by the existing verify gate or a
+  before/after structural measure.
 - **Acceptance criteria.** Numbered AC1…, each observable by a test, a command,
-  or a named observation. An AC you cannot check is rewritten or flagged under
-  Open questions; it is not quietly kept.
+  or a named observation. AC1 is the Show, or names it. An AC you cannot check
+  is rewritten or flagged under Open questions; it is not quietly kept.
 - **Not doing.** One line each: what is deferred, and why.
 - **Open questions.** What is still a decision, one line each.
 

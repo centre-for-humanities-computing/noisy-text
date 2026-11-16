@@ -15,7 +15,9 @@ code and write nothing until you confirm.
   it has deferred.
 - List the backlog with `node scripts/forge.mjs issue search "" --json` and the
   open milestones with `node scripts/forge.mjs milestone list --json`. Keep them
-  in view: a dream that duplicates an open issue or milestone is not new.
+  in view: a dream that duplicates an open issue or milestone is not new. Run
+  each as its own shell call — no pipes, redirects, `;` or `&&` — and run
+  `git log` / `git show` the same way; the permission matches the whole command.
 - Read the code and the docs the theme touches with `read`, `glob` and `grep`.
 - Without a theme, ask what the human wants to dream about before proposing.
 
@@ -35,13 +37,16 @@ compost line it would change. Ask which, if any, to keep. Do not start writing.
 Three outcomes, each after an explicit yes:
 
 - **Issues.** Write each body in the house shape of `/cultivate` — Story,
-  numbered acceptance criteria, Not doing, Open questions — to
+  **Show**, numbered acceptance criteria, Not doing, Open questions — to
   `/tmp/opencode/dream-<slug>.md`, then `issue create`. Create a milestone first
-  with `milestone create --title "<title>"` when one is wanted; pass
-  `--milestone "<title>"` to every create.
+  with `milestone create --title "<title>" --description "<goal story>"` when one
+  is wanted: the description is the goal as a story, naming its first visible
+  thing, and the issues hold the technical specifics. Pass `--milestone "<title>"`
+  to every create.
 - **A soil change.** Write the body to `/tmp/opencode/dream-<theme>.md` and
-  create one `Dream: <theme>` issue whose body is plan-shaped: Story, slices with
-  `(mechanical, budget <n>)`, and Not doing. `/implement` treats that title as
+  create one `Dream: <theme>` issue whose body is plan-shaped: Story, Size (n
+  slices, about m changed lines; the repo's churn cap applies to every slice),
+  slices with `(mechanical)`, and Not doing. `/implement` treats that title as
   its own plan and owns the branch and PR: you create neither.
 - **Nothing.** Say plainly that you have nothing to keep; the conversation is the
   yield.

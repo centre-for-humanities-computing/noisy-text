@@ -2,6 +2,14 @@ import eslint from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import eslintPluginSvelte from 'eslint-plugin-svelte';
 import svelteParser from 'svelte-eslint-parser';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Vendored Omhu files come from the manifest so the ignore list cannot drift.
+const omhuFiles = JSON.parse(
+	readFileSync(join(dirname(fileURLToPath(import.meta.url)), '.omhu/manifest.json'), 'utf8'),
+).files;
 
 export default tseslint.config(
 	eslint.configs.recommended,
@@ -73,6 +81,9 @@ export default tseslint.config(
 			'.venv/',
 			'.agents/',
 			'.claude/',
+			// Vendored Omhu files (listed in .omhu/manifest.json): prettier skips
+			// them, so lint does too instead of fighting upstream style.
+			...omhuFiles,
 		],
 	},
 );
