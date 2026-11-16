@@ -5,15 +5,10 @@
 import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 
+import { git } from './git.mjs';
 import { branchIssue, loopState } from './loop-state.mjs';
 import { parseTrailers } from './record.mjs';
 import { readSoil } from './soil.mjs';
-
-function git(cwd, args) {
-	const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
-	if (result.error || result.status !== 0) return null;
-	return result.stdout;
-}
 
 function gitState(cwd) {
 	const branch = (git(cwd, ['rev-parse', '--abbrev-ref', 'HEAD']) ?? '').trim() || null;

@@ -2,8 +2,10 @@
 // One facts line for /retrospective: walks, review rounds, slices and line churn.
 // The command hands over the fetched JSON; a number without evidence is unknown.
 import { readFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
+
+import { git } from './git.mjs';
+import { marker, parseTrailers } from './record.mjs';
 export function usage() {
 	return `Usage: node scripts/reflect-facts.mjs --range <revspec> [options]
 
@@ -49,15 +51,15 @@ function readJson(path) {
 
 function walkCount(issue) {
 	if (!issue || !Array.isArray(issue.comments)) return null;
-	return issue.comments.some((comment) => /^\s*<!-- walk -->/.test(String(comment?.body ?? ''))) ? 1 : 0;
+	return issue.comments.some((comment) => marker(comment?.body)?.kind === 'walk') ? 1 : 0;
 }
 
 function reviewRounds(pr) {
 	if (!pr || !Array.isArray(pr.comments)) return null;
 	let rounds = 0;
 	for (const comment of pr.comments) {
-		const match = /<!--\s*review:\s*round=(\d+)\s*-->/.exec(String(comment?.body ?? ''));
-		if (match) rounds = Math.max(rounds, Number(match[1]));
+		const parsed = marker(comment?.body);
+		if (parsed?.kind === 'review') rounds = Math.max(rounds, parsed.round);
 	}
 	return rounds;
 }
@@ -65,18 +67,13 @@ function reviewRounds(pr) {
 function sliceCount(messages) {
 	let slices = 0;
 	for (const message of messages) {
-		if (/^Slice:\s*\d+\s*\/\s*\d+\s*$/m.test(String(message))) slices += 1;
+		if (parseTrailers(message).slice) slices += 1;
 	}
 	return slices;
 }
 
-function git(args, cwd) {
-	const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
-	return result.error || result.status !== 0 ? null : result.stdout;
-}
-
 function gitMessages(range, cwd) {
-	const out = range ? git(['log', '--format=%B%x00', range], cwd) : null;
+	const out = range ? git(cwd, ['log', '--format=%B%x00', range]) : null;
 	return out === null ? null : out.split('\0').map((message) => message.trim()).filter(Boolean);
 }
 
@@ -86,7 +83,7 @@ function branchRange(range) {
 }
 
 function lineChurn(range, cwd) {
-	const out = range ? git(['diff', '--numstat', range], cwd) : null;
+	const out = range ? git(cwd, ['diff', '--numstat', range]) : null;
 	if (out === null) return null;
 	let added = 0;
 	let deleted = 0;

@@ -5,8 +5,9 @@
 // come from the text first; blame supplies the adding commit, a date fallback
 // and the issue that commit names. `Plan:` is never read as an issue.
 import { readFileSync } from 'node:fs';
-import { spawnSync } from 'node:child_process';
 import { join } from 'node:path';
+
+import { git } from './git.mjs';
 
 const FILES = {
 	journal: '.omhu/JOURNAL.md',
@@ -139,12 +140,6 @@ export function parseMap(text) {
 		if (entry) entries.push(entry);
 	}
 	return entries;
-}
-
-function git(cwd, args) {
-	const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
-	if (result.error || result.status !== 0) return null;
-	return result.stdout;
 }
 
 // Map each line of a file to the commit blame assigns it; null when git cannot
