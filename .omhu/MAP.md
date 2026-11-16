@@ -1,8 +1,15 @@
 # Map
 
 A narrative tour of how the parts of this repository fit together.
-Format: prose under a few headings of your own; mark anything you are unsure of with `(?)`.
+Format: a `## The parts` list of `- **Module** (\`path\`): what it does`, then
+prose under a few headings of your own; mark anything you are unsure of with `(?)`.
 Its test: does the next session — you or an agent — become cheaper?
+
+## The parts
+
+- **WordNet export** (`scripts/export_wordnet.py`): builds the pinned OEWN bundle and its manifest from the 50k vocabulary.
+- **WordNet loader** (`src/lib/wordnet/loader.ts`): validates the manifest and caches the typed sections in IndexedDB.
+- **WordNet table** (`src/lib/wordnet/table.ts`): resolves a token id or word to a row, its outbound edges and coverage.
 
 ## WordNet
 
