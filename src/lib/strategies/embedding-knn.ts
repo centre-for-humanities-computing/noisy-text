@@ -1,5 +1,4 @@
-import type { NoiseStrategy, StrategyFactory } from './types.js';
-import type { NeighborhoodProvider } from './neighborhood.js';
+import type { NoiseStrategy, StrategyFactory, StrategyResources } from './types.js';
 import { ModelDistanceSource } from './distance-source.js';
 import { createTokenKernel } from './token-kernel.js';
 import { createKernelStrategy } from './kernel-strategy.js';
@@ -92,8 +91,9 @@ export const EMBEDDING_KNN_INFO = {
 export const createEmbeddingKnn: StrategyFactory<EmbeddingKnnConfig> = (
 	config: EmbeddingKnnConfig,
 	vocabSize: number,
-	provider?: NeighborhoodProvider,
+	resources: StrategyResources = {},
 ): NoiseStrategy<EmbeddingKnnConfig> => {
+	const provider = resources.provider;
 	const family = getWeightFamily(config.family ?? 'exponential');
 
 	const kernel = provider

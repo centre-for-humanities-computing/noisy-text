@@ -64,19 +64,19 @@ describe('createCharOverlap (with provider)', () => {
 	const config: CharOverlapConfig = { maxDistance: 0.5, k: 20, epsilon: 0, tau: 1.0, mode: 'set' };
 
 	it('returns strategy metadata', () => {
-		const s = createCharOverlap(config, vocab.length, provider);
+		const s = createCharOverlap(config, vocab.length, { provider });
 		expect(s.info.id).toBe('char-overlap');
 		expect(s.info.stationary).toBe('data-dependent');
 	});
 
 	it('sampleStep: stay when coin >= beta', () => {
-		const s = createCharOverlap(config, vocab.length, provider);
+		const s = createCharOverlap(config, vocab.length, { provider });
 		const rng = mockRng([0.9]); // coin >= 0.5 → stay
 		expect(s.sampleStep(0, 0.5, rng)).toBe(0);
 	});
 
 	it('sampleStep: jump to closest neighbor (epsilon=0)', () => {
-		const s = createCharOverlap(config, vocab.length, provider);
+		const s = createCharOverlap(config, vocab.length, { provider });
 		// coin=0.3 < 0.5 → jump; draw=0.0 → first neighbor of 'cat'
 		// 'cat' neighbors sorted by Jaccard distance:
 		// 'cats' d=0.25, 'car' d=0.5, 'cart' d=0.5 (car & cart tied).
@@ -88,7 +88,7 @@ describe('createCharOverlap (with provider)', () => {
 	});
 
 	it('sampleStep: draws exactly 2 rng values', () => {
-		const s = createCharOverlap(config, vocab.length, provider);
+		const s = createCharOverlap(config, vocab.length, { provider });
 		let callCount = 0;
 		const countingRng = () => {
 			callCount++;
@@ -99,7 +99,7 @@ describe('createCharOverlap (with provider)', () => {
 	});
 
 	it('sampleStep: draws exactly 2 rng values (stay branch)', () => {
-		const s = createCharOverlap(config, vocab.length, provider);
+		const s = createCharOverlap(config, vocab.length, { provider });
 		let callCount = 0;
 		const countingRng = () => {
 			callCount++;
@@ -117,7 +117,7 @@ describe('createCharOverlap (with provider)', () => {
 			tau: 1.0,
 			mode: 'set',
 		};
-		const s = createCharOverlap(epsConfig, vocab.length, provider);
+		const s = createCharOverlap(epsConfig, vocab.length, { provider });
 		// coin=0.3 < 0.5 → jump; draw=0.1 < epsilon=0.3 → uniform floor.
 		// Within floor: scaled = 0.1/0.3 = 0.333 → floor(0.333*5) = 1.
 		const rng = mockRng([0.3, 0.1]);
@@ -125,13 +125,13 @@ describe('createCharOverlap (with provider)', () => {
 	});
 
 	it('getLocalDistribution: returns buffer with correct length', () => {
-		const s = createCharOverlap(config, vocab.length, provider);
+		const s = createCharOverlap(config, vocab.length, { provider });
 		const dist = s.getLocalDistribution!(0, 0.5);
 		expect(dist.length).toBe(vocab.length);
 	});
 
 	it('getLocalDistribution: sum to 1', () => {
-		const s = createCharOverlap(config, vocab.length, provider);
+		const s = createCharOverlap(config, vocab.length, { provider });
 		const dist = s.getLocalDistribution!(0, 0.5);
 		let sum = 0;
 		for (let i = 0; i < vocab.length; i++) sum += dist[i]!;
@@ -139,7 +139,7 @@ describe('createCharOverlap (with provider)', () => {
 	});
 
 	it('getLocalDistribution: self has zero mass in jump dist when epsilon=0', () => {
-		const s = createCharOverlap(config, vocab.length, provider);
+		const s = createCharOverlap(config, vocab.length, { provider });
 		const dist = s.getLocalDistribution!(0, 0.5);
 		expect(dist[0]).toBe(0);
 	});
@@ -158,7 +158,7 @@ describe('createCharOverlap (with provider)', () => {
 			tau: 1.0,
 			mode: 'set',
 		};
-		const s = createCharOverlap(tightConfig, sparseVocab.length, sparseProvider);
+		const s = createCharOverlap(tightConfig, sparseVocab.length, { provider: sparseProvider });
 		// coin=0.3 < 0.5 → jump; draw=0.7 → floor(0.7*3)=2.
 		const rng = mockRng([0.3, 0.7]);
 		expect(s.sampleStep(2, 0.5, rng)).toBe(2);
@@ -172,7 +172,7 @@ describe('createCharOverlap (with provider)', () => {
 			tau: 1.0,
 			mode: 'set',
 		};
-		const s = createCharOverlap(epsConfig, vocab.length, provider);
+		const s = createCharOverlap(epsConfig, vocab.length, { provider });
 		let seq = 0;
 		const seqRng = () => {
 			seq = (seq + 0.37) % 1;
@@ -195,18 +195,18 @@ describe('createCharOverlap (with provider)', () => {
 		// Exponential tau=1: p(cart) = e^-0.25 / (e^-0.25 + e^-0.5) ≈ 0.5622.
 		// Gaussian tau=1: p(cart) = e^-0.03125 / (e^-0.03125 + e^-0.125) ≈ 0.5236.
 		const gConfig: CharOverlapConfig = { ...config, family: 'gaussian' };
-		const gs = createCharOverlap(gConfig, vocab.length, provider);
+		const gs = createCharOverlap(gConfig, vocab.length, { provider });
 		const gdist = gs.getLocalDistribution!(2, 0.5);
 		expect(gdist[3]!).toBeCloseTo(0.5236, 3);
 		expect(gdist[0]!).toBeCloseTo(0.4764, 3);
 		expect(gdist[1]!).toBe(0);
 		expect(gdist[2]!).toBe(0);
 
-		const es = createCharOverlap({ ...config, family: 'exponential' }, vocab.length, provider);
+		const es = createCharOverlap({ ...config, family: 'exponential' }, vocab.length, { provider });
 		const edist = es.getLocalDistribution!(2, 0.5);
 		expect(edist[3]!).toBeCloseTo(0.5622, 3);
 		// Explicit default equals omitted family.
-		const ds = createCharOverlap(config, vocab.length, provider);
+		const ds = createCharOverlap(config, vocab.length, { provider });
 		const ddist = ds.getLocalDistribution!(2, 0.5);
 		expect(Array.from(edist)).toEqual(Array.from(ddist));
 	});

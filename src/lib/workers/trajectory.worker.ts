@@ -47,6 +47,9 @@ import type {
 } from './trajectory.protocol.js';
 import { buildNeighborGraph } from '../strategies/neighbor-graph.js';
 import type { NeighborGraphParams } from '../strategies/neighbor-graph.js';
+import { createWordNetTable } from '../wordnet/table.js';
+import type { WordNetResource, WordNetTable } from '../wordnet/table.js';
+import { loadWordNet } from '../wordnet/loader.js';
 import { buildUnionGraph } from '../engine/union-graph.js';
 import { computeForceLayoutLarge } from '../engine/force-layout.js';
 import type { TrajectoryWorkerUnionGraphRequest, UnionGraph } from './trajectory.protocol.js';
@@ -138,6 +141,13 @@ interface EmbeddingResource {
  * `sourceId:preprocess:metric:predicate-signature` key.
  */
 const _embeddingCache = new Map<string, EmbeddingResource & { model: DistanceModel }>();
+let _wordnetCache: { key: string; data: WordNetData } | undefined;
+
+/** Decoded WordNet table plus the static vocabulary strings it indexes. */
+interface WordNetData {
+	table: WordNetTable;
+	words: readonly string[];
+}
 
 /**
  * Ensure the embedding-backed `DistanceModel` + `NeighborhoodProvider`
@@ -248,6 +258,29 @@ async function decodeVocab(tok: Tokenizer, onProgress?: VocabProgress): Promise<
 }
 
 /**
+ * Ensure the WordNet table for the `words` tokenizer.
+ *
+ * The bundle is keyed by that tokenizer's vocabulary (case-folded), so any
+ * other tokenizer is a hard error rather than an empty walk.
+ */
+async function ensureWordNetData(
+	tokenizerId: string,
+	onProgress?: VocabProgress,
+): Promise<WordNetData> {
+	if (tokenizerId !== 'words') {
+		throw new Error(`WordNet requires the "words" tokenizer, but "${tokenizerId}" is active.`);
+	}
+	if (_wordnetCache?.key === tokenizerId) return _wordnetCache.data;
+
+	const tok = await loadTokenizer(tokenizerId);
+	const words = await decodeVocab(tok, onProgress);
+	const bundle = await loadWordNet(words);
+	const data = { table: createWordNetTable(bundle, words), words };
+	_wordnetCache = { key: tokenizerId, data };
+	return data;
+}
+
+/**
  * Ensure the `DistanceModel` + `NeighborhoodProvider` for a string-distance
  * kernel are ready for a tokenizer. Decodes all static token strings
  * (one-time cost per kernel+tokenizer lifetime), appends the append-only
@@ -304,6 +337,7 @@ interface StrategyResource {
 	provider?: NeighborhoodProvider;
 	graphParams: NeighborGraphParams | null;
 	embedding?: EmbeddingResource;
+	wordnet?: WordNetResource;
 }
 
 /**
@@ -325,6 +359,7 @@ async function resolveStrategyResource(
 	let provider: NeighborhoodProvider | undefined;
 	let graphParams: NeighborGraphParams | null = null;
 	let embedding: EmbeddingResource | undefined;
+	let wordnet: WordNetResource | undefined;
 
 	if (strategyId === 'lexical') {
 		provider = await ensureDistanceSourceProvider(
@@ -353,6 +388,9 @@ async function resolveStrategyResource(
 			onProgress,
 		);
 		provider = embedding.provider;
+	} else if (strategyId === 'wordnet') {
+		const data = await ensureWordNetData(tokenizerId, onProgress);
+		wordnet = { table: data.table, rows: wordnetRows(data, oovTokens, vocabSize) };
 	}
 
 	if (provider) {
@@ -375,6 +413,7 @@ async function resolveStrategyResource(
 		provider,
 		graphParams,
 		embedding,
+		wordnet,
 	};
 }
 
@@ -402,6 +441,61 @@ function frozenMaskFor(
 		}
 	}
 	return any ? mask : undefined;
+}
+
+/**
+ * Build the K_eff token-id → dense-row index the WordNet kernel, freeze
+ * mask and coverage all read.
+ *
+ * Static ids come from the bundle's `rowMap`; each OOV id resolves through
+ * the table's case-folded word map, so `DoG` reaches the `dog` row. `-1`
+ * marks a token with no outbound target.
+ */
+function wordnetRows(
+	data: WordNetData,
+	oovTokens: readonly string[] | undefined,
+	vocabSize: number,
+): Int32Array {
+	const rows = new Int32Array(vocabSize);
+	rows.fill(-1);
+	const staticK = data.words.length;
+	for (let id = 0; id < staticK && id < vocabSize; id++) {
+		rows[id] = data.table.row(id) ?? -1;
+	}
+	const oov = oovTokens ?? [];
+	for (let i = 0; i < oov.length && staticK + i < vocabSize; i++) {
+		rows[staticK + i] = data.table.row(oov[i]!) ?? -1;
+	}
+	return rows;
+}
+
+/** Freeze every position whose token has no outbound WordNet target. */
+function wordnetFrozenMask(inputIds: Int32Array, rows: Int32Array): Uint8Array | undefined {
+	const mask = new Uint8Array(inputIds.length);
+	let any = false;
+	for (let i = 0; i < inputIds.length; i++) {
+		const row = rows[inputIds[i]!];
+		if (row === undefined || row < 0) {
+			mask[i] = 1;
+			any = true;
+		}
+	}
+	return any ? mask : undefined;
+}
+
+/** Coverage of letter-bearing input positions by the same row index. */
+function wordnetCoverage(
+	data: WordNetData,
+	inputIds: Int32Array,
+	oovTokens: readonly string[] | undefined,
+): number {
+	const staticK = data.words.length;
+	const strings: string[] = new Array(inputIds.length);
+	for (let i = 0; i < inputIds.length; i++) {
+		const id = inputIds[i]!;
+		strings[i] = id < staticK ? data.words[id]! : (oovTokens?.[id - staticK] ?? '');
+	}
+	return data.table.coverage(inputIds, strings);
 }
 
 self.onmessage = (event: MessageEvent<TrajectoryWorkerRequest>) => {
@@ -440,7 +534,7 @@ async function handleCompute(
 
 	try {
 		// Build (or reuse) the provider for the strategy's resource.
-		const { provider, embedding } = await resolveStrategyResource(
+		const { provider, embedding, wordnet } = await resolveStrategyResource(
 			spec.strategyId,
 			spec.strategyConfig,
 			spec.tokenizerId,
@@ -497,10 +591,18 @@ async function handleCompute(
 			}
 		}
 
-		const strategy = getStrategy(spec.strategyId, spec.strategyConfig, spec.vocabSize, provider);
+		const strategy = getStrategy(spec.strategyId, spec.strategyConfig, spec.vocabSize, {
+			provider,
+			wordnet,
+		});
 		const schedule = getSchedule(spec.scheduleId, spec.scheduleConfig, spec.T);
 		const rng = createRng(spec.seed);
-		const frozen = frozenMaskFor(spec.inputIds, spec.vocabSize, spec.oovTokens);
+		const frozen = wordnet
+			? wordnetFrozenMask(spec.inputIds, wordnet.rows)
+			: frozenMaskFor(spec.inputIds, spec.vocabSize, spec.oovTokens);
+		const coverage = wordnet
+			? wordnetCoverage(await ensureWordNetData(spec.tokenizerId), spec.inputIds, spec.oovTokens)
+			: undefined;
 
 		const traj = computeTrajectory(
 			spec.inputIds,
@@ -519,6 +621,7 @@ async function handleCompute(
 			T: traj.T,
 			length: traj.length,
 			seed: spec.seed,
+			coverage,
 		};
 
 		// Transfer the ArrayBuffer to avoid copying.
@@ -560,7 +663,7 @@ async function handleNeighbors(
 	} = msg;
 
 	try {
-		const { provider, graphParams } = await resolveStrategyResource(
+		const { provider, graphParams, wordnet } = await resolveStrategyResource(
 			strategyId,
 			strategyConfig,
 			tokenizerId,
@@ -568,7 +671,7 @@ async function handleNeighbors(
 			vocabSize,
 		);
 
-		const strategy = getStrategy(strategyId, strategyConfig, vocabSize, provider);
+		const strategy = getStrategy(strategyId, strategyConfig, vocabSize, { provider, wordnet });
 		const tok = await loadTokenizer(tokenizerId);
 		const graph = buildNeighborGraph(
 			strategy,

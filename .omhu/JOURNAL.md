@@ -34,3 +34,14 @@ Facts: 1 walk · 2 review rounds · 1 slice · +341/−30
 ## 2026-11-11 — implement — what grew, and what is still untested?
 
 The WordNet path now runs exporter → bundle + manifest → IndexedDB loader → typed table, with four planned slices plus this soil commit. S2 landed at 175 changed lines against its 140 estimate because the synthetic fixture and four loader tests dominate. The Python exporter was exercised against the real OEWN 2025 archive but has no checked-in test, and coverage's denominator (letter-bearing tokens only, OOV included and uncovered) is the easiest thing to get subtly wrong; both are review targets. Nothing consumes the table until #94.
+
+## 2026-11-17 — retro — the gloss still promises a drift the seeds do not show; where does the promise go?
+
+Reword the gloss to what one draw over five categories actually gives, and leave AC1 visibly unmet rather than quietly redefining it. The overshoot was genuine: the merged noun/verb row and the resource-object refactor made the work larger than the plan could see. Hand-checking the user-visible half stands for now; a wordnet e2e spec is parked in COMPOST.
+Facts: 1 walk · 1 review round · 4 slices · +525/−67
+
+## 2026-11-17 — retro — the retrospective itself, and why it is being skipped
+
+"I've started skipping retrospectives at an alarming rate," and the one just run was disappointing: three not-very-interesting questions with pre-written answers, not a reflection on the process of the issue or milestone. It has to improve if it is going to be valuable.
+[workflow] The fixed three-question shape with option lists turns reflection into a form; these questions did not reach the process of #94.
+Facts: 1 walk · 1 review round · 4 slices · +525/−67

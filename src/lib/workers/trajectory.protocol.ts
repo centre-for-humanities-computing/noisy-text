@@ -131,6 +131,8 @@ export interface TrajectoryWorkerComputeResultResponse {
 	length: number;
 	/** The seed used. */
 	seed: number;
+	/** Fraction of letter-bearing positions covered by WordNet, when active. */
+	coverage?: number;
 }
 
 /** A node in the neighborhood graph. */

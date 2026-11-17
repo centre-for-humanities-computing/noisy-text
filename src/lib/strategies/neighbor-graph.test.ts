@@ -234,12 +234,9 @@ describe('buildNeighborGraph', () => {
 	});
 
 	it('works with a real lexical strategy end-to-end', () => {
-		const strategy = getStrategy(
-			'lexical',
-			{ maxDistance: 3, k: 50, epsilon: 0, tau: 1.0 },
-			6,
-			makeProvider(),
-		);
+		const strategy = getStrategy('lexical', { maxDistance: 3, k: 50, epsilon: 0, tau: 1.0 }, 6, {
+			provider: makeProvider(),
+		});
 		const column = new Int32Array([0, 1, 2]);
 		const g = buildNeighborGraph(
 			strategy,

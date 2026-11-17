@@ -25,6 +25,19 @@ export interface WordNetTable {
 	coverage(ids: Int32Array, strings: readonly string[]): number;
 }
 
+/**
+ * A table plus the per-instance token-id → dense-row index.
+ *
+ * The index has one entry per effective vocabulary id (static ids followed
+ * by this instance's OOV ids); `-1` marks a token with no row. The kernel,
+ * freeze mask and coverage all read this one index, so they agree on which
+ * tokens can move.
+ */
+export interface WordNetResource {
+	readonly table: WordNetTable;
+	readonly rows: Int32Array;
+}
+
 const LETTER = /\p{L}/u;
 
 export function createWordNetTable(bundle: WordNetBundle, words: readonly string[]): WordNetTable {

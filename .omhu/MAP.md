@@ -10,6 +10,7 @@ Its test: does the next session — you or an agent — become cheaper?
 - **WordNet export** (`scripts/export_wordnet.py`): builds the pinned OEWN bundle and its manifest from the 50k vocabulary.
 - **WordNet loader** (`src/lib/wordnet/loader.ts`): validates the manifest and caches the typed sections in IndexedDB.
 - **WordNet table** (`src/lib/wordnet/table.ts`): resolves a token id or word to a row, its outbound edges and coverage.
+- **WordNet strategy** (`src/lib/strategies/wordnet.ts`): walks one relation edge per jump over the decoded table.
 
 ## WordNet
 
@@ -19,6 +20,8 @@ Rows are per resolved lemma group, keyed by the lowest static id; targets are
 static ids; the manifest carries the category order, `vocabSha` and
 attribution. `src/lib/wordnet/loader.ts` validates those and caches the typed
 sections in the `wordnet` IndexedDB store; `table.ts` turns a token id or word
-into a row and its outbound edges, and computes coverage. Nothing calls the
-table until #94 wires it through the compute resolver, and the loader refuses
-to run while `WORDNET_DATASET_REVISION` is the empty placeholder.
+into a row and its outbound edges, and computes coverage. The worker loads the
+table for the `wordnet` strategy, builds one K_eff token-id → row index shared
+by the kernel, freeze mask and coverage, and refuses any tokenizer other than
+`words`. The loader refuses to run while `WORDNET_DATASET_REVISION` is the
+empty placeholder.

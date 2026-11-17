@@ -1,8 +1,14 @@
 # WordNet
 
 The WordNet half of the playground: OEWN 2025 relations keyed by the static
-50k word-vocabulary ids. The bundle is not shipped with the app. (The walk,
-kernel and status line are #94.)
+50k word-vocabulary ids. The bundle is not shipped with the app.
+
+The `wordnet` strategy walks one relation edge per jump. Each non-empty
+relation category (hypernym, hyponym, synonym, meronym, holonym) gets equal
+mass, shared uniformly across its targets; a lemma with no outbound edge stays
+put. The worker builds one K_eff token-id → row index and uses it for the
+kernel, the freeze mask and coverage, so OOV case variants walk the same row
+as their static lemma.
 
 ## Bundle format
 
