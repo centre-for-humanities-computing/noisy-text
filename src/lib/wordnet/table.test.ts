@@ -1,57 +1,30 @@
 import { describe, expect, it } from 'vitest';
-import { WORDNET_CATEGORIES, type WordNetBundle } from './loader.js';
 import { createWordNetTable } from './table.js';
+import { fixtureBundle, fixtureWords as words, type FixtureEdge } from './test-fixture.js';
 
-const words = ['dog', 'canine', 'animal', 'puppy', 'bank', 'shore', 'money', 'zzz'];
-const edges: [number, number][][] = [
+/** Dog has edges from both its noun (0) and verb (1) synsets. */
+const edges: FixtureEdge[][] = [
 	[
-		[1, 0],
-		[2, 0],
-		[2, 2],
-		[3, 1],
+		[1, 0, 0, 2],
+		[2, 0, 0, 3],
+		[2, 2, 0, 0],
+		[3, 1, 1, 4],
 	],
 	[
-		[2, 0],
-		[0, 1],
+		[2, 0, 2, 3],
+		[0, 1, 2, 0],
 	],
-	[[1, 1]],
-	[[0, 0]],
+	[[1, 1, 3, 2]],
+	[[0, 0, 4, 0]],
 	[
-		[5, 0],
-		[6, 0],
+		[5, 0, 5, 6],
+		[6, 0, 5, 7],
 	],
-	[[4, 1]],
-	[[4, 1]],
+	[[4, 1, 6, 5]],
+	[[4, 1, 7, 5]],
 	[],
 ];
-const offsets = new Int32Array(edges.length + 1);
-const targets: number[] = [];
-const categories: number[] = [];
-edges.forEach((row, i) => {
-	offsets[i] = targets.length;
-	for (const [target, category] of row) {
-		targets.push(target);
-		categories.push(category);
-	}
-});
-offsets[edges.length] = targets.length;
-const bundle: WordNetBundle = {
-	meta: {
-		source: 'oewn-2025',
-		license: 'CC BY 4.0',
-		attribution: 'test fixture',
-		vocabSha: '',
-		vocabSize: words.length,
-		rows: edges.length,
-		edgeCount: targets.length,
-		coveredLemmas: 7,
-		categoryOrder: [...WORDNET_CATEGORIES],
-	},
-	rowMap: new Int32Array([0, 1, 2, 3, 4, 5, 6, -1]),
-	offsets,
-	targets: new Int32Array(targets),
-	categories: new Uint8Array(categories),
-};
+const bundle = fixtureBundle(edges);
 const table = createWordNetTable(bundle, words);
 
 describe('wordnet table', () => {
@@ -65,6 +38,20 @@ describe('wordnet table', () => {
 		expect(table.lookup('bank').map((r) => r.target)).toEqual([5, 6]);
 		const animal = table.lookup('dog').filter((r) => r.target === 2);
 		expect(animal.map((r) => r.category)).toEqual(['hypernym', 'synonym']);
+	});
+
+	it('reports the synset each edge was exported from', () => {
+		const dog = table.lookup('dog');
+		expect(dog.map((r) => r.edge)).toEqual([0, 1, 2, 3]);
+		expect(dog.map((r) => r.sourceSynset)).toEqual([0, 0, 0, 1]);
+		expect(dog.map((r) => r.targetSynset)).toEqual([2, 3, 0, 4]);
+		expect(new Set(dog.map((r) => r.sourceSynset)).size).toBe(2);
+	});
+
+	it('decodes a synset entry lazily and rejects a bad index', () => {
+		expect(table.synset(0)).toEqual({ id: 'oewn-00000001-n', label: 'dog (n.)' });
+		expect(table.synset(1)).toEqual({ id: 'oewn-00000002-v', label: 'dog (v.)' });
+		expect(table.synset(99)).toBeUndefined();
 	});
 
 	it('reports tokens without a row', () => {

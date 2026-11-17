@@ -2,8 +2,19 @@ import type { WordNetBundle, WordNetCategory } from './loader.js';
 
 /** One outbound edge from a lemma row. */
 export interface WordNetRelation {
+	/** Index of the edge in bundle order; unique per `(target, category)` pair. */
+	edge: number;
 	target: number;
 	category: WordNetCategory;
+	/** Source and target synset indices; `-1` in a v1 bundle. */
+	sourceSynset: number;
+	targetSynset: number;
+}
+
+/** One decoded synset-table entry. */
+export interface WordNetSynset {
+	id: string;
+	label: string;
 }
 
 /** Read-only view over one decoded bundle, indexed by static token id or word. */
@@ -14,6 +25,8 @@ export interface WordNetTable {
 	hasRow(token: number | string): boolean;
 	/** Outbound edges in bundle order; empty when the token has no row. */
 	lookup(token: number | string): WordNetRelation[];
+	/** Decoded synset entry, `undefined` for a bad index or a v1 bundle. */
+	synset(index: number): WordNetSynset | undefined;
 	/**
 	 * Fraction of letter-bearing token positions covered by the bundle.
 	 *
@@ -57,11 +70,31 @@ export function createWordNetTable(bundle: WordNetBundle, words: readonly string
 		const out: WordNetRelation[] = [];
 		for (let e = bundle.offsets[index]!; e < bundle.offsets[index + 1]!; e++) {
 			out.push({
+				edge: e,
 				target: bundle.targets[e]!,
 				category: bundle.meta.categoryOrder[bundle.categories[e]!]!,
+				sourceSynset: bundle.sourceSynset[e] ?? -1,
+				targetSynset: bundle.targetSynset[e] ?? -1,
 			});
 		}
 		return out;
+	}
+
+	const synsets = new Map<number, WordNetSynset>();
+	const decoder = new TextDecoder();
+	function synset(index: number): WordNetSynset | undefined {
+		const count = bundle.synsetOffsets.length - 1;
+		if (!Number.isInteger(index) || index < 0 || index >= count) return undefined;
+		const cached = synsets.get(index);
+		if (cached) return cached;
+		const start = bundle.synsetOffsets[index]!;
+		const end = bundle.synsetOffsets[index + 1]!;
+		const text = decoder.decode(bundle.synsetBlob.subarray(start, end));
+		const tab = text.indexOf('\t');
+		const value =
+			tab < 0 ? { id: text, label: text } : { id: text.slice(0, tab), label: text.slice(tab + 1) };
+		synsets.set(index, value);
+		return value;
 	}
 
 	function coverage(ids: Int32Array, strings: readonly string[]): number {
@@ -76,5 +109,5 @@ export function createWordNetTable(bundle: WordNetBundle, words: readonly string
 		return total === 0 ? 0 : covered / total;
 	}
 
-	return { bundle, row, hasRow: (token) => row(token) !== undefined, lookup, coverage };
+	return { bundle, row, hasRow: (token) => row(token) !== undefined, lookup, synset, coverage };
 }

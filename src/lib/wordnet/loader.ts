@@ -15,6 +15,7 @@ export interface WordNetMeta {
 	vocabSize: number;
 	rows: number;
 	edgeCount: number;
+	synsetCount: number;
 	coveredLemmas: number;
 	categoryOrder: WordNetCategory[];
 }
@@ -24,6 +25,14 @@ export interface WordNetBundle {
 	rowMap: Int32Array;
 	offsets: Int32Array;
 	targets: Int32Array;
+	/** Source synset index per edge; `-1` in a v1 bundle. */
+	sourceSynset: Int32Array;
+	/** Target synset index per edge; `-1` in a v1 bundle. */
+	targetSynset: Int32Array;
+	/** `synsetCount + 1` CSR offsets into `synsetBlob`. */
+	synsetOffsets: Int32Array;
+	/** Concatenated `<id>\t<label>` UTF-8 entries. */
+	synsetBlob: Uint8Array;
 	categories: Uint8Array;
 }
 
@@ -61,22 +70,53 @@ export async function decodeWordNet(
 
 	const view = new DataView(buffer);
 	const magic = new TextDecoder().decode(new Uint8Array(buffer, 0, 4));
-	if (magic !== 'OEWN' || view.getUint32(4, true) !== 1) fail('bad header');
+	const version = view.getUint32(4, true);
+	if (magic !== 'OEWN' || (version !== 1 && version !== 2)) fail('bad header');
 	const rows = view.getUint32(8, true),
 		edgeCount = view.getUint32(12, true);
 	if (rows !== meta.rows || edgeCount !== meta.edgeCount) fail('header disagrees with manifest');
-	if (buffer.byteLength !== 16 + words.length * 4 + (rows + 1) * 4 + edgeCount * 5) {
+	const synsetCount = version === 2 ? view.getUint32(16, true) : 0;
+	if (version === 2 && synsetCount !== meta.synsetCount) fail('header disagrees with manifest');
+
+	const header = version === 2 ? 20 : 16;
+	const fixed =
+		header +
+		words.length * 4 +
+		(rows + 1) * 4 +
+		edgeCount * 4 +
+		(version === 2 ? edgeCount * 8 + (synsetCount + 1) * 4 : 0) +
+		edgeCount;
+	if (buffer.byteLength < fixed) fail(`section lengths disagree: ${buffer.byteLength} bytes`);
+	if (version === 1 && buffer.byteLength !== fixed) {
 		fail(`section lengths disagree: ${buffer.byteLength} bytes`);
 	}
 
-	let off = 16;
+	let off = header;
 	const rowMap = new Int32Array(buffer, off, words.length);
 	off += words.length * 4;
 	const offsets = new Int32Array(buffer, off, rows + 1);
 	off += (rows + 1) * 4;
 	const targets = new Int32Array(buffer, off, edgeCount);
 	off += edgeCount * 4;
+	let sourceSynset = new Int32Array(0);
+	let targetSynset = new Int32Array(0);
+	let synsetOffsets = new Int32Array(1);
+	let synsetBlob = new Uint8Array(0);
+	if (version === 2) {
+		sourceSynset = new Int32Array(buffer, off, edgeCount);
+		off += edgeCount * 4;
+		targetSynset = new Int32Array(buffer, off, edgeCount);
+		off += edgeCount * 4;
+		synsetOffsets = new Int32Array(buffer, off, synsetCount + 1);
+		off += (synsetCount + 1) * 4;
+	} else {
+		sourceSynset = new Int32Array(edgeCount).fill(-1);
+		targetSynset = new Int32Array(edgeCount).fill(-1);
+	}
 	const categories = new Uint8Array(buffer, off, edgeCount);
+	off += edgeCount;
+	if (version === 2) synsetBlob = new Uint8Array(buffer, off);
+
 	if (offsets[0] !== 0 || offsets[rows] !== edgeCount) fail('bad CSR offsets');
 	for (let row = 0; row < rows; row++) {
 		const start = offsets[row]!;
@@ -85,9 +125,36 @@ export async function decodeWordNet(
 			const target = targets[edge]!;
 			if (target < 0 || target >= words.length) fail(`target ${target} outside the vocabulary`);
 			if (rowMap[target] === row) fail(`target ${target} resolves to its own row`);
+			if (version === 2) {
+				const source = sourceSynset[edge]!;
+				const destination = targetSynset[edge]!;
+				if (source < 0 || source >= synsetCount)
+					fail(`source synset ${source} outside the synset table`);
+				if (destination < 0 || destination >= synsetCount)
+					fail(`target synset ${destination} outside the synset table`);
+			}
 		}
 	}
-	return { meta, rowMap, offsets, targets, categories };
+	if (version === 2) {
+		if (synsetOffsets[0] !== 0 || synsetOffsets[synsetCount] !== synsetBlob.byteLength) {
+			fail('bad synset offsets');
+		}
+		for (let index = 0; index < synsetCount; index++) {
+			if (synsetOffsets[index]! > synsetOffsets[index + 1]!) fail('bad synset offsets');
+		}
+	}
+
+	return {
+		meta: version === 2 ? meta : { ...meta, synsetCount: 0 },
+		rowMap,
+		offsets,
+		targets,
+		sourceSynset,
+		targetSynset,
+		synsetOffsets,
+		synsetBlob,
+		categories,
+	};
 }
 
 export interface LoadWordNetOptions {

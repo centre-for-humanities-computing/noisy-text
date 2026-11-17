@@ -1,13 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../engine/rng.js';
-import { WORDNET_CATEGORIES, type WordNetBundle } from '../wordnet/loader.js';
+import { fixtureBundle, fixtureWords as words, type FixtureEdge } from '../wordnet/test-fixture.js';
 import { createWordNetTable, type WordNetResource } from '../wordnet/table.js';
 import { createWordNet, createWordNetKernel } from './wordnet.js';
 import type { Rng } from './types.js';
 
-const words = ['dog', 'canine', 'animal', 'puppy', 'bank', 'shore', 'money', 'zzz'];
 /** [target, category] per lemma row. Category order is WORDNET_CATEGORIES. */
-const edges: [number, number][][] = [
+const edges: FixtureEdge[][] = [
 	[
 		[1, 0],
 		[2, 0],
@@ -27,34 +26,7 @@ const edges: [number, number][][] = [
 	[[4, 1]],
 	[],
 ];
-const offsets = new Int32Array(edges.length + 1);
-const targets: number[] = [];
-const categories: number[] = [];
-edges.forEach((row, i) => {
-	offsets[i] = targets.length;
-	for (const [target, category] of row) {
-		targets.push(target);
-		categories.push(category);
-	}
-});
-offsets[edges.length] = targets.length;
-const bundle: WordNetBundle = {
-	meta: {
-		source: 'oewn-2025',
-		license: 'CC BY 4.0',
-		attribution: 'test fixture',
-		vocabSha: '',
-		vocabSize: words.length,
-		rows: edges.length,
-		edgeCount: targets.length,
-		coveredLemmas: 7,
-		categoryOrder: [...WORDNET_CATEGORIES],
-	},
-	rowMap: new Int32Array([0, 1, 2, 3, 4, 5, 6, -1]),
-	offsets,
-	targets: new Int32Array(targets),
-	categories: new Uint8Array(categories),
-};
+const bundle = fixtureBundle(edges);
 const table = createWordNetTable(bundle, words);
 // Ids 0-7 are static; id 8 is an OOV variant that resolves to the `dog` row.
 const rows = new Int32Array([0, 1, 2, 3, 4, 5, 6, -1, 0]);
