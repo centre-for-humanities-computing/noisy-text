@@ -39,3 +39,9 @@ The WordNet path now runs exporter → bundle + manifest → IndexedDB loader �
 
 Reword the gloss to what one draw over five categories actually gives, and leave AC1 visibly unmet rather than quietly redefining it. The overshoot was genuine: the merged noun/verb row and the resource-object refactor made the work larger than the plan could see. Hand-checking the user-visible half stands for now; a wordnet e2e spec is parked in COMPOST.
 Facts: 1 walk · 1 review round · 4 slices · +525/−67
+
+## 2026-11-17 — retro — the retrospective itself, and why it is being skipped
+
+"I've started skipping retrospectives at an alarming rate," and the one just run was disappointing: three not-very-interesting questions with pre-written answers, not a reflection on the process of the issue or milestone. It has to improve if it is going to be valuable.
+[workflow] The fixed three-question shape with option lists turns reflection into a form; these questions did not reach the process of #94.
+Facts: 1 walk · 1 review round · 4 slices · +525/−67

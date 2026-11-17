@@ -44,3 +44,4 @@ A line named in an open issue's `**Compost:**` line is scheduled; `/implement` d
 - 2026-11-17 — Hypernym weighting for the WordNet walk, so dog drifts canine→animal→generic nouns; the AC1 eye check failed because the merged noun/verb row spreads hypernyms over 14 targets — 1 — plan 1 on #94
 - 2026-11-17 — Coverage outside the `words` tokenizer; the worker refuses wordnet with any other tokenizer — 1 — plan 1 on #94
 - 2026-11-17 — A wordnet e2e fixture spec for the tokenizer lock, status-line fraction and freeze mask; hand-checking stands for #94 — 1 — retro on #94
+- 2026-11-17 — Rework the retrospective so it reflects on the issue or milestone's process, not three thin questions with pre-written answers — 1 — retro on #94
