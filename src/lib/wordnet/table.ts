@@ -6,7 +6,7 @@ export interface WordNetRelation {
 	edge: number;
 	target: number;
 	category: WordNetCategory;
-	/** Source and target synset indices; `-1` in a v1 bundle. */
+	/** Source and target synset indices. */
 	sourceSynset: number;
 	targetSynset: number;
 }
@@ -25,7 +25,7 @@ export interface WordNetTable {
 	hasRow(token: number | string): boolean;
 	/** Outbound edges in bundle order; empty when the token has no row. */
 	lookup(token: number | string): WordNetRelation[];
-	/** Decoded synset entry, `undefined` for a bad index or a v1 bundle. */
+	/** Decoded synset entry, `undefined` for a bad index. */
 	synset(index: number): WordNetSynset | undefined;
 	/**
 	 * Fraction of letter-bearing token positions covered by the bundle.
@@ -73,8 +73,8 @@ export function createWordNetTable(bundle: WordNetBundle, words: readonly string
 				edge: e,
 				target: bundle.targets[e]!,
 				category: bundle.meta.categoryOrder[bundle.categories[e]!]!,
-				sourceSynset: bundle.sourceSynset[e] ?? -1,
-				targetSynset: bundle.targetSynset[e] ?? -1,
+				sourceSynset: bundle.sourceSynset[e]!,
+				targetSynset: bundle.targetSynset[e]!,
 			});
 		}
 		return out;

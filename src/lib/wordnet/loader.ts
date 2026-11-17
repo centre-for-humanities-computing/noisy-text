@@ -6,7 +6,7 @@ import { wordVocabSha } from '../embeddings/vocab-sha.js';
 export const WORDNET_SOURCE = 'oewn-2025';
 export const WORDNET_CATEGORIES = ['hypernym', 'hyponym', 'synonym', 'meronym', 'holonym'] as const;
 export type WordNetCategory = (typeof WORDNET_CATEGORIES)[number];
-export const WORDNET_DATASET_REVISION = '4907ef919e851b3fce75c169debd8caa2214de5f';
+export const WORDNET_DATASET_REVISION = 'aa0b767bf6b606e83192b14fec66000b2ff433b5';
 export interface WordNetMeta {
 	source: string;
 	license: string;
@@ -25,9 +25,9 @@ export interface WordNetBundle {
 	rowMap: Int32Array;
 	offsets: Int32Array;
 	targets: Int32Array;
-	/** Source synset index per edge; `-1` in a v1 bundle. */
+	/** Source synset index per edge. */
 	sourceSynset: Int32Array;
-	/** Target synset index per edge; `-1` in a v1 bundle. */
+	/** Target synset index per edge. */
 	targetSynset: Int32Array;
 	/** `synsetCount + 1` CSR offsets into `synsetBlob`. */
 	synsetOffsets: Int32Array;
@@ -70,52 +70,41 @@ export async function decodeWordNet(
 
 	const view = new DataView(buffer);
 	const magic = new TextDecoder().decode(new Uint8Array(buffer, 0, 4));
+	if (magic !== 'OEWN') fail('bad header');
 	const version = view.getUint32(4, true);
-	if (magic !== 'OEWN' || (version !== 1 && version !== 2)) fail('bad header');
+	if (version !== 2) fail(`unsupported bundle version ${version}`);
 	const rows = view.getUint32(8, true),
-		edgeCount = view.getUint32(12, true);
-	if (rows !== meta.rows || edgeCount !== meta.edgeCount) fail('header disagrees with manifest');
-	const synsetCount = version === 2 ? view.getUint32(16, true) : 0;
-	if (version === 2 && synsetCount !== meta.synsetCount) fail('header disagrees with manifest');
-
-	const header = version === 2 ? 20 : 16;
+		edgeCount = view.getUint32(12, true),
+		synsetCount = view.getUint32(16, true);
+	if (rows !== meta.rows || edgeCount !== meta.edgeCount || synsetCount !== meta.synsetCount) {
+		fail('header disagrees with manifest');
+	}
 	const fixed =
-		header +
+		20 +
 		words.length * 4 +
 		(rows + 1) * 4 +
 		edgeCount * 4 +
-		(version === 2 ? edgeCount * 8 + (synsetCount + 1) * 4 : 0) +
+		edgeCount * 8 +
+		(synsetCount + 1) * 4 +
 		edgeCount;
 	if (buffer.byteLength < fixed) fail(`section lengths disagree: ${buffer.byteLength} bytes`);
-	if (version === 1 && buffer.byteLength !== fixed) {
-		fail(`section lengths disagree: ${buffer.byteLength} bytes`);
-	}
 
-	let off = header;
+	let off = 20;
 	const rowMap = new Int32Array(buffer, off, words.length);
 	off += words.length * 4;
 	const offsets = new Int32Array(buffer, off, rows + 1);
 	off += (rows + 1) * 4;
 	const targets = new Int32Array(buffer, off, edgeCount);
 	off += edgeCount * 4;
-	let sourceSynset = new Int32Array(0);
-	let targetSynset = new Int32Array(0);
-	let synsetOffsets = new Int32Array(1);
-	let synsetBlob = new Uint8Array(0);
-	if (version === 2) {
-		sourceSynset = new Int32Array(buffer, off, edgeCount);
-		off += edgeCount * 4;
-		targetSynset = new Int32Array(buffer, off, edgeCount);
-		off += edgeCount * 4;
-		synsetOffsets = new Int32Array(buffer, off, synsetCount + 1);
-		off += (synsetCount + 1) * 4;
-	} else {
-		sourceSynset = new Int32Array(edgeCount).fill(-1);
-		targetSynset = new Int32Array(edgeCount).fill(-1);
-	}
+	const sourceSynset = new Int32Array(buffer, off, edgeCount);
+	off += edgeCount * 4;
+	const targetSynset = new Int32Array(buffer, off, edgeCount);
+	off += edgeCount * 4;
+	const synsetOffsets = new Int32Array(buffer, off, synsetCount + 1);
+	off += (synsetCount + 1) * 4;
 	const categories = new Uint8Array(buffer, off, edgeCount);
 	off += edgeCount;
-	if (version === 2) synsetBlob = new Uint8Array(buffer, off);
+	const synsetBlob = new Uint8Array(buffer, off);
 
 	if (offsets[0] !== 0 || offsets[rows] !== edgeCount) fail('bad CSR offsets');
 	for (let row = 0; row < rows; row++) {
@@ -125,27 +114,23 @@ export async function decodeWordNet(
 			const target = targets[edge]!;
 			if (target < 0 || target >= words.length) fail(`target ${target} outside the vocabulary`);
 			if (rowMap[target] === row) fail(`target ${target} resolves to its own row`);
-			if (version === 2) {
-				const source = sourceSynset[edge]!;
-				const destination = targetSynset[edge]!;
-				if (source < 0 || source >= synsetCount)
-					fail(`source synset ${source} outside the synset table`);
-				if (destination < 0 || destination >= synsetCount)
-					fail(`target synset ${destination} outside the synset table`);
-			}
+			const source = sourceSynset[edge]!;
+			const destination = targetSynset[edge]!;
+			if (source < 0 || source >= synsetCount)
+				fail(`source synset ${source} outside the synset table`);
+			if (destination < 0 || destination >= synsetCount)
+				fail(`target synset ${destination} outside the synset table`);
 		}
 	}
-	if (version === 2) {
-		if (synsetOffsets[0] !== 0 || synsetOffsets[synsetCount] !== synsetBlob.byteLength) {
-			fail('bad synset offsets');
-		}
-		for (let index = 0; index < synsetCount; index++) {
-			if (synsetOffsets[index]! > synsetOffsets[index + 1]!) fail('bad synset offsets');
-		}
+	if (synsetOffsets[0] !== 0 || synsetOffsets[synsetCount] !== synsetBlob.byteLength) {
+		fail('bad synset offsets');
+	}
+	for (let index = 0; index < synsetCount; index++) {
+		if (synsetOffsets[index]! > synsetOffsets[index + 1]!) fail('bad synset offsets');
 	}
 
 	return {
-		meta: version === 2 ? meta : { ...meta, synsetCount: 0 },
+		meta,
 		rowMap,
 		offsets,
 		targets,
