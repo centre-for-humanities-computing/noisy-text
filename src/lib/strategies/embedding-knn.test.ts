@@ -91,7 +91,7 @@ describe('createEmbeddingKnn', () => {
 	it('builds a strategy with a provider and jumps through the kernel', () => {
 		const K = 10;
 		const provider = new NeighborhoodProvider(fakeModel(K), Infinity, { maxStored: 200 });
-		const s = createEmbeddingKnn(baseConfig, K, provider);
+		const s = createEmbeddingKnn(baseConfig, K, { provider });
 		// draw 1: coin (>= beta stays; we pass beta=1 so always jump)
 		// draw 2: kernel draw; epsilon=0 so inverse-CDF over {1,2} uniform-ish
 		const { rng } = countingRng([0.0, 0.0]);
@@ -102,7 +102,7 @@ describe('createEmbeddingKnn', () => {
 	it('sampleStep draws exactly 2 rng values per call (stay branch too)', () => {
 		const K = 10;
 		const provider = new NeighborhoodProvider(fakeModel(K), Infinity, { maxStored: 200 });
-		const s = createEmbeddingKnn(baseConfig, K, provider);
+		const s = createEmbeddingKnn(baseConfig, K, { provider });
 		const { rng, count } = countingRng([0.99, 0.5]);
 		// coin=0.99 >= beta=0.1 → stay, but both draws still happen.
 		const out = s.sampleStep(3, 0.1, rng);
@@ -113,7 +113,7 @@ describe('createEmbeddingKnn', () => {
 	it('getLocalDistribution sums to 1 and concentrates on the kernel row', () => {
 		const K = 10;
 		const provider = new NeighborhoodProvider(fakeModel(K), Infinity, { maxStored: 200 });
-		const s = createEmbeddingKnn(baseConfig, K, provider);
+		const s = createEmbeddingKnn(baseConfig, K, { provider });
 		const dist = s.getLocalDistribution!(3, 0.5);
 		expect(dist.length).toBe(K);
 		const sum = dist.reduce((a, b) => a + b, 0);
@@ -128,7 +128,7 @@ describe('createEmbeddingKnn', () => {
 		const provider = new NeighborhoodProvider(model, Infinity, { maxStored: 50 });
 		// The worker passes K + |OOV| as the strategy vocab size; ids >= K
 		// have no matrix row and must be uniform rather than NaN.
-		const s = createEmbeddingKnn(baseConfig, K + 1, provider);
+		const s = createEmbeddingKnn(baseConfig, K + 1, { provider });
 
 		const dist = s.getLocalDistribution!(K, 1);
 		expect(dist.length).toBe(K + 1);

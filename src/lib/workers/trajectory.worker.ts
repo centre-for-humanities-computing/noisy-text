@@ -47,6 +47,7 @@ import type {
 } from './trajectory.protocol.js';
 import { buildNeighborGraph } from '../strategies/neighbor-graph.js';
 import type { NeighborGraphParams } from '../strategies/neighbor-graph.js';
+import type { WordNetResource } from '../wordnet/table.js';
 import { buildUnionGraph } from '../engine/union-graph.js';
 import { computeForceLayoutLarge } from '../engine/force-layout.js';
 import type { TrajectoryWorkerUnionGraphRequest, UnionGraph } from './trajectory.protocol.js';
@@ -304,6 +305,7 @@ interface StrategyResource {
 	provider?: NeighborhoodProvider;
 	graphParams: NeighborGraphParams | null;
 	embedding?: EmbeddingResource;
+	wordnet?: WordNetResource;
 }
 
 /**
@@ -325,6 +327,7 @@ async function resolveStrategyResource(
 	let provider: NeighborhoodProvider | undefined;
 	let graphParams: NeighborGraphParams | null = null;
 	let embedding: EmbeddingResource | undefined;
+	let wordnet: WordNetResource | undefined;
 
 	if (strategyId === 'lexical') {
 		provider = await ensureDistanceSourceProvider(
@@ -375,6 +378,7 @@ async function resolveStrategyResource(
 		provider,
 		graphParams,
 		embedding,
+		wordnet,
 	};
 }
 
@@ -440,7 +444,7 @@ async function handleCompute(
 
 	try {
 		// Build (or reuse) the provider for the strategy's resource.
-		const { provider, embedding } = await resolveStrategyResource(
+		const { provider, embedding, wordnet } = await resolveStrategyResource(
 			spec.strategyId,
 			spec.strategyConfig,
 			spec.tokenizerId,
@@ -497,7 +501,10 @@ async function handleCompute(
 			}
 		}
 
-		const strategy = getStrategy(spec.strategyId, spec.strategyConfig, spec.vocabSize, provider);
+		const strategy = getStrategy(spec.strategyId, spec.strategyConfig, spec.vocabSize, {
+			provider,
+			wordnet,
+		});
 		const schedule = getSchedule(spec.scheduleId, spec.scheduleConfig, spec.T);
 		const rng = createRng(spec.seed);
 		const frozen = frozenMaskFor(spec.inputIds, spec.vocabSize, spec.oovTokens);
@@ -560,7 +567,7 @@ async function handleNeighbors(
 	} = msg;
 
 	try {
-		const { provider, graphParams } = await resolveStrategyResource(
+		const { provider, graphParams, wordnet } = await resolveStrategyResource(
 			strategyId,
 			strategyConfig,
 			tokenizerId,
@@ -568,7 +575,7 @@ async function handleNeighbors(
 			vocabSize,
 		);
 
-		const strategy = getStrategy(strategyId, strategyConfig, vocabSize, provider);
+		const strategy = getStrategy(strategyId, strategyConfig, vocabSize, { provider, wordnet });
 		const tok = await loadTokenizer(tokenizerId);
 		const graph = buildNeighborGraph(
 			strategy,

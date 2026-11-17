@@ -1,5 +1,4 @@
-import type { NoiseStrategy, StrategyFactory } from './types.js';
-import type { NeighborhoodProvider } from './neighborhood.js';
+import type { NoiseStrategy, StrategyFactory, StrategyResources } from './types.js';
 import { ModelDistanceSource } from './distance-source.js';
 import { createTokenKernel } from './token-kernel.js';
 import { createKernelStrategy } from './kernel-strategy.js';
@@ -89,8 +88,9 @@ const LEXICAL_INFO = {
 export const createLexical: StrategyFactory<LexicalConfig> = (
 	config: LexicalConfig,
 	vocabSize: number,
-	provider?: NeighborhoodProvider,
+	resources: StrategyResources = {},
 ): NoiseStrategy<LexicalConfig> => {
+	const provider = resources.provider;
 	const family = getWeightFamily(config.family ?? 'exponential');
 
 	// Kernel over the provider's raw distance tables; `null` → uniform

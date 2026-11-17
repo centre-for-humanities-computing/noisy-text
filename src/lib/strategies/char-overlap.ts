@@ -1,5 +1,4 @@
-import type { NoiseStrategy, StrategyFactory } from './types.js';
-import type { NeighborhoodProvider } from './neighborhood.js';
+import type { NoiseStrategy, StrategyFactory, StrategyResources } from './types.js';
 import type { CharOverlapMode } from './char-overlap-model.js';
 import { ModelDistanceSource } from './distance-source.js';
 import { createTokenKernel } from './token-kernel.js';
@@ -93,8 +92,9 @@ const CHAR_OVERLAP_INFO = {
 export const createCharOverlap: StrategyFactory<CharOverlapConfig> = (
 	config: CharOverlapConfig,
 	vocabSize: number,
-	provider?: NeighborhoodProvider,
+	resources: StrategyResources = {},
 ): NoiseStrategy<CharOverlapConfig> => {
+	const provider = resources.provider;
 	const family = getWeightFamily(config.family ?? 'exponential');
 
 	// Kernel over the provider's raw distance tables; `null` → uniform

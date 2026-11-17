@@ -98,6 +98,14 @@ export interface NoiseStrategy<Config = unknown> {
 	getLocalDistribution?(token: number, beta: number): Float32Array;
 }
 
+/** Runtime data a strategy may need at construction time. */
+export interface StrategyResources {
+	/** Lazy neighbourhood provider (lexical, char-overlap, embedding-knn). */
+	provider?: import('./neighborhood.js').NeighborhoodProvider;
+	/** WordNet table plus the token-id → row index the walk reads. */
+	wordnet?: import('../wordnet/table.js').WordNetResource;
+}
+
 /**
  * A factory that creates a `NoiseStrategy` given a config and vocabulary size.
  *
@@ -107,5 +115,5 @@ export interface NoiseStrategy<Config = unknown> {
 export type StrategyFactory<Config = unknown> = (
 	config: Config,
 	vocabSize: number,
-	provider?: import('./neighborhood.js').NeighborhoodProvider,
+	resources?: StrategyResources,
 ) => NoiseStrategy<Config>;

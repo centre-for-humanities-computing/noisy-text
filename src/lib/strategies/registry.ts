@@ -1,4 +1,4 @@
-import type { NoiseStrategy, StrategyFactory, StrategyInfo } from './types.js';
+import type { NoiseStrategy, StrategyFactory, StrategyInfo, StrategyResources } from './types.js';
 import { createAbsorbing } from './absorbing.js';
 import { createCharOverlap } from './char-overlap.js';
 import { createIdentity } from './identity.js';
@@ -6,7 +6,6 @@ import { createLexical } from './lexical.js';
 import { createUniform } from './uniform.js';
 import { createEmbeddingKnn, EMBEDDING_KNN_INFO } from './embedding-knn.js';
 import { EMBEDDING_KNN_DEFAULTS } from './embedding-knn-defaults.js';
-import type { NeighborhoodProvider } from './neighborhood.js';
 
 /** All known strategies (metadata only — safe to import from UI code). */
 export const STRATEGIES: Record<string, StrategyInfo> = {
@@ -167,18 +166,18 @@ export function strategyConfigFor(
  * @param id - The strategy id (must be a key in `STRATEGIES`).
  * @param config - Strategy-specific configuration object.
  * @param vocabSize - Vocabulary size $K$ from the active tokenizer.
- * @param provider - Optional lazy neighborhood provider (for lexical).
+ * @param resources - Runtime data (neighbourhood provider, WordNet table).
  * @returns A configured `NoiseStrategy` instance.
  */
 export function getStrategy(
 	id: string,
 	config: unknown,
 	vocabSize: number,
-	provider?: NeighborhoodProvider,
+	resources: StrategyResources = {},
 ): NoiseStrategy<unknown> {
 	const factory = STRATEGY_FACTORIES[id];
 	if (!factory) {
 		throw new Error(`Unknown strategy "${id}". Known: ${Object.keys(STRATEGIES).join(', ')}`);
 	}
-	return factory(config, vocabSize, provider);
+	return factory(config, vocabSize, resources);
 }
