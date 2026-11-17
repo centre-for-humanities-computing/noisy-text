@@ -39,6 +39,7 @@
 | `identity`      | No noise; every token stays as itself. Hidden behind the debug toggle.                                                                                                                                                 | `point-mass`     |
 | `lexical`       | Tokens jump to spelling-similar tokens (edit distance), plus uniform floor.                                                                                                                                            | `data-dependent` |
 | `uniform`       | Each token independently samples uniformly from the vocab with prob βₜ.                                                                                                                                                | `uniform`        |
+| `wordnet`       | Tokens walk WordNet relation edges (hypernym, hyponym, synonym, meronym, holonym); each non-empty category gets equal mass and uncovered tokens stay.                                                                  | `data-dependent` |
 
 `neighbor-softmax.ts` holds the shared softmax + ergodicity-floor pipeline for
 neighbourhood-based strategies. `registry.ts` is the source of truth for ids
