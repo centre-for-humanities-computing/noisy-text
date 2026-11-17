@@ -247,6 +247,7 @@ class TrajectoryStore {
 					T: msg.T,
 					length: msg.length,
 					seed: msg.seed,
+					coverage: msg.coverage,
 					tokensAt(t: number): Int32Array {
 						return this.rows.subarray(t * this.length, (t + 1) * this.length);
 					},

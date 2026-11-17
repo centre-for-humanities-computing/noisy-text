@@ -4,7 +4,7 @@
 import { expect, test } from '@playwright/test';
 import { STRATEGIES } from '../src/lib/strategies/registry';
 
-const NEEDS_FIXTURE = new Set<string>(['embedding-knn']);
+const NEEDS_FIXTURE = new Set<string>(['embedding-knn', 'wordnet']);
 const TOKENIZER_TIMEOUT = 120_000;
 
 const strategies = Object.entries(STRATEGIES).filter(

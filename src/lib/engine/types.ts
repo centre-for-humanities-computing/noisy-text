@@ -63,6 +63,8 @@ export interface Trajectory {
 	readonly length: number;
 	/** The seed used to generate this trajectory. */
 	readonly seed: number;
+	/** Fraction of letter-bearing positions covered by WordNet, when active. */
+	readonly coverage?: number;
 
 	/**
 	 * Return a subarray view of the token ids at step $t$.

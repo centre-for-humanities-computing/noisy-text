@@ -67,7 +67,9 @@
 	 * indexed by the source model's own vocabulary. True while it is the
 	 * active strategy.
 	 */
-	const tokenizerLocked = $derived(strategyStore.currentId === 'embedding-knn');
+	const tokenizerLocked = $derived(
+		strategyStore.currentId === 'embedding-knn' || strategyStore.currentId === 'wordnet',
+	);
 
 	/**
 	 * Cache key for the union-graph build. Hashing the rows *content*
@@ -367,10 +369,14 @@
 			const t = tokenizerStore.tokenizer;
 			const info = strategyStore.info;
 			const strategyLabel = info ? ` · Strategy: ${info.label}` : '';
+			const coveragePart =
+				trajectoryStore.trajectory?.coverage !== undefined
+					? ` · Coverage: ${Math.round(trajectoryStore.trajectory.coverage * 100)}%`
+					: '';
 			const changedPart = changedCount !== null ? ` · ${changedCount} changed this step` : '';
 			const oovPart =
 				encoded.vocabSize > t.vocabSize ? ` (+${encoded.vocabSize - t.vocabSize} OOV)` : '';
-			return `${t.info.label} · Vocab: ${formatCount(t.vocabSize)}${oovPart} · Tokens: ${encoded.ids.length}${strategyLabel}${trajStatus}${changedPart}`;
+			return `${t.info.label} · Vocab: ${formatCount(t.vocabSize)}${oovPart} · Tokens: ${encoded.ids.length}${strategyLabel}${coveragePart}${trajStatus}${changedPart}`;
 		}
 		return 'Select a tokenizer';
 	});
@@ -447,6 +453,15 @@
 		const want = EMBEDDING_SOURCES[embeddingStore.sourceId].tokenizerId;
 		if (tokenizerStore.currentId !== want) {
 			tokenizerStore.selectTokenizer(want);
+		}
+	});
+
+	// WordNet rows are keyed by the `words` vocabulary, so keep that
+	// tokenizer active while the walk runs.
+	$effect(() => {
+		if (strategyStore.currentId !== 'wordnet') return;
+		if (tokenizerStore.currentId !== 'words') {
+			tokenizerStore.selectTokenizer('words');
 		}
 	});
 </script>

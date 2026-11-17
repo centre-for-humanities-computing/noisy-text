@@ -5,6 +5,7 @@ import { createIdentity } from './identity.js';
 import { createLexical } from './lexical.js';
 import { createUniform } from './uniform.js';
 import { createEmbeddingKnn, EMBEDDING_KNN_INFO } from './embedding-knn.js';
+import { createWordNet, WORDNET_INFO } from './wordnet.js';
 import { EMBEDDING_KNN_DEFAULTS } from './embedding-knn-defaults.js';
 
 /** All known strategies (metadata only — safe to import from UI code). */
@@ -75,6 +76,7 @@ export const STRATEGIES: Record<string, StrategyInfo> = {
 		},
 	},
 	'embedding-knn': EMBEDDING_KNN_INFO,
+	wordnet: WORDNET_INFO,
 } as const;
 
 /**
@@ -89,6 +91,7 @@ const STRATEGY_FACTORIES: Record<string, StrategyFactory<unknown>> = {
 	identity: createIdentity as StrategyFactory<unknown>,
 	lexical: createLexical as StrategyFactory<unknown>,
 	uniform: createUniform as StrategyFactory<unknown>,
+	wordnet: createWordNet as StrategyFactory<unknown>,
 };
 
 /**
