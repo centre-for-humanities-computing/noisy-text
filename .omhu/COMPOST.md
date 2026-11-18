@@ -45,3 +45,8 @@ A line named in an open issue's `**Compost:**` line is scheduled; `/implement` d
 - 2026-11-17 — Coverage outside the `words` tokenizer; the worker refuses wordnet with any other tokenizer — 1 — plan 1 on #94
 - 2026-11-17 — A wordnet e2e fixture spec for the tokenizer lock, status-line fraction and freeze mask; hand-checking stands for #94 — 1 — retro on #94
 - 2026-11-17 — Rework the retrospective so it reflects on the issue or milestone's process, not three thin questions with pre-written answers — 1 — retro on #94
+- 2026-11-17 — Glosses as a synset label or tooltip; a much larger blob, parked unless #91 asks — 1 — plan 1 on #104
+- 2026-11-17 — Sense-aware sampling or per-sense rows; the walk's state stays a token — 1 — plan 1 on #104
+- 2026-11-17 — Lexical relations with no synset pair (antonym, derivation); not in the bundle today — 1 — plan 1 on #104
+- 2026-11-17 — Showing the sense in the UI; that is #91 — 1 — plan 1 on #104
+- 2026-11-17 — A Python test harness for the WordNet exporter; #104 hand-checked dog and bank instead — 1 — plan 1 on #104

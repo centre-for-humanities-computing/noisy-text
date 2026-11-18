@@ -14,12 +14,15 @@ import type { WordNetResource } from '../wordnet/table.js';
  * At each step, a token $x$ stays with probability $1-\beta_t$, or jumps
  * with probability $\beta_t$ to a WordNet relation target. Outbound edges
  * are grouped by relation category (hypernym, hyponym, synonym, meronym,
- * holonym). Each non-empty category $c$ receives equal mass
- * $1/m(x)$, where $m(x)$ is the number of non-empty categories, shared
- * uniformly across that category's targets $T_c(x)$:
+ * holonym). Each non-empty category $c$ receives equal mass $1/m(x)$,
+ * where $m(x)$ is the number of non-empty categories, shared uniformly
+ * across that category's edges $E_c(x)$, so a target reached by two
+ * synsets of $x$ takes two shares:
  *
  * $$P(y \mid x) = (1-\beta_t)\,\mathbf{1}[y=x]
- *   + \beta_t \sum_c \frac{\mathbf{1}[y \in T_c(x)]}{m(x)\,|T_c(x)|}$$
+ *   + \beta_t \sum_c \frac{n_c(y \mid x)}{m(x)\,|E_c(x)|}$$
+ *
+ * where $n_c(y \mid x)$ counts the edges in $E_c(x)$ that end at $y$.
  *
  * A lemma with no outbound edge stays put; there is no uniform fallback.
  * The config is empty so the trajectory cache key is stable.
@@ -37,8 +40,8 @@ export const WORDNET_INFO: StrategyInfo = {
 	gloss:
 		'Words climb and descend the WordNet taxonomy — a dog becomes a canine, then an animal, then a broader kind of thing.',
 	tooltip: {
-		text: 'At each step, a token either stays the same or jumps to a WordNet neighbour. Outbound edges are grouped into five relation categories — hypernyms, hyponyms, synonyms, meronyms and holonyms. Each non-empty category gets equal mass, shared uniformly across its targets, so a word with two kinds of relation is equally likely to take either kind. A token with no outbound edge stays put.',
-		math: 'P(y \\mid x) = (1-\\beta_t)\\,\\mathbf{1}[y=x] + \\beta_t K(y\\mid x),\\quad K(y\\mid x) = \\frac{\\mathbf{1}[y \\in T_c(x)]}{m(x)\\,|T_c(x)|}',
+		text: 'At each step, a token either stays the same or jumps to a WordNet neighbour. Outbound edges are grouped into five relation categories — hypernyms, hyponyms, synonyms, meronyms and holonyms. Each non-empty category gets equal mass, shared uniformly across its edges, so a target reached from two senses takes a double share and a word with two kinds of relation is equally likely to take either kind. A token with no outbound edge stays put.',
+		math: 'P(y \\mid x) = (1-\\beta_t)\\,\\mathbf{1}[y=x] + \\beta_t K(y\\mid x),\\quad K(y\\mid x) = \\frac{n_c(y \\mid x)}{m(x)\\,|E_c(x)|}',
 	},
 };
 

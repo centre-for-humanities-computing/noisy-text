@@ -8,30 +8,71 @@ import {
 } from './loader.js';
 
 const words = ['dog', 'canine'];
-const bin = new ArrayBuffer(37);
-const bytes = new Uint8Array(bin);
-const view = new DataView(bin);
-bytes.set(new TextEncoder().encode('OEWN'));
-view.setUint32(4, 1, true);
-view.setUint32(8, 1, true);
-view.setUint32(12, 1, true);
-bytes.set(new Uint8Array(new Int32Array([0, -1]).buffer), 16);
-bytes.set(new Uint8Array(new Int32Array([0, 1]).buffer), 24);
-bytes.set(new Uint8Array(new Int32Array([1]).buffer), 32);
-bytes.set([0], 36);
+const synsets = ['oewn-00000001-n\tdog (n.)', 'oewn-00000002-n\tcanine (n.)'];
 const metaText = JSON.stringify({
 	source: 'oewn-2025',
 	vocabSha: '97b1689ef91765cb9b76ce1abe38138457cf764932cac37d141c0a7734f32226',
 	vocabSize: 2,
 	rows: 1,
 	edgeCount: 1,
+	synsetCount: synsets.length,
 	categoryOrder: WORDNET_CATEGORIES,
 });
+const bin = bundleWith([0, -1], 1);
 const baseUrl = 'https://example.test/wordnet';
 const response = (async (url: string) =>
 	String(url).endsWith('.meta.json')
 		? new Response(metaText)
 		: new Response(bin)) as unknown as typeof fetch;
+
+/** Hand-encoded v2: one hypernym to `target`, synsets 0 → 1. */
+function bundleWith(rowMap: [number, number], target: number): ArrayBuffer {
+	const encoder = new TextEncoder();
+	const entries = synsets.map((entry) => encoder.encode(entry));
+	const blobBytes = entries.reduce((total, entry) => total + entry.length, 0);
+	const out = new ArrayBuffer(20 + 8 + 8 + 4 + 4 + 4 + (synsets.length + 1) * 4 + 1 + blobBytes);
+	const bytes = new Uint8Array(out);
+	const view = new DataView(out);
+	bytes.set(encoder.encode('OEWN'));
+	view.setUint32(4, 2, true);
+	view.setUint32(8, 1, true);
+	view.setUint32(12, 1, true);
+	view.setUint32(16, synsets.length, true);
+	let off = 20;
+	bytes.set(new Uint8Array(new Int32Array(rowMap).buffer), off);
+	off += 8;
+	bytes.set(new Uint8Array(new Int32Array([0, 1]).buffer), off);
+	off += 8;
+	bytes.set(new Uint8Array(new Int32Array([target]).buffer), off);
+	off += 4;
+	bytes.set(new Uint8Array(new Int32Array([0]).buffer), off);
+	off += 4;
+	bytes.set(new Uint8Array(new Int32Array([1]).buffer), off);
+	off += 4;
+	const synsetOffsets = new Int32Array(synsets.length + 1);
+	let at = 0;
+	for (const [index, entry] of entries.entries()) {
+		at += entry.length;
+		synsetOffsets[index + 1] = at;
+	}
+	bytes.set(new Uint8Array(synsetOffsets.buffer), off);
+	off += synsetOffsets.byteLength;
+	bytes.set([0], off);
+	off += 1;
+	for (const entry of entries) {
+		bytes.set(entry, off);
+		off += entry.length;
+	}
+	return out;
+}
+
+function v1Bundle(): ArrayBuffer {
+	const out = new ArrayBuffer(20);
+	const bytes = new Uint8Array(out);
+	bytes.set(new TextEncoder().encode('OEWN'));
+	new DataView(out).setUint32(4, 1, true);
+	return out;
+}
 
 it('fetches on a miss and caches the bundle', async () => {
 	let puts = 0;
@@ -44,6 +85,23 @@ it('fetches on a miss and caches the bundle', async () => {
 	expect(puts).toBe(1);
 });
 
+it('decodes a v2 bundle with synset provenance', async () => {
+	const bundle = await decodeWordNet(metaText, bin, words);
+	expect(bundle.meta.synsetCount).toBe(2);
+	expect([...bundle.sourceSynset]).toEqual([0]);
+	expect([...bundle.targetSynset]).toEqual([1]);
+	expect(bundle.synsetOffsets[0]).toBe(0);
+	expect(bundle.synsetOffsets[1]).toBe(new TextEncoder().encode(synsets[0]).length);
+	expect(bundle.synsetOffsets[2]).toBe(bundle.synsetBlob.length);
+	expect(new TextDecoder().decode(bundle.synsetBlob)).toBe(synsets.join(''));
+});
+
+it('refuses a v1 bundle by version', async () => {
+	await expect(decodeWordNet(metaText, v1Bundle(), words)).rejects.toThrow(
+		'unsupported bundle version 1',
+	);
+});
+
 it('skips the network on a hit', async () => {
 	const cached = await decodeWordNet(metaText, bin, words);
 	const bundle = await loadWordNet(words, {
@@ -53,21 +111,6 @@ it('skips the network on a hit', async () => {
 	});
 	expect(bundle).toBe(cached);
 });
-
-function bundleWith(rowMap: [number, number], target: number): ArrayBuffer {
-	const out = new ArrayBuffer(37);
-	const bytes = new Uint8Array(out);
-	const view = new DataView(out);
-	bytes.set(new TextEncoder().encode('OEWN'));
-	view.setUint32(4, 1, true);
-	view.setUint32(8, 1, true);
-	view.setUint32(12, 1, true);
-	bytes.set(new Uint8Array(new Int32Array(rowMap).buffer), 16);
-	bytes.set(new Uint8Array(new Int32Array([0, 1]).buffer), 24);
-	bytes.set(new Uint8Array(new Int32Array([target]).buffer), 32);
-	bytes.set([0], 36);
-	return out;
-}
 
 it('keys the cache by the vocabulary digest', async () => {
 	const store = new Map<string, WordNetBundle>();

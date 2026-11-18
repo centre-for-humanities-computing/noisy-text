@@ -28,7 +28,7 @@ ATTRIBUTION = (
 )
 CATEGORIES = ("hypernym", "hyponym", "synonym", "meronym", "holonym")
 CATEGORY_INDEX = {category: i for i, category in enumerate(CATEGORIES)}
-MAGIC, VERSION = b"OEWN", 1
+MAGIC, VERSION = b"OEWN", 2
 # Stored WN-LMF relation type -> (forward category, inverse category).
 RELATIONS = {
     "hypernym": ("hypernym", "hyponym"),
@@ -95,8 +95,17 @@ def read_lmf(path: str):
     return forms, lemma_synsets, synset_lemmas, synset_edges
 
 
+def synset_label(synset: str, lemma_id: dict[str, int], synset_lemmas, vocab_size: int) -> str:
+    """Lowest static lemma id (lexicographic tie-break) plus the id's POS."""
+    lemma = min(
+        synset_lemmas[synset], key=lambda lemma: (lemma_id.get(lemma, vocab_size), lemma)
+    )
+    pos = synset.rsplit("-", 1)[-1]
+    return f"{lemma} ({pos}.)"
+
+
 def build(vocab: list[str], lmf):
-    """Build the row map, CSR sections and manifest fields."""
+    """Build the row map, CSR sections, synset table and manifest fields."""
     forms, lemma_synsets, synset_lemmas, synset_edges = lmf
     from wn.morphy import Morphy
 
@@ -119,17 +128,23 @@ def build(vocab: list[str], lmf):
         if row_lemmas:
             groups[frozenset(row_lemmas)].append(token_id)
 
-    row_map, offsets = [-1] * len(vocab), [0]
-    targets: list[int] = []
-    categories: list[int] = []
+    row_map = [-1] * len(vocab)
+    row_edges: list[tuple[list[int], set[tuple[int, int, str, str]]]] = []
     covered: set[str] = set()
     for row_lemmas, token_ids in sorted(groups.items(), key=lambda item: min(item[1])):
-        edges: set[tuple[int, int]] = set()
+        edges: set[tuple[int, int, str, str]] = set()
         for lemma in row_lemmas:
             for synset in lemma_synsets.get(lemma, ()):
                 for target_lemma in synset_lemmas.get(synset, ()):
                     if target_lemma not in row_lemmas and target_lemma in lemma_id:
-                        edges.add((lemma_id[target_lemma], CATEGORY_INDEX["synonym"]))
+                        edges.add(
+                            (
+                                lemma_id[target_lemma],
+                                CATEGORY_INDEX["synonym"],
+                                synset,
+                                synset,
+                            )
+                        )
                 for target_synset, category in synset_edges.get(synset, ()):
                     for target_lemma in synset_lemmas.get(target_synset, ()):
                         if target_lemma in row_lemmas or target_lemma not in lemma_id:
@@ -137,16 +152,47 @@ def build(vocab: list[str], lmf):
                         target_id = lemma_id[target_lemma]
                         if not 0 <= target_id < len(vocab):
                             raise SystemExit(f"error: target {target_id} outside the static ids")
-                        edges.add((target_id, CATEGORY_INDEX[category]))
+                        edges.add(
+                            (
+                                target_id,
+                                CATEGORY_INDEX[category],
+                                synset,
+                                target_synset,
+                            )
+                        )
         if not edges:
             continue
+        row_edges.append((token_ids, edges))
+        covered.update(row_lemmas)
+
+    synset_ids = sorted(
+        {synset for _, edges in row_edges for edge in edges for synset in (edge[2], edge[3])}
+    )
+    synset_index = {synset: index for index, synset in enumerate(synset_ids)}
+
+    offsets = [0]
+    targets: list[int] = []
+    categories: list[int] = []
+    source_synset: list[int] = []
+    target_synset: list[int] = []
+    for token_ids, edges in row_edges:
         for token_id in token_ids:
             row_map[token_id] = len(offsets) - 1
-        for target_id, category in sorted(edges, key=lambda edge: (edge[1], edge[0])):
+        for target_id, category, source, target in sorted(
+            edges, key=lambda edge: (edge[1], edge[0], edge[2], edge[3])
+        ):
             targets.append(target_id)
             categories.append(category)
+            source_synset.append(synset_index[source])
+            target_synset.append(synset_index[target])
         offsets.append(len(targets))
-        covered.update(row_lemmas)
+
+    synset_offsets = [0]
+    blob = bytearray()
+    for synset in synset_ids:
+        entry = f"{synset}\t{synset_label(synset, lemma_id, synset_lemmas, len(vocab))}"
+        blob.extend(entry.encode("utf-8"))
+        synset_offsets.append(len(blob))
 
     manifest = {
         "source": SOURCE,
@@ -156,10 +202,21 @@ def build(vocab: list[str], lmf):
         "vocabSize": len(vocab),
         "rows": len(offsets) - 1,
         "edgeCount": len(targets),
+        "synsetCount": len(synset_ids),
         "coveredLemmas": len(covered),
         "categoryOrder": list(CATEGORIES),
     }
-    return row_map, offsets, targets, categories, manifest
+    return (
+        row_map,
+        offsets,
+        targets,
+        source_synset,
+        target_synset,
+        synset_offsets,
+        categories,
+        bytes(blob),
+        manifest,
+    )
 
 
 def upload(paths: list[str], repo: str, revision: str | None) -> str:
@@ -196,28 +253,51 @@ def main(argv: list[str] | None = None) -> int:
 
     vocab = load_vocab(args.vocab)
     print(f"parsing {args.source}")
-    row_map, offsets, targets, categories, manifest = build(vocab, read_lmf(args.source))
+    (
+        row_map,
+        offsets,
+        targets,
+        source_synset,
+        target_synset,
+        synset_offsets,
+        categories,
+        blob,
+        manifest,
+    ) = build(vocab, read_lmf(args.source))
     import numpy as np
 
     os.makedirs(args.out, exist_ok=True)
     bin_path = os.path.join(args.out, f"{SOURCE}.bin")
     meta_path = os.path.join(args.out, f"{SOURCE}.meta.json")
     with open(bin_path, "wb") as handle:
-        handle.write(struct.pack("<4sIII", MAGIC, VERSION, manifest["rows"], len(targets)))
+        handle.write(
+            struct.pack(
+                "<4sIIII",
+                MAGIC,
+                VERSION,
+                manifest["rows"],
+                len(targets),
+                manifest["synsetCount"],
+            )
+        )
         for values, dtype in (
             (row_map, "<i4"),
             (offsets, "<i4"),
             (targets, "<i4"),
+            (source_synset, "<i4"),
+            (target_synset, "<i4"),
+            (synset_offsets, "<i4"),
             (categories, "u1"),
         ):
             np.asarray(values, dtype=dtype).tofile(handle)
+        handle.write(blob)
     with open(meta_path, "w", encoding="utf-8") as handle:
         json.dump(manifest, handle, indent=2)
         handle.write("\n")
 
     print(
         f"wrote {manifest['rows']:,} rows, {manifest['edgeCount']:,} edges, "
-        f"{manifest['coveredLemmas']:,} covered lemmas"
+        f"{manifest['synsetCount']:,} synsets, {manifest['coveredLemmas']:,} covered lemmas"
     )
     for path in (bin_path, meta_path):
         print(f"wrote {path} ({os.path.getsize(path):,} bytes)")

@@ -45,3 +45,7 @@ Facts: 1 walk · 1 review round · 4 slices · +525/−67
 "I've started skipping retrospectives at an alarming rate," and the one just run was disappointing: three not-very-interesting questions with pre-written answers, not a reflection on the process of the issue or milestone. It has to improve if it is going to be valuable.
 [workflow] The fixed three-question shape with option lists turns reflection into a form; these questions did not reach the process of #94.
 Facts: 1 walk · 1 review round · 4 slices · +525/−67
+
+## 2026-11-17 — implement — what did the estimates miss?
+
+Noticed: the plan guessed ~6 MB for the bundle and the export landed at 4.05 MB — the label blob is under 1 MB, not the ~3 MB assumed, so richer labels would fit. Churn came in at 487 added / 215 deleted against a ~430 estimate because the shared fixture and the loader tests rewrite around the v2 section order rather than one hand-built bundle.

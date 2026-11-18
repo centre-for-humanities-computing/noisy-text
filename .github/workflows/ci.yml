@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [main]
 
+# onnxruntime-node 1.21.0's postinstall fetches a CUDA tarball from
+# github.com/microsoft/onnxruntime/releases/tag/v1.21.0, which 404s now that
+# the release is gone upstream. CI has no GPU and the package ships the CPU
+# binaries, so skip the download (drop this when a newer onnxruntime-node lands).
+env:
+  ONNXRUNTIME_NODE_INSTALL_CUDA: skip
+
 jobs:
   lint:
     runs-on: ubuntu-latest
