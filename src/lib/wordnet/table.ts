@@ -2,7 +2,7 @@ import type { WordNetBundle, WordNetCategory } from './loader.js';
 
 /** One outbound edge from a lemma row. */
 export interface WordNetRelation {
-	/** Index of the edge in bundle order; unique per `(target, category)` pair. */
+	/** Index of the edge in bundle order; two edges can share a `(target, category)` pair. */
 	edge: number;
 	target: number;
 	category: WordNetCategory;
@@ -91,8 +91,7 @@ export function createWordNetTable(bundle: WordNetBundle, words: readonly string
 		const end = bundle.synsetOffsets[index + 1]!;
 		const text = decoder.decode(bundle.synsetBlob.subarray(start, end));
 		const tab = text.indexOf('\t');
-		const value =
-			tab < 0 ? { id: text, label: text } : { id: text.slice(0, tab), label: text.slice(tab + 1) };
+		const value = { id: text.slice(0, tab), label: text.slice(tab + 1) };
 		synsets.set(index, value);
 		return value;
 	}

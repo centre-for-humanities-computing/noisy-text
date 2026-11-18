@@ -5,7 +5,7 @@ The WordNet half of the playground: OEWN 2025 relations keyed by the static
 
 The `wordnet` strategy walks one relation edge per jump. Each non-empty
 relation category (hypernym, hyponym, synonym, meronym, holonym) gets equal
-mass, shared uniformly across its targets; a lemma with no outbound edge stays
+mass, shared uniformly across its edges; a lemma with no outbound edge stays
 put. The worker builds one K_eff token-id → row index and uses it for the
 kernel, the freeze mask and coverage, so OOV case variants walk the same row
 as their static lemma.

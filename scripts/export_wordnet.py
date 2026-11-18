@@ -97,9 +97,9 @@ def read_lmf(path: str):
 
 def synset_label(synset: str, lemma_id: dict[str, int], synset_lemmas, vocab_size: int) -> str:
     """Lowest static lemma id (lexicographic tie-break) plus the id's POS."""
-    lemmas = synset_lemmas.get(synset, ())
-    ordered = sorted(lemmas, key=lambda lemma: (lemma_id.get(lemma, vocab_size), lemma))
-    lemma = ordered[0] if ordered else ""
+    lemma = min(
+        synset_lemmas[synset], key=lambda lemma: (lemma_id.get(lemma, vocab_size), lemma)
+    )
     pos = synset.rsplit("-", 1)[-1]
     return f"{lemma} ({pos}.)"
 
