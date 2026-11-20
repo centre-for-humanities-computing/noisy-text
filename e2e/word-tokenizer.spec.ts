@@ -13,8 +13,21 @@ async function routeVocab(page: Page, counter: { n: number }): Promise<void> {
 	});
 }
 
+/**
+ * Unlock the tokenizer picker before selecting a tokenizer. The first-load
+ * `embedding-knn` strategy owns the tokenizer, so choose a strategy that does
+ * not before switching tokenizers.
+ */
+async function unlockTokenizer(page: Page): Promise<void> {
+	const uniform = page.getByTestId('strategy-uniform');
+	await expect(uniform).toBeEnabled({ timeout: TIMEOUT });
+	await uniform.click();
+	await expect(uniform).toHaveAttribute('aria-checked', 'true');
+}
+
 /** Wait for a tokenizer card to be clickable, then select it. */
 async function selectTokenizer(page: Page, id: string): Promise<void> {
+	await unlockTokenizer(page);
 	const card = page.getByTestId(`tokenizer-${id}`);
 	await expect(card).toBeEnabled({ timeout: TIMEOUT });
 	await card.click();

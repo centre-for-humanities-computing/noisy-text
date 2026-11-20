@@ -19,6 +19,11 @@ test('embedding-knn keeps the word tokenizer and never reads OOV rows', async ({
 	await page.goto('/');
 	await expect(page.getByTestId('noise-button')).toBeEnabled({ timeout: TIMEOUT });
 	await page.getByTestId('input-text').fill(INPUT);
+	// The first-load `embedding-knn` strategy locks the tokenizer picker.
+	const uniform = page.getByTestId('strategy-uniform');
+	await expect(uniform).toBeEnabled({ timeout: TIMEOUT });
+	await uniform.click();
+	await expect(uniform).toHaveAttribute('aria-checked', 'true');
 	await page.getByTestId('tokenizer-words').click();
 	await expect(page.getByTestId('tokenizer-words')).toHaveAttribute('aria-checked', 'true');
 

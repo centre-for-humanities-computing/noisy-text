@@ -400,8 +400,11 @@
 
 	// Request trajectory computation whenever inputs change. The store call is
 	// untracked: a cache hit clamps `t`, and that read must not re-run this
-	// effect on every slider move.
+	// effect on every slider move. Skipped in edit mode: nothing displays a
+	// trajectory there, and the first-load embedding-knn default would
+	// otherwise fetch its bundle before the visitor presses "Walk it".
 	$effect(() => {
+		if (viewStore.mode !== 'explore') return;
 		const ids = encoded.ids;
 		const tok = tokenizerStore.tokenizer;
 		if (!tok || ids.length === 0) return;

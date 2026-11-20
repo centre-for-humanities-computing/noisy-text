@@ -68,6 +68,17 @@ async function selectCard(page: import('@playwright/test').Page, testid: string)
 	await expect(card).toHaveAttribute('aria-checked', 'true');
 }
 
+/**
+ * The first-load `embedding-knn` strategy locks the tokenizer picker; choose a
+ * strategy that does not own the tokenizer before switching tokenizers.
+ */
+async function unlockTokenizer(page: import('@playwright/test').Page) {
+	const uniform = page.getByTestId('strategy-uniform');
+	await expect(uniform).toBeEnabled({ timeout: TOKENIZER_TIMEOUT });
+	await uniform.click();
+	await expect(uniform).toHaveAttribute('aria-checked', 'true');
+}
+
 /** Wait for the trajectory recompute to finish. */
 async function waitForReady(page: import('@playwright/test').Page) {
 	const status = page.getByTestId('app-status');
@@ -89,6 +100,7 @@ for (const fixture of FIXTURES) {
 		await page.goto('/');
 		// Wait for the app to be hydrated and the tokenizer loaded before
 		// filling the textarea, or the fill is overwritten by the default.
+		await unlockTokenizer(page);
 		await selectCard(page, `tokenizer-${id}`);
 		await page.getByTestId('input-text').fill(fixture.input);
 		await page.getByTestId('noise-button').click();
