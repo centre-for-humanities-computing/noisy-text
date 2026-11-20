@@ -1,5 +1,5 @@
 def main():
-    print("Hello from noisy-text!")
+    print("Hello from token-walks!")
 
 
 if __name__ == "__main__":
