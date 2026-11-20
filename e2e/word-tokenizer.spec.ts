@@ -1,5 +1,6 @@
 // End-to-end coverage for the hosted word tokenizer and its OOV ids.
 import { expect, test, type Page } from '@playwright/test';
+import { unlockTokenizer } from './pickers';
 import { readProse } from './prose';
 
 const FIXTURE = 'e2e/fixtures/word-vocab/word-vocab-50k.json';
@@ -13,21 +14,9 @@ async function routeVocab(page: Page, counter: { n: number }): Promise<void> {
 	});
 }
 
-/**
- * Unlock the tokenizer picker before selecting a tokenizer. The first-load
- * `embedding-knn` strategy owns the tokenizer, so choose a strategy that does
- * not before switching tokenizers.
- */
-async function unlockTokenizer(page: Page): Promise<void> {
-	const uniform = page.getByTestId('strategy-uniform');
-	await expect(uniform).toBeEnabled({ timeout: TIMEOUT });
-	await uniform.click();
-	await expect(uniform).toHaveAttribute('aria-checked', 'true');
-}
-
 /** Wait for a tokenizer card to be clickable, then select it. */
 async function selectTokenizer(page: Page, id: string): Promise<void> {
-	await unlockTokenizer(page);
+	await unlockTokenizer(page, TIMEOUT);
 	const card = page.getByTestId(`tokenizer-${id}`);
 	await expect(card).toBeEnabled({ timeout: TIMEOUT });
 	await card.click();

@@ -14,8 +14,7 @@ Each step moves a token to a neighbour with probability $\beta_t$, and the
 schedule controls how $\beta_t$ grows over time. The maths follows the D3PM
 framework of Austin et al. (2021): every strategy defines a Markov transition
 matrix $Q_t = (1-\beta_t)I + \beta_t R$, sampled one step at a time from the
-current text. The chain is one mechanism for moving tokens through the space,
-not the point of the app.
+current text.
 
 ## Development
 

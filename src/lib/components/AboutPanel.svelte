@@ -31,7 +31,7 @@
 	<div class="about-panel">
 		<button class="close-btn" aria-label="Close" onclick={close}>&times;</button>
 
-		<h2>Token Walks</h2>
+		<h2>How this works</h2>
 
 		<p>
 			<strong>Token Walks</strong> treats text as a place. A tokenizer cuts your text into tokens, and

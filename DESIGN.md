@@ -67,7 +67,7 @@ pages — the transition is an in-place layout change.
 
 ### 3.2 Explore mode (the core)
 
-Triggered explicitly by the **"Noise it"** button.
+Triggered explicitly by the **"Walk it"** button.
 
 - The input field collapses to a slim, single-line summary bar at the top:
   the first ~60 chars of the source text plus an **"Edit"** affordance that
