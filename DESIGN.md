@@ -9,14 +9,20 @@ where the two conflict. See §9 for the reconciliation.
 
 ## 1. Intent
 
-`noisy-text` is an in-browser playground for exploring **discrete forward noise
-processes over text** (D3PM-inspired; forward process only — see
-`AGENT_CONTEXT.md` for the maths and non-goals, which still hold). This document
-redefines the _experience_ around that engine.
+Token Walks is an in-browser playground for exploring text as **spatially
+embedded**: tokens placed in a space by their embeddings and their relations,
+with networks of similarity drawn between them. The slider is one way to walk a
+token through that network; the hover inspector and the full graph are others.
+Direct clicks and mixed strategies are the direction, not shipped interactions.
+See `AGENT_CONTEXT.md` for the maths and non-goals, which still hold. This
+document redefines the _experience_ around that walk.
 
-The prior UX was a stack of controls with the noisy text buried at the bottom.
-This design inverts that: **the decaying text is the centre of attention**, and
-everything else is arranged to support unhurried exploration of it.
+The D3PM forward chain stays documented as one mechanism for moving tokens, not
+as the purpose of the app.
+
+The prior UX was a stack of controls with the text buried at the bottom. This
+design inverts that: **the text and its network are the centre of attention**,
+and everything else is arranged to support unhurried exploration of them.
 
 ### Audience (revised)
 
@@ -24,8 +30,8 @@ Research colleagues spanning **literature, aesthetics, NLP, and computer
 science**. Design implication: a literature scholar and an NLP researcher must
 _both_ feel invited. That means:
 
-- The default experience reads like watching prose decay — no ML vocabulary
-  required to get value.
+- The default experience reads like watching prose wander through its
+  neighbourhoods — no ML vocabulary required to get value.
 - Technical depth (transition distributions, schedule plots, seeds, $\beta_t$)
   is present but **progressively disclosed**, never forced.
 
@@ -51,9 +57,9 @@ pages — the transition is an in-place layout change.
 
 - A generous, centred text field, preloaded with example text so the app
   "just works" on first load.
-- A short one-line explanation above it: _"Paste some text, then watch it
-  dissolve through a noise process."_
-- A primary button: **"Noise it →"**.
+- A short one-line explanation above it: _"Paste some text, then walk its tokens
+  through a network of similarity."_
+- A primary button: **"Walk it →"**.
 - **Tokenizer and Strategy pickers are visible here** (see §6.1). They are
   the two choices that fundamentally shape the noise process, and users should
   be aware of them before they begin. Each has a short plain-language caption.
@@ -219,15 +225,16 @@ user isn't re-toggling constantly.
 Chosen approaches (all in scope):
 
 - **Sensible defaults + preloaded example text** so first load is immediately
-  meaningful. Default: GPT-2 tokenizer, Absorbing strategy, Linear schedule,
-  example text already in the field.
+  meaningful. Default: GPT-2 tokenizer, the embedding nearest-neighbour strategy
+  over GPT-2 vectors, Linear schedule, example text already in the field.
 - **Inline captions** near each control in plain language (see §6).
 - **Info tooltips (?)** offering the deeper explanation, including the maths in
   `$...$` notation (e.g. the $\beta_t$ schedule, the categorical step). Plain
   language first line, maths second.
-- **"How this works" panel** — a dismissible About panel giving the D3PM
-  forward-process intuition in a few short paragraphs, aimed at the
-  non-technical reader. Reachable from a persistent small "?" in the header.
+- **"How this works" panel** — a dismissible About panel giving the
+  walk-through-networks intuition in a few short paragraphs, with the D3PM
+  forward chain explained beneath it, aimed at the non-technical reader.
+  Reachable from a persistent small "?" in the header.
 
 Every label must have a plain-language gloss. Rule of thumb: _a literature
 scholar should understand every visible word without a glossary; the maths is

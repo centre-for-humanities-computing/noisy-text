@@ -469,11 +469,11 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <main>
-	<h1>noisy-text</h1>
+	<h1>Token Walks</h1>
 
 	{#if viewStore.mode === 'edit'}
 		<!-- ===== EDIT MODE ===== -->
-		<p class="intro">Paste some text, then watch it dissolve through a noise process.</p>
+		<p class="intro">Paste some text, then walk its tokens through a network of similarity.</p>
 
 		<div class="edit-pickers">
 			<div class="picker-group">
@@ -524,7 +524,7 @@
 				viewStore.mode = 'explore';
 			}}
 		>
-			Noise it &rarr;
+			Walk it &rarr;
 		</button>
 	{:else}
 		<!-- ===== EXPLORE MODE ===== -->
