@@ -56,4 +56,6 @@ A line named in an open issue's `**Compost:**` line is scheduled; `/implement` d
 - 2026-11-20 — Rewriting DESIGN §3.2–§7 and §10; the direct-manipulation interactions they describe do not exist yet — 1 — plan 1 on #107
 - 2026-11-20 — The GitHub repository rename; a human settings action whose old URLs redirect — 1 — plan 1 on #107
 - 2026-11-20 — Changing "noise" in the diffusion surfaces themselves; strategy labels, glosses and tooltips keep that vocabulary on purpose — 1 — plan 1 on #107
-- 2026-11-20 — Making click-to-flip or mixed strategies real; the copy must not promise them — 1 — plan 1 on #107
+- 2026-11-20 — Click-to-flip, neighbour-jump, interleaving and mixed strategies stay unbuilt and get no implementation issues until Direct manipulation is cultivated; the copy must not promise them — 2 — plan 1 on #107 and #108
+- 2026-11-21 — A creative-writing milestone or sentence; it stays an aspiration — 1 — plan 1 on #108
+- 2026-11-21 — Re-labelling or closing the old backlog beyond the #110 move; history stays readable — 1 — plan 1 on #108

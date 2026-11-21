@@ -49,3 +49,7 @@ Facts: 1 walk · 1 review round · 4 slices · +525/−67
 ## 2026-11-17 — implement — what did the estimates miss?
 
 Noticed: the plan guessed ~6 MB for the bundle and the export landed at 4.05 MB — the label blob is under 1 MB, not the ~3 MB assumed, so richer labels would fit. Churn came in at 487 added / 215 deleted against a ~430 estimate because the shared fixture and the loader tests rewrite around the v2 section order rather than one hand-built bundle.
+
+## 2026-11-21 — implement — the walk's answers overruled its own bullets
+
+Noticed: the walk's "Decided" bullets kept M2–M6 as five slots with click inside M2, but its later "Still open" answers gave click its own milestone and dropped the numbers; the later answers won. AC5's "only through `milestone edit --description`" was narrower than that answer — the renames needed `--title` and the new milestone needed `create` — so the table names every title change.
