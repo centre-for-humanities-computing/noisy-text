@@ -34,29 +34,31 @@
 		<h2>How this works</h2>
 
 		<p>
-			<strong>noisy-text</strong> lets you watch text dissolve through a
-			<em>noise process</em> — a step-by-step random walk that gradually corrupts each token. It's inspired
-			by diffusion models, the same family of techniques behind modern image and audio generators, but
-			applied to discrete text instead of continuous pixels.
+			<strong>Token Walks</strong> treats text as a place. A tokenizer cuts your text into tokens, and
+			a distance function places each one among its neighbours — by meaning, by spelling, or by the company
+			a language model keeps it in. The app draws those networks of similarity and lets you move tokens
+			through them.
 		</p>
 
 		<p>
-			Scrub the timeline back and forth to see the text decay and recover. At each step, every token
-			has a small chance of changing into something else. The <strong>strategy</strong>
-			decides <em>what</em> it changes into: a blank, a random token, a similarly-spelled token, or
-			a token that shares the same letters. The <strong>schedule</strong> controls <em>how fast</em> the
-			noise ramps up — gently at first, then faster, or at a steady pace. The highlights show you which
-			tokens changed most recently. Everything is deterministic: the same seed always produces the same
-			sequence of changes.
+			Scrub the timeline and every token has a small chance of jumping to a neighbour, step by step.
+			The <strong>strategy</strong> picks which network you walk — embedding neighbours, similar
+			spellings, shared letters, WordNet relations — and the <strong>schedule</strong> sets how fast the
+			jumps pile up. Hover over a token to see its immediate neighbourhood, or switch to the graph view
+			to see the whole network at once. Dragging tokens directly and mixing strategies are where this
+			is heading, not what it does yet. The highlights show you which tokens moved most recently. Everything
+			is deterministic: the same seed always produces the same walk.
 		</p>
 
 		<h3>What this is (and isn't)</h3>
 
 		<p>
-			This is a <strong>forward process only</strong> — it shows how text degrades under noise, not how
-			to reconstruct it. There's no training, no denoising, no text generation. It is merely a playground
-			for investigating different kinds of "noisy text".
+			This is a <strong>forward process only</strong> — it shows how text changes under a stochastic rule,
+			not how to reconstruct it. There's no training, no denoising, no text generation. It is a playground
+			for investigating how tokens move through different notions of similarity.
 		</p>
+
+		<h3>How it works</h3>
 
 		<p>
 			For the technical reader: the maths follows the D3PM framework (Austin et al., 2021). Each

@@ -20,7 +20,8 @@ import { idbGet, idbPut, hasIndexedDb, MATRIX_STORE } from './idb.js';
  */
 
 /**
- * HF dataset repo hosting the exported bundles (#28 round 2).
+ * HF dataset repo hosting the exported bundles (#28 round 2). Old spelling
+ * kept on purpose: pinned revisions and the export commands target this name.
  */
 export const HF_DATASET_REPO = 'chcaa/noisy-text-embeddings';
 /**

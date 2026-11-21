@@ -1,6 +1,7 @@
 // End-to-end coverage for embedding-kNN noise over the hosted word vocabulary.
 import { expect, test } from '@playwright/test';
 import { installTinyGloveBundle } from './fixtures/tiny-bundle';
+import { unlockTokenizer } from './pickers';
 
 const TIMEOUT = 120_000;
 const INPUT = 'the quick brown zorblax';
@@ -19,6 +20,7 @@ test('embedding-knn keeps the word tokenizer and never reads OOV rows', async ({
 	await page.goto('/');
 	await expect(page.getByTestId('noise-button')).toBeEnabled({ timeout: TIMEOUT });
 	await page.getByTestId('input-text').fill(INPUT);
+	await unlockTokenizer(page, TIMEOUT);
 	await page.getByTestId('tokenizer-words').click();
 	await expect(page.getByTestId('tokenizer-words')).toHaveAttribute('aria-checked', 'true');
 

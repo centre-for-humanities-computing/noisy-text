@@ -1,17 +1,22 @@
-# Text Diffusion Playground — Agent Context
+# Token Walks — Agent Context
 
 ## What this project is
 
-An in-browser playground for visualizing **discrete noise processes over text**,
-inspired by the D3PM framework of Austin et al. (2021). The goal is to build
-intuition about different ways of conceptualizing "noisy text" by letting a
-researcher type input, pick a noising strategy and schedule, and scrub a slider
-to see the text progressively decay.
+An in-browser playground for exploring text as spatially embedded. Tokenizers
+cut text into tokens, and distance functions — language-model embeddings,
+spelling, shared letters, WordNet relations — define networks of similarity
+between them. A visitor walks a token through such a network: by scrubbing a
+stochastic process on the timeline, by inspecting a token's local neighbourhood
+on hover, or by following the full graph.
 
-**This project is about visualizing forward noise processes only.** It does not
-train models, does not implement a reverse process, and does not compute ELBOs
-or losses. The D3PM paper is an inspiration and a source of mathematical
-structure, not a spec to follow slavishly.
+The D3PM chain is one mechanism for that walk, not the frame — it stays
+documented in `DESIGN.md` and in the maths below as a way of moving tokens, not
+as the project's purpose.
+
+**This project implements a forward process only.** It does not train models,
+does not implement a reverse process, and does not compute ELBOs or losses. The
+D3PM paper is an inspiration and a source of mathematical structure, not a spec
+to follow slavishly.
 
 ## Audience and deployment
 
@@ -77,8 +82,9 @@ any schedule.
 
 - Multiple selectable tokenizers (GPT-2 BPE, BERT WordPiece, hosted GloVe
   word vocabulary).
-- Strategies: uniform, absorbing (mask), lexical (edit distance), char-overlap
-  (Jaccard), plus identity behind a debug toggle. Semantic noise is future work.
+- Strategies: `uniform`, `absorbing` (mask), `lexical` (edit distance),
+  `char-overlap` (Jaccard), `embedding-knn` (language-model nearest
+  neighbours), `wordnet` (taxonomy walk), plus identity behind a debug toggle.
 - Schedules: linear, cosine, constant. Mutual-information-based is future work.
 - Time slider that scrubs smoothly through $[0, T]$.
 - Prose, token-chip, and full token-graph display modes.

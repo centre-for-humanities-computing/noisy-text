@@ -400,8 +400,11 @@
 
 	// Request trajectory computation whenever inputs change. The store call is
 	// untracked: a cache hit clamps `t`, and that read must not re-run this
-	// effect on every slider move.
+	// effect on every slider move. Skipped in edit mode: nothing displays a
+	// trajectory there, and selecting embedding-knn would otherwise fetch its
+	// bundle before the visitor presses "Walk it".
 	$effect(() => {
+		if (viewStore.mode !== 'explore') return;
 		const ids = encoded.ids;
 		const tok = tokenizerStore.tokenizer;
 		if (!tok || ids.length === 0) return;
@@ -469,11 +472,11 @@
 <svelte:window onkeydown={handleKeydown} />
 
 <main>
-	<h1>noisy-text</h1>
+	<h1>Token Walks</h1>
 
 	{#if viewStore.mode === 'edit'}
 		<!-- ===== EDIT MODE ===== -->
-		<p class="intro">Paste some text, then watch it dissolve through a noise process.</p>
+		<p class="intro">Paste some text, then walk its tokens through a network of similarity.</p>
 
 		<div class="edit-pickers">
 			<div class="picker-group">
@@ -524,7 +527,7 @@
 				viewStore.mode = 'explore';
 			}}
 		>
-			Noise it &rarr;
+			Walk it &rarr;
 		</button>
 	{:else}
 		<!-- ===== EXPLORE MODE ===== -->

@@ -50,3 +50,10 @@ A line named in an open issue's `**Compost:**` line is scheduled; `/implement` d
 - 2026-11-17 — Lexical relations with no synset pair (antonym, derivation); not in the bundle today — 1 — plan 1 on #104
 - 2026-11-17 — Showing the sense in the UI; that is #91 — 1 — plan 1 on #104
 - 2026-11-17 — A Python test harness for the WordNet exporter; #104 hand-checked dog and bank instead — 1 — plan 1 on #104
+- 2026-11-20 — Renaming the HF dataset repo or its card; pinned revisions and export commands point at it — 1 — plan 1 on #107
+- 2026-11-20 — Renaming the IndexedDB database; it would orphan every cached embedding and WordNet bundle — 1 — plan 1 on #107
+- 2026-11-20 — Hand-editing `package-lock.json` or `uv.lock`; regenerate with `npm install --package-lock-only` and `uv lock` — 1 — plan 1 on #107
+- 2026-11-20 — Rewriting DESIGN §3.2–§7 and §10; the direct-manipulation interactions they describe do not exist yet — 1 — plan 1 on #107
+- 2026-11-20 — The GitHub repository rename; a human settings action whose old URLs redirect — 1 — plan 1 on #107
+- 2026-11-20 — Changing "noise" in the diffusion surfaces themselves; strategy labels, glosses and tooltips keep that vocabulary on purpose — 1 — plan 1 on #107
+- 2026-11-20 — Making click-to-flip or mixed strategies real; the copy must not promise them — 1 — plan 1 on #107

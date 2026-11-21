@@ -5,8 +5,12 @@
 	import { viewStore } from '$lib/stores/view.svelte.js';
 </script>
 
+<svelte:head>
+	<title>Token Walks</title>
+</svelte:head>
+
 <header class="app-header">
-	<span class="app-title">noisy-text</span>
+	<span class="app-title">Token Walks</span>
 	<button
 		class="about-btn"
 		aria-label="How this works"

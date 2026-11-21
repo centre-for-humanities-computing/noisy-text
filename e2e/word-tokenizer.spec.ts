@@ -1,5 +1,6 @@
 // End-to-end coverage for the hosted word tokenizer and its OOV ids.
 import { expect, test, type Page } from '@playwright/test';
+import { unlockTokenizer } from './pickers';
 import { readProse } from './prose';
 
 const FIXTURE = 'e2e/fixtures/word-vocab/word-vocab-50k.json';
@@ -15,6 +16,7 @@ async function routeVocab(page: Page, counter: { n: number }): Promise<void> {
 
 /** Wait for a tokenizer card to be clickable, then select it. */
 async function selectTokenizer(page: Page, id: string): Promise<void> {
+	await unlockTokenizer(page, TIMEOUT);
 	const card = page.getByTestId(`tokenizer-${id}`);
 	await expect(card).toBeEnabled({ timeout: TIMEOUT });
 	await card.click();

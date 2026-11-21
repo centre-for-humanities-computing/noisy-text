@@ -19,6 +19,8 @@
 
 import type { RowCache } from './knn-index.js';
 
+// Old spelling kept on purpose: renaming would orphan every cached embedding
+// and WordNet bundle.
 const DB_NAME = 'noisy-text-embeddings';
 const DB_VERSION = 3;
 export const MATRIX_STORE = 'matrices';

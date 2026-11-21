@@ -4,6 +4,7 @@
 // so a dropped `##` continuation token fails the test. The post-scrub phase
 // exercises the mask path: sentinels are dropped without shifting later spans.
 import { expect, test } from '@playwright/test';
+import { unlockTokenizer } from './pickers';
 import { readProse } from './prose';
 
 const TOKENIZER_TIMEOUT = 120_000;
@@ -89,6 +90,7 @@ for (const fixture of FIXTURES) {
 		await page.goto('/');
 		// Wait for the app to be hydrated and the tokenizer loaded before
 		// filling the textarea, or the fill is overwritten by the default.
+		await unlockTokenizer(page, TOKENIZER_TIMEOUT);
 		await selectCard(page, `tokenizer-${id}`);
 		await page.getByTestId('input-text').fill(fixture.input);
 		await page.getByTestId('noise-button').click();
