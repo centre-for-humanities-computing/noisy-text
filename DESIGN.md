@@ -225,8 +225,8 @@ user isn't re-toggling constantly.
 Chosen approaches (all in scope):
 
 - **Sensible defaults + preloaded example text** so first load is immediately
-  meaningful. Default: GPT-2 tokenizer, the embedding nearest-neighbour strategy
-  over GPT-2 vectors, Linear schedule, example text already in the field.
+  meaningful. Default: GPT-2 tokenizer, the lexical (edit-distance) strategy,
+  Linear schedule, example text already in the field.
 - **Inline captions** near each control in plain language (see §6).
 - **Info tooltips (?)** offering the deeper explanation, including the maths in
   `$...$` notation (e.g. the $\beta_t$ schedule, the categorical step). Plain

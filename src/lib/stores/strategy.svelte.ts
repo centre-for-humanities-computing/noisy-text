@@ -6,7 +6,7 @@ import {
 } from '$lib/strategies/index.js';
 
 class StrategyStore {
-	currentId: string = $state('embedding-knn');
+	currentId: string = $state('lexical');
 	instance: NoiseStrategy<unknown> | null = $state(null);
 
 	/**

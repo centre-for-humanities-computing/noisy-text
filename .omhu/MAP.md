@@ -17,9 +17,9 @@ Its test: does the next session — you or an agent — become cheaper?
 The app name lives in `src/routes/+layout.svelte` (header and `<title>`) and
 `src/routes/+page.svelte` (`<h1>`, intro and button); the opening story lives in
 `src/lib/components/AboutPanel.svelte`, `README.md`, `AGENT_CONTEXT.md` and
-`DESIGN.md` §1/§8. First load opens on `embedding-knn` over GPT-2, but the
-trajectory request starts only after "Walk it", so the bundle is fetched in
-explore mode.
+`DESIGN.md` §1/§8. First load opens on the lexical strategy over GPT-2, and
+the trajectory request starts only after "Walk it", so the embedding bundle
+is fetched only when an embedding walk is chosen.
 
 ## WordNet
 

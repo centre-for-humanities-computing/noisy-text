@@ -11,12 +11,12 @@ const strategies = Object.entries(STRATEGIES).filter(
 	([id, info]) => !info.hidden && !NEEDS_FIXTURE.has(id),
 );
 
-test('first load opens on the embedding walk', async ({ page }) => {
+test('first load opens on the lexical walk', async ({ page }) => {
 	await page.goto('/');
 	await expect(page.getByTestId('tokenizer-gpt2')).toHaveAttribute('aria-checked', 'true', {
 		timeout: TOKENIZER_TIMEOUT,
 	});
-	const strategy = page.getByTestId('strategy-embedding-knn');
+	const strategy = page.getByTestId('strategy-lexical');
 	await expect(strategy).toBeEnabled({ timeout: TOKENIZER_TIMEOUT });
 	await expect(strategy).toHaveAttribute('aria-checked', 'true');
 });
