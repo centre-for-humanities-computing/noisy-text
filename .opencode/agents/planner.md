@@ -36,6 +36,9 @@ permissions:
     resource: "node scripts/forge.mjs issue get *"
     effect: allow
   - action: shell
+    resource: "node scripts/forge.mjs issue search *"
+    effect: allow
+  - action: shell
     resource: "node scripts/forge.mjs issue comment *"
     effect: allow
   - action: shell
@@ -43,6 +46,9 @@ permissions:
     effect: allow
   - action: shell
     resource: "node scripts/forge.mjs pr get *"
+    effect: allow
+  - action: shell
+    resource: "node scripts/forge.mjs milestone list *"
     effect: allow
   # Looking around, without leaving a mark. These match the raw command text, so
   # they keep a cheap model in its lane; they are not a sandbox.

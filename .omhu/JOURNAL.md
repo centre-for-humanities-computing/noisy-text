@@ -49,3 +49,7 @@ Facts: 1 walk · 1 review round · 4 slices · +525/−67
 ## 2026-11-17 — implement — what did the estimates miss?
 
 Noticed: the plan guessed ~6 MB for the bundle and the export landed at 4.05 MB — the label blob is under 1 MB, not the ~3 MB assumed, so richer labels would fit. Churn came in at 487 added / 215 deleted against a ~430 estimate because the shared fixture and the loader tests rewrite around the v2 section order rather than one hand-built bundle.
+
+## 2026-11-21 — implement — the walk's answers overruled its own bullets
+
+Noticed: the walk's "Decided" bullets and its "Still open" answers disagree. The bullets keep M2–M6 as five slots and put click in M2's story; the answers give click its own milestone and remove the numbers. The answers are later, so they win: ten open milestones, no ordinal in any title. AC5's "only through `milestone edit --description`" is also narrower than the answer — the renames need `--title` and the click milestone needs `create` — so I read AC2's "wording fix is called out separately" and the walk's answer as authorising both, and the table names every title change, including the removal of "M1 —" from the WordNet title while its description and members stay put. The walk's other awkward note, the planner allow-list gap, is the tending item above.
